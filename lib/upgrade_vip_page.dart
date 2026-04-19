@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
@@ -24,6 +26,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
   bool _isBuying = false;
   bool _isLoadingStore = true;
   bool _storeAvailable = false;
+  bool _isRestoring = false;
 
   String selectedPlanId = '1_week';
 
@@ -92,6 +95,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
         if (!mounted) return;
         setState(() {
           _isBuying = false;
+          _isRestoring = false;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -333,6 +337,46 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
     }
   }
 
+  Future<void> _restorePurchases() async {
+    if (_isLoadingStore) return;
+
+    setState(() {
+      _isRestoring = true;
+    });
+
+    try {
+      await _inAppPurchase.restorePurchases();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _label(
+              'Đang kiểm tra các giao dịch đã mua trước đó...',
+              'Checking your previous purchases...',
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isRestoring = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isVi
+                ? 'Khôi phục mua hàng thất bại: $e'
+                : 'Restore purchases failed: $e',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _listenToPurchaseUpdated(
     List<PurchaseDetails> purchaseDetailsList,
   ) async {
@@ -346,6 +390,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
         if (!mounted) return;
         setState(() {
           _isBuying = false;
+          _isRestoring = false;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -360,35 +405,117 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
         );
       } else if (purchaseDetails.status == PurchaseStatus.purchased ||
           purchaseDetails.status == PurchaseStatus.restored) {
-        if (!mounted) return;
+        final verified = await _verifyPurchase(purchaseDetails);
 
-        setState(() {
-          _isBuying = false;
-        });
+        if (verified) {
+          await _grantVip(purchaseDetails);
+          await widget.onPurchaseSuccess();
 
-        // Chưa unlock VIP ở đây.
-        // Bước sau mình sẽ thêm verify + update Firestore sau khi verified thành công.
+          if (!mounted) return;
 
-        await widget.onPurchaseSuccess();
-
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _label(
-                'Giao dịch đã hoàn tất. Bước sau mình sẽ nối verify và mở VIP thật.',
-                'Purchase completed. Next step is verification and real VIP unlock.',
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                purchaseDetails.status == PurchaseStatus.restored
+                    ? _label(
+                        'Đã khôi phục VIP thành công.',
+                        'VIP restored successfully.',
+                      )
+                    : _label(
+                        'Mua VIP thành công.',
+                        'VIP purchase successful.',
+                      ),
               ),
             ),
-          ),
-        );
+          );
+        } else {
+          if (!mounted) return;
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                _label(
+                  'Không thể xác minh giao dịch.',
+                  'Could not verify this purchase.',
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _isBuying = false;
+          _isRestoring = false;
+        });
       }
 
       if (purchaseDetails.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(purchaseDetails);
       }
     }
+  }
+
+  Future<bool> _verifyPurchase(PurchaseDetails purchase) async {
+    // Bước 6:
+    // Hiện tại tạm cho pass để app chạy được end-to-end.
+    // Sau này bạn thay phần này bằng call Firebase Function / backend
+    // để verify thật với Apple server.
+
+    final validProductIds = plans.map((e) => e.productId).toSet();
+
+    if (!validProductIds.contains(purchase.productID)) {
+      return false;
+    }
+
+    if (purchase.status != PurchaseStatus.purchased &&
+        purchase.status != PurchaseStatus.restored) {
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _grantVip(PurchaseDetails purchase) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final productId = purchase.productID;
+
+    String planId = 'unknown';
+    String titleVi = '';
+    String titleEn = '';
+    String priceVi = '';
+    String priceEn = '';
+
+    for (final plan in plans) {
+      if (plan.productId == productId) {
+        planId = plan.id;
+        titleVi = plan.titleVi;
+        titleEn = plan.titleEn;
+        priceVi = plan.priceTextVi;
+        priceEn = plan.priceTextEn;
+        break;
+      }
+    }
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'isVip': true,
+      'vipUnlocked': true,
+      'membership': 'vip',
+      'plan': 'vip',
+      'subscriptionType': planId,
+      'vipPlanId': planId,
+      'vipProductId': productId,
+      'vipPlatform': 'app_store',
+      'vipStatus': 'active',
+      'vipPlanTitleVi': titleVi,
+      'vipPlanTitleEn': titleEn,
+      'vipPriceTextVi': priceVi,
+      'vipPriceTextEn': priceEn,
+      'vipPurchasedAt': FieldValue.serverTimestamp(),
+      'vipUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Widget _featureItem(String emoji, String text) {
@@ -504,7 +631,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                               color: Colors.transparent,
                               child: InkWell(
                                 borderRadius: BorderRadius.circular(14),
-                                onTap: _isBuying
+                                onTap: (_isBuying || _isRestoring)
                                     ? null
                                     : () {
                                         setState(() {
@@ -622,8 +749,9 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed:
-                            _isBuying ? null : () => _confirmPurchase(plan),
+                        onPressed: (_isBuying || _isRestoring)
+                            ? null
+                            : () => _confirmPurchase(plan),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF5B4BDB),
                           minimumSize: const Size.fromHeight(54),
@@ -647,6 +775,31 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                                 ),
                                 style: const TextStyle(
                                   color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Center(
+                      child: TextButton(
+                        onPressed: (_isBuying || _isRestoring)
+                            ? null
+                            : _restorePurchases,
+                        child: _isRestoring
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                _label(
+                                  'Khôi phục mua hàng',
+                                  'Restore Purchases',
+                                ),
+                                style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
