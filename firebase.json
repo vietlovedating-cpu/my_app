@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "flutter-vietlove-dating",
+          "appId": "1:358333936335:android:5cc51bf25e6595f154fdba",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "flutter-vietlove-dating",
+          "configurations": {
+            "android": "1:358333936335:android:5cc51bf25e6595f154fdba",
+            "ios": "1:358333936335:ios:bc1ccdedc805d0fa54fdba",
+            "macos": "1:358333936335:ios:bc1ccdedc805d0fa54fdba",
+            "web": "1:358333936335:web:c15f7f29ed67e6f654fdba",
+            "windows": "1:358333936335:web:0f0c7d25670795b754fdba"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ]
+}

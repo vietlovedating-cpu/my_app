@@ -1,0 +1,709 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'login_page.dart';
+
+class AccountPage extends StatefulWidget {
+  final String languageCode;
+
+  const AccountPage({
+    super.key,
+    required this.languageCode,
+  });
+
+  @override
+  State<AccountPage> createState() => _AccountPageState();
+}
+
+class _AccountPageState extends State<AccountPage> {
+  bool _isLoading = false;
+
+  bool get isVi => widget.languageCode == 'vi';
+
+  String _tr(String vi, String en) => isVi ? vi : en;
+
+  Future<void> _logout() async {
+    try {
+      setState(() => _isLoading = true);
+
+      await FirebaseAuth.instance.signOut();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => LoginPage(
+            initialLanguageCode: widget.languageCode,
+          ),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      _showSnackBar(
+        _tr(
+          'Đăng xuất thất bại. Vui lòng thử lại.',
+          'Logout failed. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _pauseAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showSnackBar(_tr('Bạn chưa đăng nhập.', 'You are not logged in.'));
+      return;
+    }
+
+    final confirmed = await _showConfirmDialog(
+      title: _tr('Tạm dừng tài khoản', 'Pause account'),
+      message: _tr(
+        'Bạn có chắc bạn muốn pause account không?',
+        'Are you sure you want to pause your account?',
+      ),
+      confirmText: _tr('Có', 'Yes'),
+      cancelText: 'Cancel',
+      isDestructive: false,
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'isPaused': true,
+        'isDeleted': false,
+        'showOnDiscover': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'pausedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      _showSnackBar(
+        _tr('Tài khoản đã được tạm dừng.', 'Your account has been paused.'),
+      );
+    } catch (e) {
+      _showSnackBar(
+        _tr(
+          'Không thể tạm dừng tài khoản. Vui lòng thử lại.',
+          'Could not pause account. Please try again.',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showSnackBar(_tr('Bạn chưa đăng nhập.', 'You are not logged in.'));
+      return;
+    }
+
+    final password = await _showDeletePasswordDialog();
+    if (password == null) return;
+
+    final confirmed = await _showConfirmDialog(
+      title: _tr('Xóa tài khoản', 'Delete account'),
+      message: _tr(
+        'Bạn có chắc bạn muốn xóa tài khoản vĩnh viễn không?\n\nNếu muốn, bạn có thể chọn tạm dừng tài khoản thay vì xóa.\n\nKhi xóa thì sẽ không thể khôi phục tài khoản.',
+        'Are you sure you want to permanently delete your account?\n\nIf you want, you can pause your account instead of deleting it.\n\nOnce deleted, your account cannot be recovered.',
+      ),
+      confirmText: _tr('Có', 'Yes'),
+      cancelText: 'Cancel',
+      isDestructive: true,
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      setState(() => _isLoading = true);
+
+      final email = user.email;
+      if (email == null || email.isEmpty) {
+        throw FirebaseAuthException(
+          code: 'missing-email',
+          message: 'Current user email is missing.',
+        );
+      }
+
+      final credential = EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      final firestore = FirebaseFirestore.instance;
+      final uid = user.uid;
+
+      final userDocRef = firestore.collection('users').doc(uid);
+      final userDoc = await userDocRef.get();
+      final userData = userDoc.data() ?? <String, dynamic>{};
+
+      await firestore.collection('deletion_logs').add({
+        'uid': uid,
+        'email': email,
+        'requestedByUser': true,
+        'deletedAt': FieldValue.serverTimestamp(),
+      });
+
+      await _deleteMatches(uid);
+      await _anonymizeChats(uid);
+      await _deleteUserImagesFromStorage(uid: uid, userData: userData);
+      await _deleteKnownUserSubcollections(uid);
+
+      await userDocRef.delete();
+      await user.delete();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => LoginPage(
+            initialLanguageCode: widget.languageCode,
+          ),
+        ),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      String message;
+
+      switch (e.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+          message = _tr('Mật khẩu không đúng.', 'Incorrect password.');
+          break;
+        case 'requires-recent-login':
+          message = _tr(
+            'Vì lý do bảo mật, vui lòng đăng nhập lại rồi thử xóa tài khoản lần nữa.',
+            'For security reasons, please log in again and try deleting your account once more.',
+          );
+          break;
+        default:
+          message = _tr(
+            'Không thể xóa tài khoản: ${e.message ?? e.code}',
+            'Could not delete account: ${e.message ?? e.code}',
+          );
+      }
+
+      _showSnackBar(message);
+    } catch (e) {
+      _showSnackBar(
+        _tr(
+          'Có lỗi khi xóa tài khoản: $e',
+          'An error occurred while deleting the account: $e',
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _deleteMatches(String uid) async {
+    final firestore = FirebaseFirestore.instance;
+
+    final snap = await firestore
+        .collection('matches')
+        .where('users', arrayContains: uid)
+        .get();
+
+    for (final doc in snap.docs) {
+      await doc.reference.delete();
+    }
+  }
+
+  Future<void> _anonymizeChats(String uid) async {
+    final firestore = FirebaseFirestore.instance;
+
+    final chatSnap = await firestore
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .get();
+
+    for (final chat in chatSnap.docs) {
+      final data = chat.data();
+
+      final participants = List<String>.from(data['participants'] ?? []);
+      final newParticipants = participants.where((id) => id != uid).toList();
+
+      final participantNames =
+          Map<String, dynamic>.from(data['participantNames'] ?? {});
+      final participantPhotos =
+          Map<String, dynamic>.from(data['participantPhotos'] ?? {});
+
+      participantNames.remove(uid);
+      participantPhotos.remove(uid);
+
+      await chat.reference.set({
+        'participants': newParticipants,
+        'participantNames': participantNames,
+        'participantPhotos': participantPhotos,
+        'deletedUserIds': FieldValue.arrayUnion([uid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      final messages = await chat.reference.collection('messages').get();
+
+      for (final msg in messages.docs) {
+        final msgData = msg.data();
+        final senderId = (msgData['senderId'] ?? '').toString();
+        final type = (msgData['type'] ?? 'text').toString();
+
+        if (senderId == uid) {
+          await msg.reference.set({
+            'senderId': 'deleted_user',
+            'senderName': _tr('Người dùng đã xóa', 'Deleted user'),
+            'senderPhotoUrl': '',
+            'text': type == 'image'
+                ? _tr('[Ảnh đã bị xóa]', '[Image deleted]')
+                : _tr('[Tin nhắn đã bị xóa]', '[Message deleted]'),
+            'imageUrl': '',
+            'isFromDeletedAccount': true,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteUserImagesFromStorage({
+    required String uid,
+    required Map<String, dynamic> userData,
+  }) async {
+    final storage = FirebaseStorage.instance;
+    final urls = <String>{};
+
+    final mainPhotoUrl = (userData['mainPhotoUrl'] ?? '').toString().trim();
+    if (mainPhotoUrl.isNotEmpty) {
+      urls.add(mainPhotoUrl);
+    }
+
+    if (userData['photoUrls'] is List) {
+      for (final item in (userData['photoUrls'] as List)) {
+        final value = item.toString().trim();
+        if (value.isNotEmpty) urls.add(value);
+      }
+    }
+
+    if (userData['photos'] is List) {
+      for (final item in (userData['photos'] as List)) {
+        final value = item.toString().trim();
+        if (value.isNotEmpty) urls.add(value);
+      }
+    }
+
+    for (final url in urls) {
+      try {
+        await storage.refFromURL(url).delete();
+      } catch (_) {}
+    }
+
+    await _deleteFolderIfExists(storage.ref().child('user_photos').child(uid));
+  }
+
+  Future<void> _deleteFolderIfExists(Reference ref) async {
+    try {
+      final result = await ref.listAll();
+
+      for (final item in result.items) {
+        try {
+          await item.delete();
+        } catch (_) {}
+      }
+
+      for (final folder in result.prefixes) {
+        await _deleteFolderIfExists(folder);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _deleteKnownUserSubcollections(String uid) async {
+    final firestore = FirebaseFirestore.instance;
+    final userRef = firestore.collection('users').doc(uid);
+
+    const subcollections = [
+      'likes',
+      'passes',
+      'flowers',
+      'notifications',
+      'reports',
+    ];
+
+    for (final sub in subcollections) {
+      try {
+        final snap = await userRef.collection(sub).get();
+        for (final doc in snap.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+    }
+  }
+
+  Future<bool?> _showConfirmDialog({
+    required String title,
+    required String message,
+    required String confirmText,
+    required String cancelText,
+    required bool isDestructive,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final confirmColor =
+            isDestructive ? const Color(0xFFE53935) : const Color(0xFFD94B8A);
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 20,
+              color: isDestructive
+                  ? const Color(0xFFE53935)
+                  : const Color(0xFF444444),
+            ),
+          ),
+          content: Text(
+            message,
+            style: const TextStyle(
+              fontSize: 16,
+              height: 1.45,
+              color: Color(0xFF666666),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                cancelText,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: confirmColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(confirmText),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<String?> _showDeletePasswordDialog() async {
+    final controller = TextEditingController();
+    bool obscure = true;
+    String? errorText;
+
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setInnerState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: Text(
+                _tr('Nhập lại mật khẩu', 'Re-enter password'),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _tr(
+                      'Để xóa tài khoản, vui lòng nhập lại mật khẩu của bạn.',
+                      'To delete your account, please enter your password again.',
+                    ),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFF666666),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    obscureText: obscure,
+                    decoration: InputDecoration(
+                      labelText: _tr('Mật khẩu', 'Password'),
+                      errorText: errorText,
+                      filled: true,
+                      fillColor: const Color(0xFFFFF7FA),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Color(0xFFFFD6E7),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(
+                          color: Colors.pink,
+                          width: 1.4,
+                        ),
+                      ),
+                      suffixIcon: IconButton(
+                        onPressed: () {
+                          setInnerState(() {
+                            obscure = !obscure;
+                          });
+                        },
+                        icon: Icon(
+                          obscure ? Icons.visibility_off : Icons.visibility,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, null),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final value = controller.text.trim();
+                    if (value.isEmpty) {
+                      setInnerState(() {
+                        errorText = _tr(
+                          'Vui lòng nhập mật khẩu',
+                          'Please enter your password',
+                        );
+                      });
+                      return;
+                    }
+
+                    Navigator.pop(dialogContext, value);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD94B8A),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(_tr('Tiếp tục', 'Continue')),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showSnackBar(String text) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _buildItem({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    bool isDanger = false,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBFD),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: const Color(0xFFF6CADB),
+          width: 1.2,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(30),
+        onTap: _isLoading ? null : onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 56,
+                child: Icon(
+                  icon,
+                  color: iconColor,
+                  size: 30,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: isDanger
+                            ? const Color(0xFFF44336)
+                            : const Color(0xFF4A4A4A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF8D7281),
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 34,
+                color: isDanger
+                    ? const Color(0xFFF44336)
+                    : const Color(0xFFD94B8A),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _logout,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFD94B8A),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        child: Text(
+          _tr('Đăng xuất', 'Log out'),
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: const Color(0xFFFFF7FB),
+          appBar: AppBar(
+            backgroundColor: const Color(0xFFFFF7FB),
+            elevation: 0,
+            centerTitle: true,
+            iconTheme: const IconThemeData(color: Color(0xFFD94B8A)),
+            title: Text(
+              _tr('Tài khoản', 'Account'),
+              style: const TextStyle(
+                color: Color(0xFF333333),
+                fontWeight: FontWeight.w700,
+                fontSize: 22,
+              ),
+            ),
+          ),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+              child: Column(
+                children: [
+                  _buildLogoutButton(),
+                  const SizedBox(height: 22),
+                  _buildItem(
+                    icon: Icons.pause_circle_outline_rounded,
+                    iconColor: const Color(0xFFD94B8A),
+                    title: _tr('Tạm dừng tài khoản', 'Pause account'),
+                    subtitle: _tr(
+                      'Tạm ẩn hồ sơ của bạn cho đến khi bạn quay lại.',
+                      'Temporarily hide your profile until you come back.',
+                    ),
+                    onTap: _pauseAccount,
+                  ),
+                  _buildItem(
+                    icon: Icons.delete_outline_rounded,
+                    iconColor: const Color(0xFFF44336),
+                    title: _tr('Xóa tài khoản', 'Delete account'),
+                    subtitle: _tr(
+                      'Xóa vĩnh viễn tài khoản và dữ liệu, không thể khôi phục.',
+                      'Permanently delete your account and data. This cannot be undone.',
+                    ),
+                    onTap: _deleteAccount,
+                    isDanger: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_isLoading)
+          Container(
+            color: Colors.black.withOpacity(0.12),
+            child: const Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFD94B8A),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

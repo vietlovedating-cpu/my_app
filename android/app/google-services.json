@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "358333936335",
+    "project_id": "flutter-vietlove-dating",
+    "storage_bucket": "flutter-vietlove-dating.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:358333936335:android:5cc51bf25e6595f154fdba",
+        "android_client_info": {
+          "package_name": "com.example.my_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2dkZ4xBAZ-rUg1TUmYyKYwuXLwXS0Fys"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

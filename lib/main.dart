@@ -1,0 +1,148 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+import 'firebase_options.dart';
+import 'splash_page.dart';
+import 'home_page.dart';
+import 'push_notification_service.dart';
+import 'group_renew_redirect_page.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+
+  static _MyAppState? of(BuildContext context) {
+    return context.findAncestorStateOfType<_MyAppState>();
+  }
+}
+
+class _MyAppState extends State<MyApp> {
+  String _languageCode = 'vi';
+  bool _isReady = false;
+  late final PushNotificationService _pushService;
+
+  @override
+  void initState() {
+    super.initState();
+    _pushService = PushNotificationService(
+      navigatorKey: navigatorKey,
+      getLanguageCode: () => _languageCode,
+    );
+    _loadSavedLanguage();
+  }
+
+  Future<void> _loadSavedLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedLanguage = prefs.getString('languageCode') ?? 'vi';
+
+    if (!mounted) return;
+
+    setState(() {
+      _languageCode = savedLanguage;
+      _isReady = true;
+    });
+  }
+
+  Future<void> changeLanguage(String lang) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('languageCode', lang);
+
+    if (!mounted) return;
+
+    setState(() {
+      _languageCode = lang;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isReady) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+
+          final user = snapshot.data;
+
+          if (user != null) {
+            _pushService.init();
+
+            return HomePage(
+              key: ValueKey('home_${user.uid}_$_languageCode'),
+              languageCode: _languageCode,
+            );
+          }
+
+          return SplashPage(
+            languageCode: _languageCode,
+            onLanguageChanged: (lang) {
+              MyApp.of(context)?.changeLanguage(lang);
+            },
+          );
+        },
+      ),
+      onGenerateRoute: (settings) {
+        if (settings.name == '/group-renew') {
+          final args = settings.arguments as Map<String, dynamic>? ?? {};
+          final groupId = (args['groupId'] ?? '').toString();
+          final languageCode =
+              (args['languageCode'] ?? _languageCode).toString();
+
+          return MaterialPageRoute(
+            builder: (_) => GroupRenewRedirectPage(
+              groupId: groupId,
+              languageCode: languageCode,
+            ),
+          );
+        }
+
+        return null;
+      },
+    );
+  }
+}
