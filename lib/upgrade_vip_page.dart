@@ -1,6 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 class UpgradeVipPage extends StatefulWidget {
   final String languageCode;
@@ -17,8 +18,16 @@ class UpgradeVipPage extends StatefulWidget {
 }
 
 class _UpgradeVipPageState extends State<UpgradeVipPage> {
+  final InAppPurchase _inAppPurchase = InAppPurchase.instance;
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
+
   bool _isBuying = false;
+  bool _isLoadingStore = true;
+  bool _storeAvailable = false;
+
   String selectedPlanId = '1_week';
+
+  final Map<String, ProductDetails> _storeProducts = {};
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -27,6 +36,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
   List<_VipPlan> get plans => [
         _VipPlan(
           id: '1_week',
+          productId: 'com.vietlove.vip.weekly',
           titleVi: '1 tuần',
           titleEn: '1 week',
           priceTextVi: '\$14.99/tuần',
@@ -36,6 +46,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
         ),
         _VipPlan(
           id: '1_month',
+          productId: 'com.vietlove.vip.monthly',
           titleVi: '1 tháng',
           titleEn: '1 month',
           priceTextVi: '\$29.99/tháng',
@@ -45,19 +56,21 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
         ),
         _VipPlan(
           id: '3_months',
+          productId: 'com.vietlove.vip.3months',
           titleVi: '3 tháng',
           titleEn: '3 mths',
-          priceTextVi: '\$24.99/tháng',
-          priceTextEn: '\$24.99/month',
+          priceTextVi: '\$26.66/tháng',
+          priceTextEn: '\$26.66/month',
           monthsToAdd: 3,
           daysToAdd: 0,
         ),
         _VipPlan(
           id: '6_months',
+          productId: 'com.vietlove.vip.6months',
           titleVi: '6 tháng',
           titleEn: '6 months',
-          priceTextVi: '\$19.99/tháng',
-          priceTextEn: '\$19.99/month',
+          priceTextVi: '\$24.99/tháng',
+          priceTextEn: '\$24.99/month',
           monthsToAdd: 6,
           daysToAdd: 0,
         ),
@@ -65,6 +78,81 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
 
   _VipPlan get selectedPlan =>
       plans.firstWhere((item) => item.id == selectedPlanId);
+
+  @override
+  void initState() {
+    super.initState();
+
+    _purchaseSubscription = _inAppPurchase.purchaseStream.listen(
+      _listenToPurchaseUpdated,
+      onDone: () {
+        _purchaseSubscription?.cancel();
+      },
+      onError: (error) {
+        if (!mounted) return;
+        setState(() {
+          _isBuying = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isVi
+                  ? 'Lỗi purchase stream: $error'
+                  : 'Purchase stream error: $error',
+            ),
+          ),
+        );
+      },
+    );
+
+    _loadStoreProducts();
+  }
+
+  @override
+  void dispose() {
+    _purchaseSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadStoreProducts() async {
+    final available = await _inAppPurchase.isAvailable();
+
+    if (!mounted) return;
+
+    if (!available) {
+      setState(() {
+        _storeAvailable = false;
+        _isLoadingStore = false;
+      });
+      return;
+    }
+
+    final productIds = plans.map((e) => e.productId).toSet();
+    final response = await _inAppPurchase.queryProductDetails(productIds);
+
+    if (!mounted) return;
+
+    final map = <String, ProductDetails>{};
+    for (final item in response.productDetails) {
+      map[item.id] = item;
+    }
+
+    setState(() {
+      _storeAvailable = true;
+      _storeProducts.clear();
+      _storeProducts.addAll(map);
+      _isLoadingStore = false;
+    });
+  }
+
+  String _displayPrice(_VipPlan plan) {
+    final storeProduct = _storeProducts[plan.productId];
+    if (storeProduct != null) {
+      return storeProduct.price;
+    }
+    return isVi ? plan.priceTextVi : plan.priceTextEn;
+  }
 
   Future<void> _confirmPurchase(_VipPlan plan) async {
     final bool? shouldBuy = await showDialog<bool>(
@@ -85,8 +173,8 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                     const SizedBox(height: 8),
                     Text(
                       isVi
-                          ? 'Bạn đã chọn gói VIP ${plan.titleVi} ${plan.priceTextVi}'
-                          : 'You selected VIP ${plan.titleEn} ${plan.priceTextEn}',
+                          ? 'Bạn đã chọn gói VIP ${plan.titleVi} ${_displayPrice(plan)}'
+                          : 'You selected VIP ${plan.titleEn} ${_displayPrice(plan)}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 17,
@@ -112,8 +200,8 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                     const SizedBox(height: 14),
                     Text(
                       isVi
-                          ? 'Bạn đã chọn gói VIP ${plan.titleVi} cho ${plan.priceTextVi}.'
-                          : 'You selected VIP ${plan.titleEn} for ${plan.priceTextEn}.',
+                          ? 'Bạn đã chọn gói VIP ${plan.titleVi} cho ${_displayPrice(plan)}.'
+                          : 'You selected VIP ${plan.titleEn} for ${_displayPrice(plan)}.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 15,
@@ -178,57 +266,62 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
   }
 
   Future<void> _purchasePlan(_VipPlan plan) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (_isLoadingStore) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _label(
+              'Đang tải thông tin từ App Store, thử lại sau chút.',
+              'Loading App Store products, please try again.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!_storeAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _label(
+              'App Store hiện chưa sẵn sàng.',
+              'App Store is not available right now.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final product = _storeProducts[plan.productId];
+    if (product == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _label(
+              'Không tìm thấy gói này trên App Store.',
+              'This subscription was not found on App Store.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isBuying = true;
     });
 
     try {
-      final now = DateTime.now();
-      final expiresAt = DateTime(
-        now.year,
-        now.month + plan.monthsToAdd,
-        now.day + plan.daysToAdd,
-        now.hour,
-        now.minute,
-        now.second,
-      );
-
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'isVip': true,
-        'vipUnlocked': true,
-        'membership': 'vip',
-        'plan': 'vip',
-        'subscriptionType': plan.id,
-        'vipPlanId': plan.id,
-        'vipPlanTitleVi': plan.titleVi,
-        'vipPlanTitleEn': plan.titleEn,
-        'vipPriceTextVi': plan.priceTextVi,
-        'vipPriceTextEn': plan.priceTextEn,
-        'vipPurchasedAt': FieldValue.serverTimestamp(),
-        'vipExpiresAt': Timestamp.fromDate(expiresAt),
-      }, SetOptions(merge: true));
-
-      if (!mounted) return;
-
-      await widget.onPurchaseSuccess();
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _label(
-              'Mua VIP thành công. Bộ lọc VIP đã được mở khóa.',
-              'VIP purchase successful. VIP filters are now unlocked.',
-            ),
-          ),
-        ),
-      );
+      final purchaseParam = PurchaseParam(productDetails: product);
+      await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
     } catch (e) {
       if (!mounted) return;
+
+      setState(() {
+        _isBuying = false;
+      });
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -237,11 +330,63 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
           ),
         ),
       );
-    } finally {
-      if (mounted) {
+    }
+  }
+
+  Future<void> _listenToPurchaseUpdated(
+    List<PurchaseDetails> purchaseDetailsList,
+  ) async {
+    for (final purchaseDetails in purchaseDetailsList) {
+      if (purchaseDetails.status == PurchaseStatus.pending) {
+        if (!mounted) return;
+        setState(() {
+          _isBuying = true;
+        });
+      } else if (purchaseDetails.status == PurchaseStatus.error) {
+        if (!mounted) return;
         setState(() {
           _isBuying = false;
         });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _label(
+                'Thanh toán thất bại. Vui lòng thử lại.',
+                'Purchase failed. Please try again.',
+              ),
+            ),
+          ),
+        );
+      } else if (purchaseDetails.status == PurchaseStatus.purchased ||
+          purchaseDetails.status == PurchaseStatus.restored) {
+        if (!mounted) return;
+
+        setState(() {
+          _isBuying = false;
+        });
+
+        // Chưa unlock VIP ở đây.
+        // Bước sau mình sẽ thêm verify + update Firestore sau khi verified thành công.
+
+        await widget.onPurchaseSuccess();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _label(
+                'Giao dịch đã hoàn tất. Bước sau mình sẽ nối verify và mở VIP thật.',
+                'Purchase completed. Next step is verification and real VIP unlock.',
+              ),
+            ),
+          ),
+        );
+      }
+
+      if (purchaseDetails.pendingCompletePurchase) {
+        await _inAppPurchase.completePurchase(purchaseDetails);
       }
     }
   }
@@ -275,25 +420,53 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
     final plan = selectedPlan;
 
     return Scaffold(
-  backgroundColor: const Color(0xFFFFF8FB),
-
-  appBar: AppBar(
-    backgroundColor: Colors.transparent,
-    elevation: 0,
-    leading: IconButton(
-      icon: const Icon(Icons.arrow_back, color: Colors.black),
-      onPressed: () {
-        Navigator.pop(context); // 👈 quay về trang trước
-      },
-    ),
-  ),
-
-  body: SafeArea(
+      backgroundColor: const Color(0xFFFFF8FB),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_isLoadingStore)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _label(
+                      'Đang kết nối App Store...',
+                      'Connecting to App Store...',
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              if (!_isLoadingStore && !_storeAvailable)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    _label(
+                      'Không kết nối được App Store lúc này.',
+                      'Unable to connect to App Store right now.',
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               Container(
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -371,9 +544,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        isVi
-                                            ? item.priceTextVi
-                                            : item.priceTextEn,
+                                        _displayPrice(item),
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           fontSize: 14,
@@ -494,6 +665,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
 
 class _VipPlan {
   final String id;
+  final String productId;
   final String titleVi;
   final String titleEn;
   final String priceTextVi;
@@ -503,6 +675,7 @@ class _VipPlan {
 
   const _VipPlan({
     required this.id,
+    required this.productId,
     required this.titleVi,
     required this.titleEn,
     required this.priceTextVi,
