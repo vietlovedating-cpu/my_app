@@ -20,6 +20,9 @@
 	<key>CFBundleDisplayName</key>
 	<string>VietLoveDating</string>
 
+	<key>CFBundleIconName</key>
+    <string>AppIcon</string>
+
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 
