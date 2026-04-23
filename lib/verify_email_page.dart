@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'intro_question_page.dart';
+import 'phone_verification_page.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   final String languageCode;
@@ -49,7 +50,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (_) => IntroPage(
+            builder: (_) => PhoneVerificationPage(
               firstName: widget.firstName,
               languageCode: widget.languageCode,
             ),

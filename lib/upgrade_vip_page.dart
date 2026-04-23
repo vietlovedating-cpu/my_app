@@ -61,9 +61,9 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
           id: '3_months',
           productId: 'com.vietlove.vip.3months',
           titleVi: '3 tháng',
-          titleEn: '3 mths',
+          titleEn: '3 months',
           priceTextVi: '\$26.66/tháng',
-          priceTextEn: '\$26.66/month',
+          priceTextEn: '\$26.66/months',
           monthsToAdd: 3,
           daysToAdd: 0,
         ),
@@ -640,50 +640,57 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                                         _confirmPurchase(item);
                                       },
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: selected
-                                        ? const Color(0xFFF0EEFF)
-                                        : Colors.white,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: selected
-                                          ? const Color(0xFF4F46E5)
-                                          : Colors.grey.shade300,
-                                      width: selected ? 1.5 : 1,
-                                    ),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Text(
-                                        isVi ? item.titleVi : item.titleEn,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w800,
-                                          color: selected
-                                              ? const Color(0xFF4F46E5)
-                                              : Colors.black87,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        _displayPrice(item),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600,
-                                          color: selected
-                                              ? const Color(0xFF4F46E5)
-                                              : Colors.black54,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+  constraints: const BoxConstraints(
+    minHeight: 118,
+  ),
+  padding: const EdgeInsets.symmetric(
+    horizontal: 8,
+    vertical: 18,
+  ),
+  decoration: BoxDecoration(
+    color: selected
+        ? const Color(0xFFF0EEFF)
+        : Colors.white,
+    borderRadius: BorderRadius.circular(14),
+    border: Border.all(
+      color: selected
+          ? const Color(0xFF4F46E5)
+          : Colors.grey.shade300,
+      width: selected ? 1.5 : 1,
+    ),
+  ),
+  child: Column(
+    mainAxisSize: MainAxisSize.min,
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      Text(
+        isVi ? item.titleVi : item.titleEn,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+          color: selected
+              ? const Color(0xFF4F46E5)
+              : Colors.black87,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        _displayPrice(item),
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: selected
+              ? const Color(0xFF4F46E5)
+              : Colors.black54,
+        ),
+      ),
+    ],
+  ),
+),
                               ),
                             ),
                           ),
@@ -703,7 +710,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                       '🚀',
                       _label(
                         'Mở khóa toàn bộ trải nghiệm hẹn hò cao cấp',
-                        'Unlock the full premium dating experience',
+                        'Unlock premium dating experience',
                       ),
                     ),
                     _featureItem(

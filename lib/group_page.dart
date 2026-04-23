@@ -67,7 +67,7 @@ class GroupPage extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => GroupChatPage(
+          builder: (_) => GroupDetailPage(
             languageCode: languageCode,
             group: group,
           ),

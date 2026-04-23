@@ -27,15 +27,70 @@ class _TopPicksPageState extends State<TopPicksPage> {
   Map<String, dynamic>? _currentUserData;
   int _currentIndex = 0;
 
+  static const int _dailyTopPicksLimit = 6;
+
   bool get isVi => widget.languageCode == 'vi';
 
   String _label(String vi, String en) => isVi ? vi : en;
+
+  DocumentReference<Map<String, dynamic>> _dailyTopPicksRef(String uid) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('top_picks_daily')
+        .doc(_todayKey());
+  }
+
+  String _todayKey() {
+    final now = DateTime.now();
+    final y = now.year.toString().padLeft(4, '0');
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  List<String> _stringList(dynamic value) {
+    if (value is List) {
+      return value
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return [];
+  }
 
   @override
   void initState() {
     super.initState();
     _loadData();
   }
+Future<void> _saveHomeFeed(List<Map<String, dynamic>> profiles) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  final batch = FirebaseFirestore.instance.batch();
+
+  for (final profile in profiles) {
+    final uid = (profile['uid'] ?? profile['docId'] ?? '').toString().trim();
+    if (uid.isEmpty) continue;
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('home_feed')
+        .doc(uid);
+
+    batch.set(
+      ref,
+      {
+        'seenAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  await batch.commit();
+}
 
   Future<void> _loadData() async {
     final user = currentUser;
@@ -54,7 +109,42 @@ class _TopPicksPageState extends State<TopPicksPage> {
           .get();
 
       final currentUserData = currentUserDoc.data() ?? {};
-      final topPicks = await _loadTopPicks(currentUserData);
+      final dailyRef = _dailyTopPicksRef(user.uid);
+      final dailyDoc = await dailyRef.get();
+
+      List<String> pickUserIds = [];
+      List<String> usedUserIds = [];
+
+      if (dailyDoc.exists) {
+        final data = dailyDoc.data() ?? {};
+        pickUserIds = _stringList(data['pickUserIds']);
+        usedUserIds = _stringList(data['usedUserIds']);
+      }
+
+      if (pickUserIds.isEmpty) {
+        final generatedTopPicks = await _loadTopPicks(currentUserData);
+
+        pickUserIds = generatedTopPicks
+            .map((e) => (e['uid'] ?? e['docId'] ?? '').toString().trim())
+            .where((e) => e.isNotEmpty)
+            .take(_dailyTopPicksLimit)
+            .toList();
+
+        usedUserIds = [];
+
+        await dailyRef.set({
+          'dateKey': _todayKey(),
+          'pickUserIds': pickUserIds,
+          'usedUserIds': usedUserIds,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      final remainingIds =
+          pickUserIds.where((id) => !usedUserIds.contains(id)).toList();
+
+      final topPicks = await _loadProfilesByIds(remainingIds);
 
       if (!mounted) return;
       setState(() {
@@ -145,6 +235,49 @@ class _TopPicksPageState extends State<TopPicksPage> {
     }
 
     return result;
+  }
+
+  bool _isProfileAvailableForTopPicks(Map<String, dynamic> data) {
+    if (data.isEmpty) return false;
+    if (data['profileCompleted'] != true) return false;
+    if (data['showMyProfile'] == false) return false;
+    if (data['showOnDiscover'] == false) return false;
+    if (data['accountPaused'] == true) return false;
+    if (data['isPaused'] == true) return false;
+    if (data['isDeleted'] == true) return false;
+    return true;
+  }
+
+  Future<List<Map<String, dynamic>>> _loadProfilesByIds(List<String> ids) async {
+    final List<Map<String, dynamic>> result = [];
+
+    for (final uid in ids) {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+      if (!doc.exists) continue;
+
+      final data = doc.data() ?? {};
+      if (!_isProfileAvailableForTopPicks(data)) continue;
+
+      result.add({
+        'docId': doc.id,
+        ...data,
+      });
+    }
+
+    return result;
+  }
+
+  Future<void> _markTopPickUsed(String targetUid) async {
+    final user = currentUser;
+    if (user == null || targetUid.trim().isEmpty) return;
+
+    await _dailyTopPicksRef(user.uid).set({
+      'dateKey': _todayKey(),
+      'usedUserIds': FieldValue.arrayUnion([targetUid.trim()]),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   PromptOption? _findPromptOptionById(String id) {
@@ -623,6 +756,11 @@ class _TopPicksPageState extends State<TopPicksPage> {
         .doc(currentUid)
         .collection('blocked_users')
         .get();
+final homeFeedSnapshot = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUid)
+    .collection('home_feed')
+    .get();
 
     final swipedUserIds = swipesSnapshot.docs
         .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
@@ -633,7 +771,11 @@ class _TopPicksPageState extends State<TopPicksPage> {
         .map((doc) => doc.id.toString().trim())
         .where((id) => id.isNotEmpty)
         .toSet();
-
+final homeFeedUserIds = homeFeedSnapshot.docs
+    .map((doc) => doc.id.toString().trim())
+    .where((id) => id.isNotEmpty)
+    .toSet();
+    
     final blockedUserIds = blockedSnapshot.docs
         .map((doc) => doc.id.toString().trim())
         .where((id) => id.isNotEmpty)
@@ -650,6 +792,7 @@ class _TopPicksPageState extends State<TopPicksPage> {
       if (swipedUserIds.contains(uid)) continue;
       if (hiddenUserIds.contains(uid)) continue;
       if (blockedUserIds.contains(uid)) continue;
+      if (homeFeedUserIds.contains(uid)) continue;
       if (data['profileCompleted'] != true) continue;
       if (data['showMyProfile'] == false) continue;
       if (data['showOnDiscover'] == false) continue;
@@ -721,7 +864,7 @@ class _TopPicksPageState extends State<TopPicksPage> {
     }
 
     profiles.sort((a, b) => scoreProfile(b).compareTo(scoreProfile(a)));
-    return profiles.take(6).toList();
+    return profiles.take(_dailyTopPicksLimit).toList();
   }
 
   Widget _buildOnlineDot(bool isOnline) {
@@ -1122,10 +1265,17 @@ class _TopPicksPageState extends State<TopPicksPage> {
   Future<void> _handlePass({
     required Map<String, dynamic> targetProfile,
   }) async {
-    await _saveSwipe(
+    final result = await _saveSwipe(
       targetProfile: targetProfile,
       action: 'pass',
     );
+
+    if (!mounted || !result.success) return;
+
+    final targetUid =
+        (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
+
+    await _markTopPickUsed(targetUid);
 
     if (!mounted) return;
 
@@ -1139,14 +1289,21 @@ class _TopPicksPageState extends State<TopPicksPage> {
   Future<void> _handleLike({
     required Map<String, dynamic> targetProfile,
   }) async {
-    final didMatch = await _saveSwipe(
+    final result = await _saveSwipe(
       targetProfile: targetProfile,
       action: 'like',
     );
 
+    if (!mounted || !result.success) return;
+
+    final targetUid =
+        (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
+
+    await _markTopPickUsed(targetUid);
+
     if (!mounted) return;
 
-    if (didMatch) {
+    if (result.didMatch) {
       await _showMatchDialog(targetProfile);
     }
 
@@ -1185,7 +1342,7 @@ class _TopPicksPageState extends State<TopPicksPage> {
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(isVi ? 'OK' : 'OK'),
+                child: const Text('OK'),
               ),
             ],
           );
@@ -1261,11 +1418,18 @@ class _TopPicksPageState extends State<TopPicksPage> {
 
     if (result == null) return;
 
-    await _saveSwipe(
+    final swipeResult = await _saveSwipe(
       targetProfile: targetProfile,
       action: 'flower',
       flowerMessage: result,
     );
+
+    if (!mounted || !swipeResult.success) return;
+
+    final targetUid =
+        (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
+
+    await _markTopPickUsed(targetUid);
 
     if (!mounted) return;
 
@@ -1284,19 +1448,23 @@ class _TopPicksPageState extends State<TopPicksPage> {
     });
   }
 
-  Future<bool> _saveSwipe({
+  Future<_SwipeActionResult> _saveSwipe({
     required Map<String, dynamic> targetProfile,
     required String action,
     String? flowerMessage,
   }) async {
     final user = currentUser;
-    if (user == null || _isProcessingAction) return false;
+    if (user == null || _isProcessingAction) {
+      return const _SwipeActionResult(success: false, didMatch: false);
+    }
 
     final currentUid = user.uid;
     final targetUid =
         (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
 
-    if (targetUid.isEmpty || targetUid == currentUid) return false;
+    if (targetUid.isEmpty || targetUid == currentUid) {
+      return const _SwipeActionResult(success: false, didMatch: false);
+    }
 
     setState(() {
       _isProcessingAction = true;
@@ -1357,8 +1525,12 @@ class _TopPicksPageState extends State<TopPicksPage> {
           await _createMatch(targetProfile: targetProfile);
         }
       }
+
+      return _SwipeActionResult(success: true, didMatch: didMatch);
     } catch (e) {
-      if (!mounted) return false;
+      if (!mounted) {
+        return const _SwipeActionResult(success: false, didMatch: false);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -1366,6 +1538,8 @@ class _TopPicksPageState extends State<TopPicksPage> {
           ),
         ),
       );
+
+      return const _SwipeActionResult(success: false, didMatch: false);
     } finally {
       if (mounted) {
         setState(() {
@@ -1373,8 +1547,6 @@ class _TopPicksPageState extends State<TopPicksPage> {
         });
       }
     }
-
-    return didMatch;
   }
 
   Future<bool> _canSendFlower() async {
@@ -2185,6 +2357,7 @@ class _TopPicksPageState extends State<TopPicksPage> {
           top: 18,
           right: 18,
           child: Container(
+           height: 90,  
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.28),
               borderRadius: BorderRadius.circular(20),
@@ -2418,13 +2591,13 @@ class _TopPicksPageState extends State<TopPicksPage> {
             if (haveChildren.isNotEmpty)
               _InfoItem(
                 icon: Icons.child_care_outlined,
-                label: _label('Có con', 'Have children'),
+                label: _label('Con cái', 'Children'),
                 text: haveChildren,
               ),
             if (relationshipGoal.isNotEmpty)
               _InfoItem(
-                icon: Icons.flag_circle_outlined,
-                label: _label('Mục tiêu hẹn hò', 'Relationship goal'),
+                icon: Icons.volunteer_activism_outlined,
+                label: _label('Mục tiêu', 'Relationship goal'),
                 text: relationshipGoal,
               ),
           ],
@@ -2506,8 +2679,8 @@ class _TopPicksPageState extends State<TopPicksPage> {
                     padding: const EdgeInsets.all(24),
                     child: Text(
                       _label(
-                        'Bạn đã xem hết Top Picks rồi.',
-                        'You have seen all Top Picks.',
+                        'Bạn đã dùng hết 6 Top Picks hôm nay. Hãy quay lại vào ngày mai.',
+                        'You have used all 6 Top Picks today. Come back tomorrow.',
                       ),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -2521,6 +2694,16 @@ class _TopPicksPageState extends State<TopPicksPage> {
               : _buildProfileStack(currentProfile),
     );
   }
+}
+
+class _SwipeActionResult {
+  final bool success;
+  final bool didMatch;
+
+  const _SwipeActionResult({
+    required this.success,
+    required this.didMatch,
+  });
 }
 
 class _InfoItem {

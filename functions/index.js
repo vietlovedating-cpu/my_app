@@ -383,32 +383,106 @@ exports.checkMemberships = onSchedule(
     }
   }
 );
-exports.testSendPush = onRequest(async (req, res) => {
-  try {
-    const token = req.query.token;
+exports.verifyAppleVipPurchase = onRequest(
+  { region: "us-central1" },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+      }
 
-    if (!token) {
-      res.status(400).send("Missing token");
-      return;
+      const { userId, productId, transactionId, originalTransactionId } =
+        req.body || {};
+
+      if (!userId || !productId) {
+        res.status(400).json({
+          success: false,
+          message: "Missing userId or productId",
+        });
+        return;
+      }
+
+      const allowedProductIds = new Set([
+        "com.vietlove.vip.weekly",
+        "com.vietlove.vip.monthly",
+        "com.vietlove.vip.3months",
+        "com.vietlove.vip.6months",
+      ]);
+
+      if (!allowedProductIds.has(productId)) {
+        res.status(400).json({
+          success: false,
+          message: "Invalid productId",
+        });
+        return;
+      }
+
+      let vipPlanId = "unknown";
+      let vipPlanTitleVi = "";
+      let vipPlanTitleEn = "";
+      let vipPriceTextVi = "";
+      let vipPriceTextEn = "";
+
+      if (productId === "com.vietlove.vip.weekly") {
+        vipPlanId = "1_week";
+        vipPlanTitleVi = "1 tuần";
+        vipPlanTitleEn = "1 week";
+        vipPriceTextVi = "\$14.99/tuần";
+        vipPriceTextEn = "\$14.99/week";
+      } else if (productId === "com.vietlove.vip.monthly") {
+        vipPlanId = "1_month";
+        vipPlanTitleVi = "1 tháng";
+        vipPlanTitleEn = "1 month";
+        vipPriceTextVi = "\$29.99/tháng";
+        vipPriceTextEn = "\$29.99/month";
+      } else if (productId === "com.vietlove.vip.3months") {
+        vipPlanId = "3_months";
+        vipPlanTitleVi = "3 tháng";
+        vipPlanTitleEn = "3 mths";
+        vipPriceTextVi = "\$26.66/tháng";
+        vipPriceTextEn = "\$26.66/month";
+      } else if (productId === "com.vietlove.vip.6months") {
+        vipPlanId = "6_months";
+        vipPlanTitleVi = "6 tháng";
+        vipPlanTitleEn = "6 months";
+        vipPriceTextVi = "\$24.99/tháng";
+        vipPriceTextEn = "\$24.99/month";
+      }
+
+      await admin.firestore().collection("users").doc(userId).set(
+        {
+          isVip: true,
+          vipUnlocked: true,
+          membership: "vip",
+          plan: "vip",
+          subscriptionType: vipPlanId,
+          vipPlanId,
+          vipProductId: productId,
+          vipPlatform: "app_store",
+          vipStatus: "active",
+          vipPlanTitleVi,
+          vipPlanTitleEn,
+          vipPriceTextVi,
+          vipPriceTextEn,
+          vipTransactionId: transactionId || "",
+          vipOriginalTransactionId: originalTransactionId || "",
+          vipPurchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+          vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      res.status(200).json({
+        success: true,
+        vipPlanId,
+      });
+    } catch (error) {
+      console.error("verifyAppleVipPurchase error:", error);
+      res.status(500).json({
+        success: false,
+        message: "Server error",
+      });
     }
-
-    await admin.messaging().send({
-      token: token,
-      data: {
-  title: "VietLove Dating",
-  body: "Test push thành công 🎉",
-  route: "group_renew",
-  groupId: "gym_fitness",
-},
-      data: {
-        route: "group_renew",
-        groupId: "gym_fitness",
-      },
-    });
-
-    res.status(200).send("Push sent!");
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Error sending push");
   }
-});
+);

@@ -13,11 +13,24 @@ class GroupChatPage extends StatefulWidget {
   final String languageCode;
   final DatingGroupItem group;
 
+  final Map<String, dynamic>? currentUserMembership;
+  final String? currentUserGroupId;
+  final String? currentUserEmail;
+  final String? currentUserUid;
+  final bool currentUserHasJoined;
+final bool currentUserIsActive;
+
   const GroupChatPage({
-    super.key,
-    required this.languageCode,
-    required this.group,
-  });
+  super.key,
+  required this.languageCode,
+  required this.group,
+  this.currentUserMembership,
+  this.currentUserGroupId,
+  this.currentUserEmail,
+  this.currentUserUid,
+  this.currentUserHasJoined = false,
+  this.currentUserIsActive = false,
+});
 
   @override
   State<GroupChatPage> createState() => _GroupChatPageState();
@@ -212,15 +225,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
   }
 
   void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 120,
-        duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOut,
-      );
-    });
-  }
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!_scrollController.hasClients) return;
+    _scrollController.jumpTo(
+      _scrollController.position.maxScrollExtent,
+    );
+  });
+}
 
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return '';
@@ -449,24 +460,24 @@ class _GroupChatPageState extends State<GroupChatPage> {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: isMe
-            ? [
-                Flexible(child: bubble),
-                const SizedBox(width: 8),
-                avatar,
-              ]
-            : [
-                avatar,
-                const SizedBox(width: 8),
-                Flexible(child: bubble),
-              ],
-      ),
-    );
+  padding: const EdgeInsets.only(bottom: 14),
+  child: Row(
+    mainAxisAlignment:
+        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: isMe
+        ? [
+            Flexible(child: bubble),
+            const SizedBox(width: 8),
+            avatar,
+          ]
+        : [
+            avatar,
+            const SizedBox(width: 8),
+            Flexible(child: bubble),
+          ],
+  ),
+);
   }
 
   Widget _buildExpiredBanner() {
@@ -679,10 +690,6 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           .snapshots(),
                       builder: (context, snapshot) {
                         final docs = snapshot.data?.docs ?? [];
-
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          _scrollToBottom();
-                        });
 
                         if (docs.isEmpty) {
                           return Center(

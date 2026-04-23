@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math';
+import 'package:geolocator/geolocator.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,7 +28,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
   StreamSubscription<User?>? _authSub;
@@ -39,10 +41,11 @@ bool _contactsLoaded = false;
   Map<String, dynamic>? currentUserData;
   String? _lastUid;
 
-  String? selectedGenderFilter;
-  int? selectedMinAgeFilter;
-  int? selectedMaxAgeFilter;
-  String? selectedStateFilter;
+ String? selectedGenderFilter;
+int? selectedMinAgeFilter;
+int? selectedMaxAgeFilter;
+String? selectedStateFilter;
+double? selectedDistanceKm;
 
   String? selectedReligionFilter;
   String? selectedRelationshipGoalFilter;
@@ -70,16 +73,23 @@ bool _contactsLoaded = false;
 
   final List<int> ageOptions = List.generate(63, (index) => index + 18);
 
-  @override
+@override
 void initState() {
   super.initState();
+  WidgetsBinding.instance.addObserver(this);
+  _setOnline(true);
+
   _handleAuthChanged(FirebaseAuth.instance.currentUser);
   _loadMyContactsForPrivacy();
+  _updateUserLocation();
+
   _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
     _handleAuthChanged(user);
+    if (user != null) {
+      _updateUserLocation();
+    }
   });
 }
-
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -88,12 +98,23 @@ void initState() {
     }
   }
 
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
+ @override
+void dispose() {
+  _setOnline(false);
+  WidgetsBinding.instance.removeObserver(this);
+  _authSub?.cancel();
+  super.dispose();
+}
+@override
+void didChangeAppLifecycleState(AppLifecycleState state) {
+  if (state == AppLifecycleState.resumed) {
+    _setOnline(true);
+  } else if (state == AppLifecycleState.inactive ||
+      state == AppLifecycleState.paused ||
+      state == AppLifecycleState.detached) {
+    _setOnline(false);
   }
-
+}
   Future<void> _handleAuthChanged(User? user) async {
     final uid = user?.uid;
 
@@ -176,6 +197,69 @@ void initState() {
       currentUserData = data;
     });
   }
+  Future<void> _setOnline(bool isOnline) async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'isOnline': isOnline,
+      'lastSeen': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  } catch (e) {
+    debugPrint('Online status error: $e');
+  }
+}
+  Future<void> _updateUserLocation() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    var permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'lat': position.latitude,
+      'lng': position.longitude,
+      'locationUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+    setState(() {
+      currentUserData = {
+        ...(currentUserData ?? {}),
+        'lat': position.latitude,
+        'lng': position.longitude,
+      };
+    });
+  } catch (e) {
+    debugPrint('Location error: $e');
+  }
+}
   Future<void> _trackProfileView(Map<String, dynamic> targetProfile) async {
   final user = currentUser;
   if (user == null) return;
@@ -402,6 +486,28 @@ Future<List<Map<String, dynamic>>> _loadTopPicks() async {
         profileState != selectedStateFilter) {
       return false;
     }
+    if (selectedDistanceKm != null) {
+  final myLat = (currentUserData?['lat'] as num?)?.toDouble();
+  final myLng = (currentUserData?['lng'] as num?)?.toDouble();
+
+  final profileLat = (profile['lat'] as num?)?.toDouble();
+  final profileLng = (profile['lng'] as num?)?.toDouble();
+
+  if (myLat == null || myLng == null || profileLat == null || profileLng == null) {
+    return false;
+  }
+
+  final distanceKm = _calculateDistanceKm(
+    myLat,
+    myLng,
+    profileLat,
+    profileLng,
+  );
+
+  if (distanceKm > selectedDistanceKm!) {
+    return false;
+  }
+}
 
     if (selectedReligionFilter != null &&
         selectedReligionFilter!.isNotEmpty &&
@@ -1028,6 +1134,7 @@ if (action == 'like') {
           initialMinAge: selectedMinAgeFilter,
           initialMaxAge: selectedMaxAgeFilter,
           initialState: selectedStateFilter,
+          initialDistanceKm: selectedDistanceKm,
           initialReligion: selectedReligionFilter,
           initialRelationshipGoal: selectedRelationshipGoalFilter,
           initialMaritalStatus: selectedMaritalStatusFilter,
@@ -1092,6 +1199,7 @@ if (action == 'like') {
         selectedMinAgeFilter = result.minAge;
         selectedMaxAgeFilter = result.maxAge;
         selectedStateFilter = result.state;
+        selectedDistanceKm = result.distanceKm;
 
         if (isVipUser) {
           selectedReligionFilter = result.religion;
@@ -1253,7 +1361,31 @@ if (action == 'like') {
     if (value is int) return value;
     return int.tryParse((value ?? '').toString()) ?? 0;
   }
+double _calculateDistanceKm(
+  double lat1,
+  double lng1,
+  double lat2,
+  double lng2,
+) {
+  const earthRadiusKm = 6371.0;
 
+  final dLat = _degToRad(lat2 - lat1);
+  final dLng = _degToRad(lng2 - lng1);
+
+  final a =
+      sin(dLat / 2) * sin(dLat / 2) +
+      cos(_degToRad(lat1)) *
+          cos(_degToRad(lat2)) *
+          sin(dLng / 2) *
+          sin(dLng / 2);
+
+  final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+  return earthRadiusKm * c;
+}
+
+double _degToRad(double degree) {
+  return degree * pi / 180;
+}
   String _normalizeGenderPreference(dynamic value) {
     final raw = _normalizeString(value);
 
@@ -2267,8 +2399,37 @@ if (action == 'like') {
         firstName.isEmpty ? _label('Người dùng', 'User') : firstName;
 
     final String age = (profile['age'] ?? '').toString().trim();
-    final bool isOnline = profile['isOnline'] == true;
+    final lastSeen = profile['lastSeen'] as Timestamp?;
+bool isOnline = false;
 
+if (lastSeen != null) {
+  final lastSeenTime = lastSeen.toDate();
+  final diff = DateTime.now().difference(lastSeenTime);
+
+  // nếu hoạt động trong 2 phút gần nhất → online
+  if (diff.inMinutes < 2) {
+    isOnline = true;
+  }
+}
+String distanceText = '';
+
+final myLat = (currentUserData?['lat'] as num?)?.toDouble();
+final myLng = (currentUserData?['lng'] as num?)?.toDouble();
+final profileLat = (profile['lat'] as num?)?.toDouble();
+final profileLng = (profile['lng'] as num?)?.toDouble();
+
+if (myLat != null && myLng != null && profileLat != null && profileLng != null) {
+  final distanceKm = _calculateDistanceKm(
+    myLat,
+    myLng,
+    profileLat,
+    profileLng,
+  );
+
+  distanceText = isVi
+      ? '${distanceKm.toStringAsFixed(0)} km xa'
+      : '${distanceKm.toStringAsFixed(0)} km away';
+}
     final String genderRaw = _firstNonEmpty(profile, [
   'gender',
   'selectedGender',
@@ -2351,27 +2512,29 @@ final String gender = _translateProfileValue(genderRaw, isVi);
                 ),
                 const SizedBox(height: 16),
                 Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          displayName,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 30,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF8A2F6A),
-                            height: 1.1,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _buildOnlineDot(isOnline),
-                    ],
-                  ),
-                ),
+  child: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Flexible(
+        child: Text(
+          displayName,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF8A2F6A),
+            height: 1.1,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+      if (isOnline) ...[
+  const SizedBox(width: 10),
+  _buildOnlineDot(true),
+],
+    ],
+  ),
+),
                 const SizedBox(height: 22),
                _buildInfoSlide(
   items: [
@@ -2381,6 +2544,12 @@ final String gender = _translateProfileValue(genderRaw, isVi);
         label: _label('Tuổi', 'Age'),
         text: age,
       ),
+      if (distanceText.isNotEmpty)
+  _InfoItem(
+    icon: Icons.location_on_outlined,
+    label: _label('Khoảng cách', 'Distance'),
+    text: distanceText,
+  ),
     if (gender.isNotEmpty)
       _InfoItem(
         icon: Icons.person_outline_rounded,

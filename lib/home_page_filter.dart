@@ -5,6 +5,7 @@ class HomePageFilterResult {
   final int? minAge;
   final int? maxAge;
   final String? state;
+  final double? distanceKm;
 
   final String? religion;
   final String? relationshipGoal;
@@ -20,6 +21,7 @@ class HomePageFilterResult {
     required this.minAge,
     required this.maxAge,
     required this.state,
+    required this.distanceKm,
     required this.religion,
     required this.relationshipGoal,
     required this.maritalStatus,
@@ -39,6 +41,7 @@ class HomePageFilterSheet extends StatefulWidget {
   final int? initialMinAge;
   final int? initialMaxAge;
   final String? initialState;
+  final double? initialDistanceKm;
 
   final String? initialReligion;
   final String? initialRelationshipGoal;
@@ -66,6 +69,7 @@ class HomePageFilterSheet extends StatefulWidget {
     required this.initialMinAge,
     required this.initialMaxAge,
     required this.initialState,
+    required this.initialDistanceKm,
     required this.initialReligion,
     required this.initialRelationshipGoal,
     required this.initialMaritalStatus,
@@ -91,6 +95,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   late int? tempMinAge;
   late int? tempMaxAge;
   late String? tempState;
+  late double tempDistanceKm;
 
   late String? tempReligion;
   late String? tempGoal;
@@ -113,6 +118,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     tempMinAge = widget.initialMinAge;
     tempMaxAge = widget.initialMaxAge;
     tempState = widget.initialState;
+    tempDistanceKm = widget.initialDistanceKm ?? 50;
 
     tempReligion = widget.initialReligion;
     tempGoal = widget.initialRelationshipGoal;
@@ -132,6 +138,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
         minAge: tempMinAge,
         maxAge: tempMaxAge,
         state: tempState,
+        distanceKm: tempDistanceKm,
         religion: widget.isVipUser ? tempReligion : null,
         relationshipGoal: widget.isVipUser ? tempGoal : null,
         maritalStatus: widget.isVipUser ? tempMarital : null,
@@ -274,7 +281,32 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
               ),
 
               const SizedBox(height: 18),
-              _sheetTitle(_label('Bang / Tiểu bang', 'State')),
+              _sheetTitle(_label('Khoảng cách tối đa', 'Max distance')),
+              Slider(
+                value: tempDistanceKm,
+                min: 5,
+                max: 200,
+                divisions: 39,
+                label: '${tempDistanceKm.round()} km',
+                onChanged: (value) {
+                  setState(() {
+                    tempDistanceKm = value;
+                  });
+                },
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '${tempDistanceKm.round()} km',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 18),
+              _sheetTitle(_label('', '')),
               DropdownButtonFormField<String>(
                 value: widget.stateOptions.contains(tempState) ? tempState : '',
                 decoration: InputDecoration(

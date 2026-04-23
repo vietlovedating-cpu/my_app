@@ -311,10 +311,7 @@ void _onMessageChanged(String value) {}
 
   void _scrollToBottom() {
   if (!_scrollController.hasClients) return;
-
-  _scrollController.jumpTo(
-    _scrollController.position.maxScrollExtent,
-  );
+  _scrollController.jumpTo(0);
 }
 
   String _formatTime(Timestamp? timestamp) {
@@ -651,25 +648,12 @@ void _onMessageChanged(String value) {}
       body: Column(
         children: [
           Expanded(
-            child: StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('chats')
-                  .doc(widget.chatId)
-                  .snapshots(),
-              builder: (context, chatSnapshot) {
-                final chatData =
-                    chatSnapshot.data?.data() as Map<String, dynamic>? ?? {};
-              
-
-                return Column(
-                  children: [
-                    Expanded(
   child: StreamBuilder<QuerySnapshot>(
     stream: FirebaseFirestore.instance
         .collection('chats')
         .doc(widget.chatId)
         .collection('messages')
-        .orderBy('createdAt', descending: false)
+        .orderBy('createdAt', descending: true)
         .snapshots(),
     builder: (context, snapshot) {
       if (snapshot.connectionState == ConnectionState.waiting) {
@@ -705,7 +689,7 @@ void _onMessageChanged(String value) {}
 
       return ListView.builder(
         controller: _scrollController,
-        reverse: false,
+        reverse: true,
         padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
         itemCount: docs.length,
         itemBuilder: (context, index) {
@@ -744,12 +728,6 @@ void _onMessageChanged(String value) {}
     },
   ),
 ),
-                
-                  ],
-                );
-              },
-            ),
-          ),
           SafeArea(
             top: false,
             child: Container(

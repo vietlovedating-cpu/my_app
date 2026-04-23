@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyC2dkZ4xBAZ-rUg1TUmYyKYwuXLwXS0Fys',
-    appId: '1:358333936335:android:5cc51bf25e6595f154fdba',
+    appId: '1:358333936335:android:fecb842f4ba2966354fdba',
     messagingSenderId: '358333936335',
     projectId: 'flutter-vietlove-dating',
     storageBucket: 'flutter-vietlove-dating.firebasestorage.app',
@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '358333936335',
     projectId: 'flutter-vietlove-dating',
     storageBucket: 'flutter-vietlove-dating.firebasestorage.app',
-    iosBundleId: 'com.example.myApp',
+    iosBundleId: 'com.vietlovedating.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -73,7 +73,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '358333936335',
     projectId: 'flutter-vietlove-dating',
     storageBucket: 'flutter-vietlove-dating.firebasestorage.app',
-    iosBundleId: 'com.example.myApp',
+    iosBundleId: 'com.vietlovedating.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

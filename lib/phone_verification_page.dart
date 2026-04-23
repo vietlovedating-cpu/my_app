@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'intro_question_page.dart';
 
 class PhoneVerificationPage extends StatefulWidget {
   final String languageCode;
+  final String firstName;
 
   const PhoneVerificationPage({
     super.key,
     required this.languageCode,
+    required this.firstName,
   });
 
   @override
@@ -100,6 +103,15 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
                 ),
               ),
             );
+             Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => IntroPage(
+          languageCode: widget.languageCode,
+          firstName: widget.firstName,
+        ),
+      ),
+    );
           } on FirebaseAuthException catch (e) {
             if (!mounted) return;
 
@@ -237,6 +249,15 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
           ),
         ),
       );
+      Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(
+    builder: (_) => IntroPage(
+      languageCode: widget.languageCode,
+      firstName: widget.firstName,
+    ),
+  ),
+);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 

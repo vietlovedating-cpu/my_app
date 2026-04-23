@@ -34,23 +34,50 @@ class PrivacyPage extends StatelessWidget {
 }
 
 const String _privacyEn = '''
-Privacy Policy
+Privacy Policy – VietLoveDating
 
-Your privacy is important to us. This policy explains how we collect and use your information:
+Your privacy is important to us. This Privacy Policy explains how we collect, use, and protect your information when you use VietLoveDating.
 
-We collect basic information you provide during sign-up, such as name, email, and profile details.
+1. Information We Collect
+We collect information you provide when signing up, including your name, email, phone number, profile details, photos, and preferences. We may also collect messages and interactions within the app.
 
-Your information is used only to operate and improve the app experience.
+2. How We Use Information
+We use your information to:
+- Create and manage your account
+- Provide matching and communication features
+- Improve user experience
+- Ensure safety and prevent fraud
 
-We do not sell or share your personal data with third parties for marketing purposes.
+3. Third-Party Services
+We use trusted services such as Firebase (Google) to store and process data securely.
 
-Messages and interactions may be reviewed only for moderation, safety, or legal reasons.
+4. Data Sharing
+We do NOT sell your personal data. We may share information only when necessary for:
+- App functionality
+- Safety and moderation
+- Legal requirements
 
-You may request to update or delete your account and personal data at any time.
+5. User Interactions
+Messages and interactions may be reviewed where necessary for safety, moderation, and legal compliance.
 
-We apply reasonable security measures to protect your information.
+6. Data Retention
+We keep your data while your account is active. You may request deletion of your account and data at any time.
 
-By using this app, you agree to this Privacy Policy.
+7. Account Control
+You can update or delete your account at any time by contacting us or using in-app features.
+
+8. Security
+We apply reasonable security measures to protect your data, but no system is completely secure.
+
+9. Age Requirement
+This app is for users aged 18 and above only.
+
+10. Changes
+We may update this policy at any time. Continued use means you accept updates.
+
+11. Contact
+If you have any questions, contact us at:
+Contact: vietlovedating@gmail.com
 ''';
 
 const String _privacyVi = '''

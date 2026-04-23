@@ -2,7 +2,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+109
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -19,7 +19,7 @@ dependencies:
   firebase_messaging: ^15.1.6
   permission_handler: ^11.3.1
   image_picker: ^1.1.2
-  google_maps_flutter: ^2.6.1
+  google_maps_flutter: 2.6.1
   geolocator: ^10.1.1
   geocoding: ^3.0.0
   translator: ^1.0.4
