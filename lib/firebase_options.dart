@@ -60,7 +60,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD5xBmU_Qpr4PsCOYRsz6Ldjh4wIyl3zi4',
-    appId: '1:358333936335:ios:bc1ccdedc805d0fa54fdba',
+    appId: '1:358333936335:ios:b4f070eb11719b4d54fdba',
     messagingSenderId: '358333936335',
     projectId: 'flutter-vietlove-dating',
     storageBucket: 'flutter-vietlove-dating.firebasestorage.app',
@@ -69,7 +69,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyD5xBmU_Qpr4PsCOYRsz6Ldjh4wIyl3zi4',
-    appId: '1:358333936335:ios:bc1ccdedc805d0fa54fdba',
+    appId: '1:358333936335:ios:b4f070eb11719b4d54fdba',
     messagingSenderId: '358333936335',
     projectId: 'flutter-vietlove-dating',
     storageBucket: 'flutter-vietlove-dating.firebasestorage.app',
