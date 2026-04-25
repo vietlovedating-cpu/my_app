@@ -110,9 +110,11 @@ class _MyAppState extends State<MyApp> {
           final user = snapshot.data;
 
           if (user != null) {
-            _pushService.init();
+  Future.microtask(() {
+    _pushService.init();
+  });
 
-            return HomePage(
+  return HomePage(
               key: ValueKey('home_${user.uid}_$_languageCode'),
               languageCode: _languageCode,
             );
