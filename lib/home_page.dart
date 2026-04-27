@@ -14,6 +14,7 @@ import 'match_page.dart';
 import 'message_page.dart';
 import 'messages_list_page.dart';
 import 'contact_privacy_helper.dart';
+import 'buy_flower_page.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -84,11 +85,16 @@ void initState() {
   _updateUserLocation();
 
   _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
-    _handleAuthChanged(user);
-    if (user != null) {
-      _updateUserLocation();
-    }
-  });
+  _handleAuthChanged(user);
+
+  if (user != null) {
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _updateUserLocation();
+      }
+    });
+  }
+});
 }
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
@@ -715,12 +721,20 @@ if (selectedStateFilter == null ||
                 child: Text(isVi ? 'Để sau' : 'Later'),
               ),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  setState(() {
-                    _selectedBottomIndex = 4;
-                  });
-                },
+  onPressed: () async {
+    Navigator.pop(context);
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BuyFlowerPage(
+          languageCode: widget.languageCode,
+        ),
+      ),
+    );
+
+    await _reloadCurrentUserData();
+  },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFCC3D7A),
                   shape: RoundedRectangleBorder(
@@ -813,11 +827,28 @@ if (selectedStateFilter == null ||
       return;
     }
 
-    await _saveSwipe(
-      targetProfile: targetProfile,
-      action: 'flower',
-      flowerMessage: result,
-    );
+    final canUseFlower = await _consumePurchasedFlowerIfNeeded();
+
+if (!canUseFlower) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isVi
+            ? 'Bạn không còn flower. Vui lòng mua thêm flower.'
+            : 'You have no flowers left. Please purchase more flowers.',
+      ),
+    ),
+  );
+  return;
+}
+
+await _saveSwipe(
+  targetProfile: targetProfile,
+  action: 'flower',
+  flowerMessage: result,
+);
 
     if (!mounted) return;
 
@@ -922,19 +953,81 @@ if (action == 'like') {
     return didMatch;
   }
 
-  Future<bool> _canSendFlower() async {
-    final user = currentUser;
-    if (user == null) return false;
-    if (isVipUser) return true;
+  Future<int> _sentFlowerCount() async {
+  final user = currentUser;
+  if (user == null) return 0;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('swipes')
-        .where('fromUserId', isEqualTo: user.uid)
-        .where('action', isEqualTo: 'flower')
-        .get();
+  final snapshot = await FirebaseFirestore.instance
+      .collection('swipes')
+      .where('fromUserId', isEqualTo: user.uid)
+      .where('action', isEqualTo: 'flower')
+      .get();
 
-    return snapshot.docs.length < 3;
+  return snapshot.docs.length;
+}
+
+int _flowerBalance() {
+  return _parseInt(currentUserData?['flowerBalance']);
+}
+
+Future<bool> _canSendFlower() async {
+  final user = currentUser;
+  if (user == null) return false;
+
+  if (isVipUser) return true;
+
+  final sentCount = await _sentFlowerCount();
+
+  if (sentCount < 3) return true;
+
+  return _flowerBalance() > 0;
+}
+
+Future<bool> _consumePurchasedFlowerIfNeeded() async {
+  final user = currentUser;
+  if (user == null) return false;
+
+  if (isVipUser) return true;
+
+  final sentCount = await _sentFlowerCount();
+
+  // Free user vẫn còn trong 3 flower miễn phí
+  if (sentCount < 3) return true;
+
+  final userRef =
+      FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+  bool success = false;
+
+  await FirebaseFirestore.instance.runTransaction((transaction) async {
+    final doc = await transaction.get(userRef);
+    final data = doc.data() ?? {};
+
+    final balance = _parseInt(data['flowerBalance']);
+
+    if (balance <= 0) {
+      success = false;
+      return;
+    }
+
+    transaction.set(
+      userRef,
+      {
+        'flowerBalance': FieldValue.increment(-1),
+        'lastFlowerUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    success = true;
+  });
+
+  if (success) {
+    await _reloadCurrentUserData();
   }
+
+  return success;
+}
 
   Future<void> _createFlowerChat({
     required Map<String, dynamic> targetProfile,

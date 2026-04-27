@@ -117,10 +117,17 @@ exports.sendMessageNotification = onDocumentCreated(
       const message = event.data.data();
 
       const senderId = message.senderId;
-      const receiverId = message.receiverId;
-      const text = message.text || "New message";
+const receiverId = message.receiverId;
+const text = message.text || "New message";
+const messageType = message.type || "text";
 
-      if (!receiverId || !senderId) return;
+if (!receiverId || !senderId) return;
+
+// Không gửi notification nếu sender và receiver là cùng 1 người
+if (senderId === receiverId) {
+  console.log("Skip - sender and receiver are the same user");
+  return;
+}
 
       // 👉 lấy thông tin receiver
       const receiverSnap = await admin
@@ -169,13 +176,26 @@ if (!messageEnabled) {
   return;
 }
 
+let notificationTitle = senderName;
+let notificationBody = text;
+
+if (messageType === "flower") {
+  notificationTitle = "🌹 New flower";
+  notificationBody = `${senderName} sent you a flower. Tap to view their message.`;
+}
+
+if (messageType === "image") {
+  notificationBody = `${senderName} sent you a photo.`;
+}
+
 await sendPushNotification({
   token,
-  title: senderName,
-  body: text,
+  title: notificationTitle,
+  body: notificationBody,
   data: {
     route: "chat",
     userId: senderId,
+    type: messageType,
   },
 });
 
