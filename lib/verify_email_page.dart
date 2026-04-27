@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'intro_question_page.dart';
 import 'phone_verification_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   final String languageCode;
@@ -44,7 +45,13 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
       if (user != null && user.emailVerified) {
         hasNavigated = true;
         _timer?.cancel();
-
+await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .set({
+    'emailVerified': true,
+    'onboardingStep': 'phone_verification',
+  }, SetOptions(merge: true));
         if (!mounted) return;
 
         Navigator.pushReplacement(

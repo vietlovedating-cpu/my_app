@@ -41,9 +41,9 @@ class _EditSmokingPageState extends State<EditSmokingPage> {
       final data = doc.data() ?? {};
       final value = (data['smoking'] ?? data['smoker'] ?? '').toString();
 
-      if (value == 'yes' || value == 'no') {
-        _selectedSmoking = value;
-      }
+      if (value == 'yes' || value == 'no' || value == 'sometime') {
+  _selectedSmoking = value;
+}
     } catch (_) {
     } finally {
       if (mounted) {
@@ -172,6 +172,16 @@ class _EditSmokingPageState extends State<EditSmokingPage> {
               });
             },
           ),
+          _buildOptionCard(
+  title: isVi ? 'Thỉnh thoảng' : 'Sometimes',
+  isSelected: _selectedSmoking == 'sometime',
+  icon: Icons.smoking_rooms_outlined,
+  onTap: () {
+    setState(() {
+      _selectedSmoking = 'sometime';
+    });
+  },
+),
           const Spacer(),
           SizedBox(
             width: double.infinity,

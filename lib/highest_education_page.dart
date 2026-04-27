@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'occupation_page.dart';
 
 class HighestEducationPage extends StatefulWidget {
@@ -151,7 +153,7 @@ class _HighestEducationPageState extends State<HighestEducationPage> {
                 height: 54,
 
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (selectedEducation == null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -164,7 +166,17 @@ class _HighestEducationPageState extends State<HighestEducationPage> {
                       );
                       return;
                     }
+final user = FirebaseAuth.instance.currentUser;
 
+if (user != null) {
+  await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+    'highestEducation': selectedEducation,
+
+    // 👇 CÁI QUAN TRỌNG
+    'onboardingStep': 'occupation',
+
+  }, SetOptions(merge: true));
+}
                     Navigator.push(
                       context,
                       MaterialPageRoute(

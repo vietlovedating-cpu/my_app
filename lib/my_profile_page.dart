@@ -587,23 +587,23 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }
 
   String _livingStateDisplay(Map<String, dynamic> profile) {
-    final candidates = [
-      profile['selectedState'],
-      profile['state'],
-      profile['livingState'],
-      profile['stateLiving'],
-    ];
+  final candidates = [
+    profile['selectedState'],
+    profile['state'],
+    profile['livingState'],
+    profile['stateLiving'],
+  ];
 
-    for (final item in candidates) {
-      final value = (item ?? '').toString().trim();
-      if (value.isNotEmpty) return value;
-    }
+  for (final item in candidates) {
+    final value = (item ?? '').toString().trim();
 
-    final address = (profile['address'] ?? '').toString().trim();
-    if (address.isNotEmpty) return address;
-
-    return '';
+    // Chỉ hiện state nếu user đã chọn state thật sự
+    if (value.isNotEmpty) return value;
   }
+
+  // Không lấy address nữa để tránh lộ full address
+  return '';
+}
 
   Widget _buildMainCirclePhoto(String imageUrl) {
     return Container(

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'current_location_page.dart';
 
 class StateQuestionPage extends StatefulWidget {
@@ -17,6 +19,20 @@ class StateQuestionPage extends StatefulWidget {
 
 class _StateQuestionPageState extends State<StateQuestionPage> {
   String? selectedState;
+  String _normalizeStateKey(dynamic value) {
+  final v = (value ?? '').toString().trim().toLowerCase();
+
+  if (v.contains('vic') || v.contains('victoria')) return 'vic';
+  if (v.contains('nsw') || v.contains('new south wales')) return 'nsw';
+  if (v.contains('qld') || v.contains('queensland')) return 'qld';
+  if (v.contains('sa') || v.contains('south australia')) return 'sa';
+  if (v.contains('wa') || v.contains('western australia')) return 'wa';
+  if (v.contains('tas') || v.contains('tasmania')) return 'tas';
+  if (v.contains('act') || v.contains('australian capital territory')) return 'act';
+  if (v.contains('nt') || v.contains('northern territory')) return 'nt';
+
+  return v;
+}
 
   final List<String> states = const [
     'New South Wales (NSW)',
@@ -177,8 +193,21 @@ class _StateQuestionPageState extends State<StateQuestionPage> {
                   height: 56,
                   child: ElevatedButton(
                     onPressed: isEnabled
-                        ? () {
-                            Navigator.push(
+    ? () async {
+        final user = FirebaseAuth.instance.currentUser;
+
+        if (user != null) {
+          await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+            'selectedState': selectedState!,
+            'selectedStateLower': selectedState!.toLowerCase(),
+            'selectedStateKey': _normalizeStateKey(selectedState!),
+            'onboardingStep': 'current_location',
+          }, SetOptions(merge: true));
+        }
+
+        if (!mounted) return;
+
+        Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => CurrentLocationPage(

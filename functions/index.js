@@ -282,6 +282,7 @@ exports.checkMemberships = onSchedule(
     const snapshot = await admin.firestore().collectionGroup("members").get();
 
     for (const doc of snapshot.docs) {
+      
       const data = doc.data();
 
       if (!data.membershipActive) continue;
@@ -298,7 +299,67 @@ exports.checkMemberships = onSchedule(
 
       const { fcmToken, languageCode } = await getUserMeta(userId);
       const isVi = languageCode === "vi";
+// 7 ngày
+if (diffDays === 7 && !data.vipReminder7dSent) {
+  await sendPushNotification({
+    token: fcmToken,
+    title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
+    body: isVi
+      ? "VIP của bạn sẽ hết hạn sau 7 ngày."
+      : "Your VIP will expire in 7 days.",
+    data: { type: "vip_7d" },
+  });
 
+  await userDoc.ref.update({ vipReminder7dSent: true });
+}
+
+// 3 ngày
+if (diffDays === 3 && !data.vipReminder3dSent) {
+  await sendPushNotification({
+    token: fcmToken,
+    title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
+    body: isVi
+      ? "VIP của bạn sẽ hết hạn sau 3 ngày."
+      : "Your VIP will expire in 3 days.",
+    data: { type: "vip_3d" },
+  });
+
+  await userDoc.ref.update({ vipReminder3dSent: true });
+}
+
+// 1 ngày
+if (diffDays === 1 && !data.vipReminder1dSent) {
+  await sendPushNotification({
+    token: fcmToken,
+    title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
+    body: isVi
+      ? "VIP của bạn sẽ hết hạn sau 1 ngày."
+      : "Your VIP will expire in 1 day.",
+    data: { type: "vip_1d" },
+  });
+
+  await userDoc.ref.update({ vipReminder1dSent: true });
+}
+
+// hết hạn
+if (diffDays <= 0 && !data.vipExpiredHandled) {
+  await sendPushNotification({
+    token: fcmToken,
+    title: isVi ? "VIP đã hết hạn" : "VIP expired",
+    body: isVi
+      ? "VIP của bạn đã hết hạn."
+      : "Your VIP has expired.",
+    data: { type: "vip_expired" },
+  });
+
+  await userDoc.ref.update({
+    isVip: false,
+    vipUnlocked: false,
+    vipStatus: "expired",
+    vipExpiredHandled: true,
+    vipExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+}
       if (diffDays === 7 && !data.reminder7dSent) {
         if (email) {
           await sendEmail(
@@ -351,6 +412,24 @@ exports.checkMemberships = onSchedule(
         await doc.ref.update({
           reminder3dSent: true,
         });
+        if (diffDays === 1 && !data.reminder1dSent) {
+  await sendPushNotification({
+    token: fcmToken,
+    title: isVi ? "Gói nhóm sắp hết hạn" : "Your group plan is expiring soon",
+    body: isVi
+      ? "Gói nhóm của bạn sẽ hết hạn sau 1 ngày."
+      : "Your group plan will expire in 1 day.",
+    data: {
+      route: "group_renew",
+      groupId,
+      type: "group_expiry_1d",
+    },
+  });
+
+  await doc.ref.update({
+    reminder1dSent: true,
+  });
+}
       }
 
       if (diffDays <= 0 && !data.expiredHandled) {
@@ -381,8 +460,40 @@ exports.checkMemberships = onSchedule(
         });
       }
     }
+   }
+);
+
+// 👉 DÁN FUNCTION MỚI Ở ĐÂY
+exports.checkVipSubscriptions = onSchedule(
+  {
+    schedule: "every 24 hours",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+  },
+  async () => {
+    const usersSnap = await admin.firestore()
+      .collection("users")
+      .where("isVip", "==", true)
+      .get();
+
+    const now = new Date();
+
+    for (const userDoc of usersSnap.docs) {
+      const data = userDoc.data();
+
+      if (!data.vipExpiresAt) continue;
+
+      const expiresAt = data.vipExpiresAt.toDate();
+      const diffDays = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+
+      const userId = userDoc.id;
+      const { fcmToken, languageCode } = await getUserMeta(userId);
+      const isVi = languageCode === "vi";
+    }
   }
 );
+
+// 👉 GIỮ NGUYÊN CÁI NÀY
 exports.verifyAppleVipPurchase = onRequest(
   { region: "us-central1" },
   async (req, res) => {
@@ -486,3 +597,26 @@ exports.verifyAppleVipPurchase = onRequest(
     }
   }
 );
+const { Translate } = require("@google-cloud/translate").v2;
+
+const translate = new Translate();
+
+// Auto translate prompts when user updates profile
+exports.autoTranslatePrompts = onRequest(async (req, res) => {
+  try {
+    const { text, target } = req.body;
+
+    if (!text || !target) {
+      return res.status(400).send("Missing text or target");
+    }
+
+    const [translation] = await translate.translate(text, target);
+
+    res.status(200).json({
+      translatedText: translation,
+    });
+  } catch (error) {
+    console.error("Translate error:", error);
+    res.status(500).send("Translate failed");
+  }
+});

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'main.dart';
 import 'terms_page.dart';
 import 'privacy_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'verify_email_page.dart';
-
 
 class SignUpPage extends StatefulWidget {
   final String languageCode;
@@ -12,6 +13,7 @@ class SignUpPage extends StatefulWidget {
     super.key,
     required this.languageCode,
   });
+
 
   @override
   State<SignUpPage> createState() => _SignUpPageState();
@@ -30,6 +32,14 @@ class _SignUpPageState extends State<SignUpPage> {
   bool isChecked = false;
   bool obscurePassword = true;
   bool obscureConfirmPassword = true;
+  late String languageCode;
+
+bool get isVi => languageCode == 'vi';
+@override
+void initState() {
+  super.initState();
+  languageCode = widget.languageCode;
+}
 
   @override
   void dispose() {
@@ -40,7 +50,14 @@ class _SignUpPageState extends State<SignUpPage> {
     surnameController.dispose();
     super.dispose();
   }
+Future<void> _changeLanguage(String lang) async {
+  if (languageCode == lang) return;
+  setState(() {
+    languageCode = lang;
+  });
 
+  await MyApp.of(context)?.changeLanguage(lang);
+}
   Future<void> _showEmailAlreadyExistsDialog(bool isVi) async {
     showDialog(
       context: context,
@@ -89,7 +106,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   context,
                   MaterialPageRoute(
                     builder: (_) => VerifyEmailPage(
-                      languageCode: widget.languageCode,
+                      languageCode: languageCode,
                       firstName: firstNameController.text.trim(),
                     ),
                   ),
@@ -116,8 +133,7 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   Future<void> _signUp() async {
-    final isVi = widget.languageCode == 'vi';
-
+    final isVi = languageCode == 'vi';
     if (!_formKey.currentState!.validate()) return;
 
     if (!isChecked) {
@@ -136,11 +152,28 @@ class _SignUpPageState extends State<SignUpPage> {
     final auth = FirebaseAuth.instance;
 
     try {
-      await auth.createUserWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
-      );
+     final userCredential = await auth.createUserWithEmailAndPassword(
+  email: emailController.text.trim(),
+  password: passwordController.text.trim(),
+);
 
+final user = userCredential.user;
+
+if (user != null) {
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .set({
+    'uid': user.uid,
+   'email': emailController.text.trim(),
+    'firstName': firstNameController.text.trim(),
+    'surname': surnameController.text.trim(),
+
+
+    'profileCompleted': false,
+    'createdAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+}
       await auth.currentUser?.sendEmailVerification();
 
       if (!mounted) return;
@@ -161,7 +194,7 @@ class _SignUpPageState extends State<SignUpPage> {
         context,
         MaterialPageRoute(
           builder: (_) => VerifyEmailPage(
-            languageCode: widget.languageCode,
+            languageCode: languageCode,
             firstName: firstNameController.text.trim(),
           ),
         ),
@@ -202,7 +235,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isVi = widget.languageCode == 'vi';
+    final isVi = languageCode == 'vi';
 
     return Scaffold(
       appBar: AppBar(
@@ -218,6 +251,35 @@ class _SignUpPageState extends State<SignUpPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Align(
+  alignment: Alignment.topRight,
+  child: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      TextButton(
+        onPressed: () => _changeLanguage('vi'),
+        child: Text(
+          'Tiếng Việt',
+          style: TextStyle(
+            color: languageCode == 'vi' ? Colors.pink : Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      TextButton(
+        onPressed: () => _changeLanguage('en'),
+        child: Text(
+          'English',
+          style: TextStyle(
+            color: languageCode == 'en' ? Colors.pink : Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    ],
+  ),
+),
+const SizedBox(height: 20),
                 Text(
                   isVi ? 'Tạo tài khoản' : 'Create Account',
                   style: const TextStyle(
@@ -380,7 +442,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => TermsPage(
-                                      languageCode: widget.languageCode,
+                                      languageCode: languageCode,
                                     ),
                                   ),
                                 );
@@ -406,7 +468,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (_) => PrivacyPage(
-                                      languageCode: widget.languageCode,
+                                      languageCode: languageCode,
                                     ),
                                   ),
                                 );

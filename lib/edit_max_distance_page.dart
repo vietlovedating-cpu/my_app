@@ -39,7 +39,7 @@ class _EditMaxDistancePageState extends State<EditMaxDistancePage> {
           .get();
 
       final data = doc.data() ?? {};
-      final raw = data['maxDistance'];
+      final raw = data['maxDistanceKm'] ?? data['maxDistance'];
 
       if (raw is int) {
         _selectedDistance = raw.toDouble();
@@ -64,8 +64,9 @@ class _EditMaxDistancePageState extends State<EditMaxDistancePage> {
       if (user == null) return;
 
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'maxDistance': _selectedDistance.round(),
-      }, SetOptions(merge: true));
+  'maxDistanceKm': _selectedDistance.round(),
+  'maxDistance': _selectedDistance.round(),
+}, SetOptions(merge: true));
 
       if (!mounted) return;
       Navigator.pop(context, _selectedDistance.round());

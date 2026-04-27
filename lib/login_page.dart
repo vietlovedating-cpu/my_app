@@ -51,12 +51,14 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _changeLanguage(String lang) async {
-    setState(() {
-      languageCode = lang;
-    });
+  if (languageCode == lang) return;
 
-    await MyApp.of(context)?.changeLanguage(lang);
-  }
+  setState(() {
+    languageCode = lang;
+  });
+
+  await MyApp.of(context)?.changeLanguage(lang);
+}
 
   Future<void> _loadSavedLogin() async {
     final prefs = await SharedPreferences.getInstance();

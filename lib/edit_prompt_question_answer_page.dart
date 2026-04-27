@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
 import 'prompt_data.dart';
 
 class EditPromptQuestionAnswerPage extends StatefulWidget {
@@ -88,7 +92,40 @@ class _EditPromptQuestionAnswerPageState
     }
     return null;
   }
+Future<String> _translatePromptAnswer({
+  required String text,
+  required String target,
+}) async {
+  try {
+    final uri = Uri.parse(
+      'https://us-central1-flutter-vietlove-dating.cloudfunctions.net/autoTranslatePrompts',
+    );
 
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'text': text,
+        'target': target,
+      }),
+    );
+
+    debugPrint('EDIT TRANSLATE STATUS: ${response.statusCode}');
+    debugPrint('EDIT TRANSLATE BODY: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data['translatedText'] ?? '').toString().trim();
+    }
+
+    return '';
+  } catch (e) {
+    debugPrint('EDIT TRANSLATE ERROR: $e');
+    return '';
+  }
+}
   int? _readAnswerIndex(dynamic value) {
     if (value is int) return value;
     return int.tryParse((value ?? '').toString().trim());
@@ -312,12 +349,21 @@ class _EditPromptQuestionAnswerPageState
         answerEn = option.aiSuggestionsEn[answerIndex];
       } else {
         if (isVi) {
-          answerVi = answerText;
-          answerEn = '';
-        } else {
-          answerEn = answerText;
-          answerVi = '';
-        }
+  answerVi = answerText;
+
+  answerEn = await _translatePromptAnswer(
+    text: answerText,
+    target: 'en',
+  );
+
+} else {
+  answerEn = answerText;
+
+  answerVi = await _translatePromptAnswer(
+    text: answerText,
+    target: 'vi',
+  );
+}
       }
 
       answers.add({

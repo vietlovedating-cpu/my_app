@@ -60,16 +60,16 @@ double? selectedDistanceKm;
   bool get isVipUser => _hasVipAccess(currentUserData);
 
   final List<String> stateOptions = const [
-    '',
-    'nsw',
-    'vic',
-    'qld',
-    'wa',
-    'sa',
-    'tas',
-    'act',
-    'nt',
-  ];
+  '',
+  'New South Wales (NSW)',
+  'Victoria (VIC)',
+  'Queensland (QLD)',
+  'South Australia (SA)',
+  'Western Australia (WA)',
+  'Tasmania (TAS)',
+  'Australian Capital Territory (ACT)',
+  'Northern Territory (NT)',
+];
 
   final List<int> ageOptions = List.generate(63, (index) => index + 18);
 
@@ -171,8 +171,13 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       );
 
       selectedStateFilter = _normalizeString(
-        data['selectedState'] ?? data['state'],
-      );
+  data['filterState'],
+);
+
+       selectedDistanceKm = double.tryParse(
+    (data['maxDistanceKm'] ?? '').toString(),
+  );
+
 
       if (selectedMinAgeFilter == 0) selectedMinAgeFilter = null;
       if (selectedMaxAgeFilter == 0) selectedMaxAgeFilter = null;
@@ -371,13 +376,25 @@ bool _shouldHideUserBecauseInMyContacts(Map<String, dynamic> profile) {
   for (final doc in usersSnapshot.docs) {
     final data = doc.data();
     final uid = (data['uid'] ?? doc.id).toString().trim();
+    print('CHECK USER: $uid');
+print('profileCompleted: ${data['profileCompleted']}');
+print('showMyProfile: ${data['showMyProfile']}');
+print('showOnDiscover: ${data['showOnDiscover']}');
+print('gender: ${data['gender']} age: ${data['age']}');
+print('selectedState: ${data['selectedState']}');
+print('selectedStateKey: ${data['selectedStateKey']}');
+print('state: ${data['state']}');
+print('stateLiving: ${data['stateLiving']}');
 
     if (uid.isEmpty) continue;
     if (uid == currentUid) continue;
     if (swipedUserIds.contains(uid)) continue;
     if (hiddenUserIds.contains(uid)) continue;
     if (blockedUserIds.contains(uid)) continue;
-    if (data['profileCompleted'] != true) continue;
+    if (data['profileCompleted'] != true) {
+  print('LOAI VI profileCompleted FALSE: $uid');
+  continue;
+}
 
     // user tự tắt hồ sơ
     if (data['showMyProfile'] == false) continue;
@@ -399,10 +416,37 @@ bool _shouldHideUserBecauseInMyContacts(Map<String, dynamic> profile) {
     if (_shouldHideUserBecauseInMyContacts(profile)) continue;
 
     if (!_matchesFilters(profile)) continue;
+    print('ADD PROFILE OK: $uid');
     profiles.add(profile);
   }
 
-  return profiles;
+ profiles.sort((a, b) {
+  final myLat = double.tryParse((currentUserData?['lat'] ?? '').toString());
+  final myLng = double.tryParse((currentUserData?['lng'] ?? '').toString());
+
+  final aLat = double.tryParse((a['lat'] ?? '').toString());
+  final aLng = double.tryParse((a['lng'] ?? '').toString());
+
+  final bLat = double.tryParse((b['lat'] ?? '').toString());
+  final bLng = double.tryParse((b['lng'] ?? '').toString());
+
+  if (myLat == null || myLng == null) return 0;
+
+  double distA = 999999;
+  double distB = 999999;
+
+  if (aLat != null && aLng != null) {
+    distA = _calculateDistanceKm(myLat, myLng, aLat, aLng);
+  }
+
+  if (bLat != null && bLng != null) {
+    distB = _calculateDistanceKm(myLat, myLng, bLat, bLng);
+  }
+
+  return distA.compareTo(distB);
+});
+
+return profiles;
 }
 Future<List<Map<String, dynamic>>> _loadTopPicks() async {
   final profiles = await _loadProfiles();
@@ -410,9 +454,7 @@ Future<List<Map<String, dynamic>>> _loadTopPicks() async {
   int scoreProfile(Map<String, dynamic> profile) {
     int score = 0;
 
-    final profileState = _normalizeString(
-      profile['selectedState'] ?? profile['state'],
-    );
+    final profileState = (profile['selectedState'] ?? profile['state'])?.toString();
 
     final myState = _normalizeString(
       currentUserData?['selectedState'] ?? currentUserData?['state'],
@@ -460,41 +502,82 @@ Future<List<Map<String, dynamic>>> _loadTopPicks() async {
   return profiles.take(6).toList();
 }
   bool _matchesFilters(Map<String, dynamic> profile) {
-    final profileGender = _normalizeGenderPreference(profile['gender']);
-    final profileAge = _parseInt(profile['age']);
-    final profileState = _normalizeString(
-      profile['selectedState'] ?? profile['state'],
-    );
+  final profileGender = _normalizeGenderPreference(profile['gender']);
+  final profileAge = _parseInt(profile['age']);
 
-    if (selectedGenderFilter != null &&
-        selectedGenderFilter!.isNotEmpty &&
-        selectedGenderFilter != 'everyone') {
-      if (!_genderMatches(profileGender, selectedGenderFilter!)) {
-        return false;
-      }
-    }
 
-    if (selectedMinAgeFilter != null && profileAge < selectedMinAgeFilter!) {
+  print('FILTER DEBUG => gender=$profileGender selectedGender=$selectedGenderFilter');
+print('FILTER DEBUG => age=$profileAge min=$selectedMinAgeFilter max=$selectedMaxAgeFilter');
+
+
+  final profileStateKey = _normalizeStateKey(
+  profile['selectedStateKey'] ??
+      profile['selectedState'] ??
+      profile['state'] ??
+      profile['stateLiving'] ??
+      profile['livingState'] ??
+      '',
+);
+
+  // FREE FILTERS: gender, age, state, distance
+  if (selectedGenderFilter != null &&
+      selectedGenderFilter!.isNotEmpty &&
+      selectedGenderFilter != 'everyone') {
+    if (!_genderMatches(profileGender, selectedGenderFilter!)) {
       return false;
     }
-    if (selectedMaxAgeFilter != null && profileAge > selectedMaxAgeFilter!) {
-      return false;
-    }
+  }
 
-    if (selectedStateFilter != null &&
-        selectedStateFilter!.isNotEmpty &&
-        profileState != selectedStateFilter) {
-      return false;
-    }
-    if (selectedDistanceKm != null) {
+  if (selectedMinAgeFilter != null && profileAge < selectedMinAgeFilter!) {
+    return false;
+  }
+
+  if (selectedMaxAgeFilter != null && profileAge > selectedMaxAgeFilter!) {
+    return false;
+  }
+print('PROFILE STATE KEY: $profileStateKey');
+print('SELECTED STATE KEY: ${_normalizeStateKey(selectedStateFilter ?? '')}');
+
+
+
+
+ // ❗ Nếu No preference → KHÔNG lọc state
+if (selectedStateFilter == null ||
+    selectedStateFilter!.trim().isEmpty ||
+    selectedStateFilter == 'no_preference') {
+  // skip state filter
+} else {
+  final selectedKey = _normalizeStateKey(selectedStateFilter!);
+
+  if (profileStateKey != selectedKey) {
+    return false;
+  }
+}
+
+  if (selectedDistanceKm != null) {
+    final myLat = (currentUserData?['lat'] as num?)?.toDouble();
+    final myLng = (currentUserData?['lng'] as num?)?.toDouble();
+
+    final profileLat = (profile['lat'] as num?)?.toDouble();
+    final profileLng = (profile['lng'] as num?)?.toDouble();
+
+    if (myLat == null ||
+        myLng == null ||
+        profileLat == null ||
+        profileLng == null) {
+      return true;
+    }if (selectedDistanceKm != null && selectedDistanceKm! > 0) {
   final myLat = (currentUserData?['lat'] as num?)?.toDouble();
   final myLng = (currentUserData?['lng'] as num?)?.toDouble();
 
   final profileLat = (profile['lat'] as num?)?.toDouble();
   final profileLng = (profile['lng'] as num?)?.toDouble();
 
-  if (myLat == null || myLng == null || profileLat == null || profileLng == null) {
-    return false;
+  if (myLat == null ||
+      myLng == null ||
+      profileLat == null ||
+      profileLng == null) {
+    return true;
   }
 
   final distanceKm = _calculateDistanceKm(
@@ -504,11 +587,21 @@ Future<List<Map<String, dynamic>>> _loadTopPicks() async {
     profileLng,
   );
 
-  if (distanceKm > selectedDistanceKm!) {
-    return false;
-  }
+  // Không return false ở đây nữa.
 }
 
+    final distanceKm = _calculateDistanceKm(
+      myLat,
+      myLng,
+      profileLat,
+      profileLng,
+    );
+
+    
+  }
+
+  // VIP FILTERS: chỉ VIP mới lọc các mục dưới đây
+  if (isVipUser) {
     if (selectedReligionFilter != null &&
         selectedReligionFilter!.isNotEmpty &&
         _normalizeString(profile['religion']) != selectedReligionFilter) {
@@ -563,9 +656,10 @@ Future<List<Map<String, dynamic>>> _loadTopPicks() async {
             selectedHaveChildrenFilter) {
       return false;
     }
-
-    return true;
   }
+
+  return true;
+}
 
   Future<void> _handlePass({
     required Map<String, dynamic> targetProfile,
@@ -805,6 +899,7 @@ if (action == 'like') {
         if (reverseAction == 'like') {
           didMatch = true;
           await _createMatch(targetProfile: targetProfile);
+         await _sendMatchNotification(targetProfile);
         }
       }
     } catch (e) {
@@ -951,6 +1046,29 @@ if (action == 'like') {
       targetUid: targetPhoto,
     },
   }, SetOptions(merge: true));
+}
+Future<void> _sendMatchNotification(
+  Map<String, dynamic> targetProfile,
+) async {
+  try {
+    final targetUid =
+        (targetProfile['uid'] ?? targetProfile['docId'] ?? '')
+            .toString()
+            .trim();
+
+    if (targetUid.isEmpty) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetUid)
+        .get();
+
+    final token = doc.data()?['fcmToken'];
+
+    print('SEND MATCH NOTIFICATION TOKEN: $token');
+  } catch (e) {
+    print('sendMatchNotification error: $e');
+  }
 }
 
   String _chatIdFor(String a, String b) {
@@ -1158,6 +1276,7 @@ if (action == 'like') {
               selectedGenderFilter = _normalizeGenderPreference(
                 currentUserData?['datingPreference'] ??
                     currentUserData?['genderPreference'],
+                    
               );
               selectedMinAgeFilter = _parseInt(
                 currentUserData?['minAgePreference'] ??
@@ -1168,8 +1287,10 @@ if (action == 'like') {
                     currentUserData?['preferredMaxAge'],
               );
               selectedStateFilter = _normalizeString(
-                currentUserData?['selectedState'] ?? currentUserData?['state'],
-              );
+  currentUserData?['filterState'],
+);
+
+              
               if (selectedMinAgeFilter == 0) selectedMinAgeFilter = null;
               if (selectedMaxAgeFilter == 0) selectedMaxAgeFilter = null;
               selectedReligionFilter = null;
@@ -1195,12 +1316,35 @@ if (action == 'like') {
 
     if (result is HomePageFilterResult) {
       setState(() {
+        
         selectedGenderFilter = result.gender;
         selectedMinAgeFilter = result.minAge;
         selectedMaxAgeFilter = result.maxAge;
-        selectedStateFilter = result.state;
+        selectedStateFilter =
+    (result.state == null || result.state!.trim().isEmpty)
+        ? null
+        : result.state;
         selectedDistanceKm = result.distanceKm;
+final user = currentUser;
 
+if (user != null) {
+  FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .set({
+    'genderPreference': selectedGenderFilter,
+    'minAgePreference': selectedMinAgeFilter,
+    'maxAgePreference': selectedMaxAgeFilter,
+
+    // 👉 STATE FILTER (đã sửa)
+    'filterState': selectedStateFilter,
+    'filterStateKey': selectedStateFilter == null
+        ? null
+        : _normalizeStateKey(selectedStateFilter),
+
+    'maxDistanceKm': selectedDistanceKm,
+  }, SetOptions(merge: true));
+}
         if (isVipUser) {
           selectedReligionFilter = result.religion;
           selectedRelationshipGoalFilter = result.relationshipGoal;
@@ -1335,28 +1479,51 @@ if (action == 'like') {
   String _label(String vi, String en) => isVi ? vi : en;
 
   bool _hasVipAccess(Map<String, dynamic>? data) {
-    if (data == null) return false;
+  if (data == null) return false;
 
-    final isVip = data['isVip'];
-    final vipUnlocked = data['vipUnlocked'];
-    final membership = _normalizeString(data['membership']);
-    final plan = _normalizeString(data['plan']);
-    final subscription = _normalizeString(data['subscriptionType']);
+  final vipExpiresAt = data['vipExpiresAt'];
 
-    return isVip == true ||
-        vipUnlocked == true ||
-        membership == 'vip' ||
-        plan == 'vip' ||
-        subscription == 'vip' ||
-        membership == 'premium' ||
-        plan == 'premium' ||
-        subscription == 'premium';
+  if (vipExpiresAt is Timestamp) {
+    final expiresAt = vipExpiresAt.toDate();
+
+    if (expiresAt.isBefore(DateTime.now())) {
+      return false;
+    }
   }
+
+  final isVip = data['isVip'];
+  final vipUnlocked = data['vipUnlocked'];
+  final membership = _normalizeString(data['membership']);
+  final plan = _normalizeString(data['plan']);
+  final subscription = _normalizeString(data['subscriptionType']);
+
+  return isVip == true ||
+      vipUnlocked == true ||
+      membership == 'vip' ||
+      plan == 'vip' ||
+      subscription == 'vip' ||
+      membership == 'premium' ||
+      plan == 'premium' ||
+      subscription == 'premium';
+}
 
   String _normalizeString(dynamic value) {
     return (value ?? '').toString().trim().toLowerCase();
   }
+String _normalizeStateKey(dynamic value) {
+  final v = _normalizeString(value);
 
+  if (v.contains('vic') || v.contains('victoria')) return 'vic';
+  if (v.contains('nsw') || v.contains('new south wales')) return 'nsw';
+  if (v.contains('qld') || v.contains('queensland')) return 'qld';
+  if (v.contains('sa') || v.contains('south australia')) return 'sa';
+  if (v.contains('wa') || v.contains('western australia')) return 'wa';
+  if (v.contains('tas') || v.contains('tasmania')) return 'tas';
+  if (v.contains('act') || v.contains('australian capital territory')) return 'act';
+  if (v.contains('nt') || v.contains('northern territory')) return 'nt';
+
+  return v;
+}
   int _parseInt(dynamic value) {
     if (value is int) return value;
     return int.tryParse((value ?? '').toString()) ?? 0;
@@ -1696,9 +1863,6 @@ double _degToRad(double degree) {
       final value = (item ?? '').toString().trim();
       if (value.isNotEmpty) return value;
     }
-
-    final address = (profile['address'] ?? '').toString().trim();
-    if (address.isNotEmpty) return address;
 
     return '';
   }

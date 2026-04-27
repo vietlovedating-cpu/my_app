@@ -63,7 +63,18 @@ class _EditLiveInPageState extends State<EditLiveInPage> {
     if (value.contains('(TAS)')) return 'tas';
     return value.toLowerCase();
   }
+String _normalizeStateKey(String value) {
+  final v = value.toLowerCase();
 
+  if (v.contains('nsw')) return 'nsw';
+  if (v.contains('vic')) return 'vic';
+  if (v.contains('qld')) return 'qld';
+  if (v.contains('sa')) return 'sa';
+  if (v.contains('wa')) return 'wa';
+  if (v.contains('tas')) return 'tas';
+
+  return v;
+}
   Future<void> _loadCurrentData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -76,8 +87,8 @@ class _EditLiveInPageState extends State<EditLiveInPage> {
 
       final data = doc.data() ?? {};
       _selectedState = _matchState(
-        data['selectedState'] ?? data['stateLiving'] ?? data['state'],
-      );
+  data['selectedState'],
+);
     } catch (_) {
     } finally {
       if (mounted) {
@@ -105,11 +116,15 @@ class _EditLiveInPageState extends State<EditLiveInPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'stateLiving': _selectedState,
-        'selectedState': _stateShortCode(_selectedState!),
-        'state': _stateShortCode(_selectedState!),
-      }, SetOptions(merge: true));
+      await FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid)
+    .set({
+  'selectedState': _selectedState!,
+  'selectedStateLower': _selectedState!.toLowerCase(),
+  'selectedStateKey': _normalizeStateKey(_selectedState!),
+  'onboardingStep': 'current_location',
+}, SetOptions(merge: true));
 
       if (!mounted) return;
       Navigator.pop(context, _selectedState);

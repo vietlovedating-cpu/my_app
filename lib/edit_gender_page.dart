@@ -80,6 +80,7 @@ class _EditGenderPageState extends State<EditGenderPage> {
 
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'gender': _selectedGender,
+        'profileCompleted': true,
       }, SetOptions(merge: true));
 
       if (!mounted) return;

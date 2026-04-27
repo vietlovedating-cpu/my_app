@@ -114,11 +114,11 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   void initState() {
     super.initState();
 
-    tempGender = widget.initialGender;
+    tempGender = widget.initialGender?.toLowerCase();
     tempMinAge = widget.initialMinAge;
     tempMaxAge = widget.initialMaxAge;
     tempState = widget.initialState;
-    tempDistanceKm = widget.initialDistanceKm ?? 50;
+    tempDistanceKm = widget.initialDistanceKm ?? 200;
 
     tempReligion = widget.initialReligion;
     tempGoal = widget.initialRelationshipGoal;
@@ -138,7 +138,9 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
         minAge: tempMinAge,
         maxAge: tempMaxAge,
         state: tempState,
-        distanceKm: tempDistanceKm,
+        distanceKm: widget.initialDistanceKm == null
+    ? null
+    : tempDistanceKm,
         religion: widget.isVipUser ? tempReligion : null,
         relationshipGoal: widget.isVipUser ? tempGoal : null,
         maritalStatus: widget.isVipUser ? tempMarital : null,
@@ -225,7 +227,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: tempMinAge,
+                      value: widget.ageOptions.contains(tempMinAge) ? tempMinAge : null,
                       decoration: InputDecoration(
                         labelText: _label('Từ', 'From'),
                         filled: true,
@@ -255,7 +257,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
-                      value: tempMaxAge,
+                      value: widget.ageOptions.contains(tempMaxAge) ? tempMaxAge : null,
                       decoration: InputDecoration(
                         labelText: _label('Đến', 'To'),
                         filled: true,
@@ -321,15 +323,19 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
                   return DropdownMenuItem<String>(
                     value: state,
                     child: Text(
-                      state.isEmpty
-                          ? _label('Không chọn', 'No preference')
-                          : state.toUpperCase(),
-                    ),
+  state.isEmpty
+      ? _label('Không chọn', 'No preference')
+      : state,
+  overflow: TextOverflow.ellipsis,
+  maxLines: 1,
+),
                   );
                 }).toList(),
                 onChanged: (value) {
-                  setState(() => tempState = value ?? '');
-                },
+  setState(() {
+    tempState = (value == null || value.trim().isEmpty) ? null : value;
+  });
+},
               ),
 
               const SizedBox(height: 18),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   final String languageCode;
@@ -122,18 +123,48 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (!_formKey.currentState!.validate()) return;
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            isVi
-                                ? 'Liên kết đặt lại mật khẩu đã được gửi đến email của bạn'
-                                : 'A password reset link has been sent to your email',
+                      final email = emailController.text.trim();
+
+                      try {
+                        await FirebaseAuth.instance
+                            .sendPasswordResetEmail(email: email);
+
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              isVi
+                                  ? 'Link đặt lại mật khẩu đã được gửi. Vui lòng kiểm tra email và spam.'
+                                  : 'Password reset link sent. Please check your email and spam folder.',
+                            ),
                           ),
-                        ),
-                      );
+                        );
+                      } on FirebaseAuthException catch (e) {
+                        String message;
+
+                        if (e.code == 'user-not-found') {
+                          message = isVi
+                              ? 'Không tìm thấy tài khoản với email này.'
+                              : 'No account found with this email.';
+                        } else if (e.code == 'invalid-email') {
+                          message =
+                              isVi ? 'Email không hợp lệ.' : 'Invalid email.';
+                        } else {
+                          message = isVi
+                              ? 'Không gửi được link. Vui lòng thử lại.'
+                              : 'Could not send reset link. Please try again.';
+                        }
+
+                        if (!mounted) return;
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(message)),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.pink,

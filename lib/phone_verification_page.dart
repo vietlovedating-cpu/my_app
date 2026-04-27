@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'intro_question_page.dart';
 
 class PhoneVerificationPage extends StatefulWidget {
@@ -85,8 +86,16 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
             final user = FirebaseAuth.instance.currentUser;
 
             if (user != null) {
-              await user.linkWithCredential(credential);
-            }
+  await user.linkWithCredential(credential);
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .set({
+    'phoneNumber': fullPhoneNumber,
+    'phoneVerified': true,
+  }, SetOptions(merge: true));
+}
 
             if (!mounted) return;
 

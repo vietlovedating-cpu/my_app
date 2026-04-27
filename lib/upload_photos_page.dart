@@ -194,11 +194,12 @@ class _UploadPhotosPageState extends State<UploadPhotosPage> {
     required List<String> allPhotoUrls,
   }) async {
     await FirebaseFirestore.instance.collection('users').doc(uid).set({
-      'photoUrls': allPhotoUrls,
-      'photos': allPhotoUrls,
-      'mainPhotoUrl': allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  'photoUrls': allPhotoUrls,
+  'photos': allPhotoUrls,
+  'mainPhotoUrl': allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
+  'onboardingStep': 'highest_education',
+  'updatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
   }
 
   Future<void> _saveProfileWhenEditingFromHome() async {

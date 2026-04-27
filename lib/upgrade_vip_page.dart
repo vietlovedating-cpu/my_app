@@ -1,9 +1,10 @@
 import 'dart:async';
-
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+
 
 class UpgradeVipPage extends StatefulWidget {
   final String languageCode;
@@ -483,22 +484,61 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
     final productId = purchase.productID;
 
     String planId = 'unknown';
-    String titleVi = '';
-    String titleEn = '';
-    String priceVi = '';
-    String priceEn = '';
+String titleVi = '';
+String titleEn = '';
+String priceVi = '';
+String priceEn = '';
+int monthsToAdd = 0;
+int daysToAdd = 0;
 
     for (final plan in plans) {
-      if (plan.productId == productId) {
-        planId = plan.id;
-        titleVi = plan.titleVi;
-        titleEn = plan.titleEn;
-        priceVi = plan.priceTextVi;
-        priceEn = plan.priceTextEn;
-        break;
-      }
-    }
+  if (plan.productId == productId) {
+    planId = plan.id;
+    titleVi = plan.titleVi;
+    titleEn = plan.titleEn;
+    priceVi = plan.priceTextVi;
+    priceEn = plan.priceTextEn;
+    monthsToAdd = plan.monthsToAdd;
+    daysToAdd = plan.daysToAdd;
+    break;
+  }
+}
 
+final userDoc = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid)
+    .get();
+
+DateTime now = DateTime.now();
+
+DateTime expiresAt = now;
+
+final existingExpire = userDoc.data()?['vipExpiresAt'];
+
+if (existingExpire != null) {
+  final currentExpire = existingExpire.toDate();
+
+  // nếu VIP còn hạn → cộng thêm
+  if (currentExpire.isAfter(now)) {
+    expiresAt = currentExpire;
+  }
+}
+
+if (daysToAdd > 0) {
+  expiresAt = expiresAt.add(Duration(days: daysToAdd));
+}
+
+if (monthsToAdd > 0) {
+  expiresAt = DateTime(
+    expiresAt.year,
+    expiresAt.month + monthsToAdd,
+    expiresAt.day,
+    expiresAt.hour,
+    expiresAt.minute,
+    expiresAt.second,
+  );
+}
+final String platform = Platform.isIOS ? 'app_store' : 'google_play';
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
       'isVip': true,
       'vipUnlocked': true,
@@ -507,8 +547,16 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
       'subscriptionType': planId,
       'vipPlanId': planId,
       'vipProductId': productId,
-      'vipPlatform': 'app_store',
+      'vipPlatform': platform,
       'vipStatus': 'active',
+
+
+       'vipExpiresAt': Timestamp.fromDate(expiresAt),
+  'vipReminder7dSent': false,
+  'vipReminder3dSent': false,
+  'vipReminder1dSent': false,
+  'vipExpiredHandled': false,
+
       'vipPlanTitleVi': titleVi,
       'vipPlanTitleEn': titleEn,
       'vipPriceTextVi': priceVi,

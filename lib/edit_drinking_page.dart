@@ -41,7 +41,7 @@ class _EditDrinkingPageState extends State<EditDrinkingPage> {
       final data = doc.data() ?? {};
       final value = (data['drinking'] ?? data['drinker'] ?? '').toString();
 
-      if (value == 'yes' || value == 'no' || value == 'sometime') {
+      if (value == 'yes' || value == 'no' || value == 'sometimes') {
         _selectedDrinking = value;
       }
     } catch (_) {
@@ -173,12 +173,12 @@ class _EditDrinkingPageState extends State<EditDrinkingPage> {
             },
           ),
           _buildOptionCard(
-            title: isVi ? 'Thỉnh thoảng' : 'Sometime',
-            isSelected: _selectedDrinking == 'sometime',
+            title: isVi ? 'Thỉnh thoảng' : 'Sometimes',
+            isSelected: _selectedDrinking == 'sometimes',
             icon: Icons.wine_bar_outlined,
             onTap: () {
               setState(() {
-                _selectedDrinking = 'sometime';
+                _selectedDrinking = 'sometimes';
               });
             },
           ),
