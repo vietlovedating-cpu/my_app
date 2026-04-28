@@ -84,6 +84,8 @@
 	
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>We need permission to save photos when needed.</string>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+    <false/>
 	
 </dict>
 </plist>
