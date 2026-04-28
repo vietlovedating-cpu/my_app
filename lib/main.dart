@@ -113,9 +113,22 @@ class _MyAppState extends State<MyApp> {
           final user = snapshot.data;
 
           if (user != null) {
-  Future.microtask(() {
+  @override
+void initState() {
+  super.initState();
+
+  _pushService = PushNotificationService(
+    navigatorKey: navigatorKey,
+    getLanguageCode: () => _languageCode,
+  );
+
+  _loadSavedLanguage();
+
+  // ✅ delay cho an toàn
+  Future.delayed(const Duration(seconds: 2), () {
     _pushService.init();
   });
+}
 
   return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
     future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),

@@ -31,35 +31,57 @@ class PushNotificationService {
   bool _listenersAttached = false;
 
   Future<void> init() async {
-    print('PUSH INIT START');
+  print('PUSH INIT START');
 
-    if (_isInitialized) {
-      await _saveToken();
-      return;
-    }
+  if (_isInitialized) return;
 
-    await _initLocalNotifications();
+  await _initLocalNotifications();
+
+  await Future.delayed(const Duration(seconds: 2));
+
+  try {
     await _requestPermission();
-    await _setupForegroundPresentation();
-    await _saveToken();
-
-    if (!_listenersAttached) {
-      _listenTokenRefresh();
-      _listenForegroundMessages();
-      _listenOpenAppFromNotification();
-      _listenersAttached = true;
-    }
-
-    await _checkInitialMessage();
-    _isInitialized = true;
+  } catch (e) {
+    print('PERMISSION ERROR: $e');
   }
+
+  try {
+    await _setupForegroundPresentation();
+  } catch (e) {
+    print('FOREGROUND ERROR: $e');
+  }
+
+  try {
+    await _saveToken();
+  } catch (e) {
+    print('TOKEN ERROR: $e');
+  }
+
+  if (!_listenersAttached) {
+    _listenTokenRefresh();
+    _listenForegroundMessages();
+    _listenOpenAppFromNotification();
+    _listenersAttached = true;
+  }
+
+  try {
+    await _checkInitialMessage();
+  } catch (e) {
+    print('INITIAL MESSAGE ERROR: $e');
+  }
+
+  _isInitialized = true;
+}
 
   Future<void> _initLocalNotifications() async {
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    const initSettings = InitializationSettings(
-      android: androidInit,
-    );
+    const iosInit = DarwinInitializationSettings();
+
+const initSettings = InitializationSettings(
+  android: androidInit,
+  iOS: iosInit,
+);
 
     await _local.initialize(
       initSettings,
