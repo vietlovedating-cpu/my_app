@@ -178,7 +178,7 @@ My issue is:
 
     final encodedMessage = Uri.encodeComponent(_whatsAppPrefilledMessage());
     final whatsappUri = Uri.parse(
-      'https://wa.me/61468995932?text=$encodedMessage',
+      'https://wa.me/61466708208?text=$encodedMessage',
     );
 
     try {

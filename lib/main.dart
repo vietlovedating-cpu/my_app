@@ -51,14 +51,21 @@ class _MyAppState extends State<MyApp> {
   late final PushNotificationService _pushService;
 
   @override
-  void initState() {
-    super.initState();
-    _pushService = PushNotificationService(
-      navigatorKey: navigatorKey,
-      getLanguageCode: () => _languageCode,
-    );
-    _loadSavedLanguage();
-  }
+void initState() {
+  super.initState();
+
+  _pushService = PushNotificationService(
+    navigatorKey: navigatorKey,
+    getLanguageCode: () => _languageCode,
+  );
+
+  _loadSavedLanguage();
+
+  Future.delayed(const Duration(seconds: 2), () {
+    if (!mounted) return;
+    _pushService.init();
+  });
+}
 
   Future<void> _loadSavedLanguage() async {
     final prefs = await SharedPreferences.getInstance();
@@ -113,22 +120,7 @@ class _MyAppState extends State<MyApp> {
           final user = snapshot.data;
 
           if (user != null) {
-  @override
-void initState() {
-  super.initState();
 
-  _pushService = PushNotificationService(
-    navigatorKey: navigatorKey,
-    getLanguageCode: () => _languageCode,
-  );
-
-  _loadSavedLanguage();
-
-  // ✅ delay cho an toàn
-  Future.delayed(const Duration(seconds: 2), () {
-    _pushService.init();
-  });
-}
 
   return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
     future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
