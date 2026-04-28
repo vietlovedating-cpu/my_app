@@ -50,7 +50,7 @@ class _MyAppState extends State<MyApp> {
   bool _isReady = false;
   late final PushNotificationService _pushService;
 
-  @override
+ @override
 void initState() {
   super.initState();
 
@@ -60,11 +60,6 @@ void initState() {
   );
 
   _loadSavedLanguage();
-
-  Future.delayed(const Duration(seconds: 2), () {
-    if (!mounted) return;
-    _pushService.init();
-  });
 }
 
   Future<void> _loadSavedLanguage() async {

@@ -1,7 +1,5 @@
 import UIKit
 import Flutter
-import FirebaseCore
-import FirebaseMessaging
 
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {
@@ -9,19 +7,7 @@ import FirebaseMessaging
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-
-    if FirebaseApp.app() == nil {
-      FirebaseApp.configure()
-    }
-
-    if #available(iOS 10.0, *) {
-      UNUserNotificationCenter.current().delegate = self
-    }
-
-    application.registerForRemoteNotifications()
-
     GeneratedPluginRegistrant.register(with: self)
-
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 }
