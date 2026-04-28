@@ -2,7 +2,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.4+230
+version: 1.0.3+230
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -22,7 +22,7 @@ dependencies:
   google_maps_flutter: 2.6.1
   geolocator: ^10.1.1
   geocoding: ^3.0.0
-  translator: ^1.0.4
+  translator: ^1.0.4S
   shared_preferences: ^2.2.2
   flutter_contacts: ^1.1.9+2
   url_launcher: ^6.3.0
