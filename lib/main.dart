@@ -2,16 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'current_location_page.dart';
+import 'highest_education_page.dart';
 
 import 'firebase_options.dart';
 import 'splash_page.dart';
 import 'home_page.dart';
-import 'current_location_page.dart';
-import 'highest_education_page.dart';
+import 'push_notification_service.dart';
 import 'group_renew_redirect_page.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,27 +29,35 @@ Future<void> main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
   runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
+  @override
+  State<MyApp> createState() => _MyAppState();
+
   static _MyAppState? of(BuildContext context) {
     return context.findAncestorStateOfType<_MyAppState>();
   }
-
-  @override
-  State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
   String _languageCode = 'vi';
   bool _isReady = false;
+  late final PushNotificationService _pushService;
+bool _pushInitialized = false;
 
   @override
   void initState() {
     super.initState();
+    _pushService = PushNotificationService(
+      navigatorKey: navigatorKey,
+      getLanguageCode: () => _languageCode,
+    );
     _loadSavedLanguage();
   }
 
@@ -96,68 +113,69 @@ class _MyAppState extends State<MyApp> {
 
           final user = snapshot.data;
 
-          if (user == null) {
-            return SplashPage(
-              languageCode: _languageCode,
-              onLanguageChanged: (lang) {
-                MyApp.of(context)?.changeLanguage(lang);
-              },
-            );
-          }
+          if (user != null) {
+  if (!_pushInitialized) {
+    _pushInitialized = true;
+    Future.microtask(() async {
+      await _pushService.init();
+    });
+  }
 
-          return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            future:
-                FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
-            builder: (context, userDocSnapshot) {
-              if (userDocSnapshot.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
+  return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+    builder: (context, userDocSnapshot) {
+      if (userDocSnapshot.connectionState == ConnectionState.waiting) {
+        return const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      }
 
-              final data = userDocSnapshot.data?.data() ?? {};
-              final step = (data['onboardingStep'] ?? '').toString();
-              final profileCompleted = data['profileCompleted'] == true;
+      final data = userDocSnapshot.data?.data() ?? {};
+final step = (data['onboardingStep'] ?? '').toString();
+final profileCompleted = data['profileCompleted'] == true;
+if (profileCompleted) {
+  return HomePage(
+    key: ValueKey('home_${user.uid}_$_languageCode'),
+    languageCode: _languageCode,
+  );
+}
+      if (step == 'current_location') {
+        return CurrentLocationPage(
+          languageCode: _languageCode,
+          selectedState: (data['selectedState'] ?? '').toString(),
+          firstName: (data['firstName'] ?? '').toString(),
+        );
+      }
+if (step == 'highest_education') {
+  return HighestEducationPage(
+    languageCode: _languageCode,
+    selectedState: (data['selectedState'] ?? '').toString(),
+    firstName: (data['firstName'] ?? '').toString(),
+    address: (data['address'] ?? '').toString(),
+    gender: (data['gender'] ?? '').toString(),
+    datingPreference: (data['datingPreference'] ?? '').toString(),
+    age: (data['age'] ?? 18),
+    minAgePreference: (data['minAgePreference'] ?? 18),
+    maxAgePreference: (data['maxAgePreference'] ?? 50),
+    maritalStatus: (data['maritalStatus'] ?? '').toString(),
+    relationshipGoals: List<String>.from(data['relationshipGoals'] ?? []),
+    photoUrls: List<String>.from(data['photoUrls'] ?? []),
+  );
+}
+      return HomePage(
+        key: ValueKey('home_${user.uid}_$_languageCode'),
+        languageCode: _languageCode,
+      );
+    },
+  );
+}
 
-              if (profileCompleted) {
-                return HomePage(
-                  key: ValueKey('home_${user.uid}_$_languageCode'),
-                  languageCode: _languageCode,
-                );
-              }
-
-              if (step == 'current_location') {
-                return CurrentLocationPage(
-                  languageCode: _languageCode,
-                  selectedState: (data['selectedState'] ?? '').toString(),
-                  firstName: (data['firstName'] ?? '').toString(),
-                );
-              }
-
-              if (step == 'highest_education') {
-                return HighestEducationPage(
-                  languageCode: _languageCode,
-                  selectedState: (data['selectedState'] ?? '').toString(),
-                  firstName: (data['firstName'] ?? '').toString(),
-                  address: (data['address'] ?? '').toString(),
-                  gender: (data['gender'] ?? '').toString(),
-                  datingPreference: (data['datingPreference'] ?? '').toString(),
-                  age: data['age'] ?? 18,
-                  minAgePreference: data['minAgePreference'] ?? 18,
-                  maxAgePreference: data['maxAgePreference'] ?? 50,
-                  maritalStatus: (data['maritalStatus'] ?? '').toString(),
-                  relationshipGoals:
-                      List<String>.from(data['relationshipGoals'] ?? []),
-                  photoUrls: List<String>.from(data['photoUrls'] ?? []),
-                );
-              }
-
-              return HomePage(
-                key: ValueKey('home_${user.uid}_$_languageCode'),
-                languageCode: _languageCode,
-              );
+          return SplashPage(
+            languageCode: _languageCode,
+            onLanguageChanged: (lang) {
+              MyApp.of(context)?.changeLanguage(lang);
             },
           );
         },

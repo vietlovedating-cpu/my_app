@@ -86,6 +86,7 @@
     <string>We need permission to save photos when needed.</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
-	
+	<key>FirebaseAppDelegateProxyEnabled</key>
+    <true/>
 </dict>
 </plist>
