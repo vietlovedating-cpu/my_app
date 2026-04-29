@@ -184,6 +184,7 @@ const initSettings = InitializationSettings(
       channelDescription: 'General notifications',
       importance: Importance.max,
       priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
     );
 
     const details = NotificationDetails(
