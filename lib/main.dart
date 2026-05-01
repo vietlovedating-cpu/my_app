@@ -156,6 +156,14 @@ class _MyAppState extends State<MyApp> {
             );
           }
 
+          if (snapshot.hasError) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Auth error'),
+              ),
+            );
+          }
+
           final user = snapshot.data;
 
           if (user != null) {
@@ -176,7 +184,27 @@ class _MyAppState extends State<MyApp> {
                   );
                 }
 
-                final data = userDocSnapshot.data?.data() ?? {};
+                if (userDocSnapshot.hasError) {
+                  debugPrint('Firestore user doc error: ${userDocSnapshot.error}');
+
+                  return const Scaffold(
+                    body: Center(
+                      child: Text('Firestore error'),
+                    ),
+                  );
+                }
+
+                final doc = userDocSnapshot.data;
+
+                if (doc == null || !doc.exists) {
+                  return const Scaffold(
+                    body: Center(
+                      child: Text('No user data'),
+                    ),
+                  );
+                }
+
+                final data = doc.data() ?? {};
                 final step = (data['onboardingStep'] ?? '').toString();
                 final profileCompleted = data['profileCompleted'] == true;
 
