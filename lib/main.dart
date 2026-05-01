@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'current_location_page.dart';
 import 'highest_education_page.dart';
@@ -150,17 +149,13 @@ class _MyAppState extends State<MyApp> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
+              body: Center(child: CircularProgressIndicator()),
             );
           }
 
           if (snapshot.hasError) {
             return const Scaffold(
-              body: Center(
-                child: Text('Auth error'),
-              ),
+              body: Center(child: Text('Auth error')),
             );
           }
 
@@ -169,84 +164,10 @@ class _MyAppState extends State<MyApp> {
           if (user != null) {
             _safeInitPush();
 
-            return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-              future: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user.uid)
-                  .get(),
-              builder: (context, userDocSnapshot) {
-                if (userDocSnapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-
-                if (userDocSnapshot.hasError) {
-                  debugPrint('Firestore user doc error: ${userDocSnapshot.error}');
-
-                  return const Scaffold(
-                    body: Center(
-                      child: Text('Firestore error'),
-                    ),
-                  );
-                }
-
-                final doc = userDocSnapshot.data;
-
-                if (doc == null || !doc.exists) {
-                  return const Scaffold(
-                    body: Center(
-                      child: Text('No user data'),
-                    ),
-                  );
-                }
-
-                final data = doc.data() ?? {};
-                final step = (data['onboardingStep'] ?? '').toString();
-                final profileCompleted = data['profileCompleted'] == true;
-
-                if (profileCompleted) {
-                  return HomePage(
-                    key: ValueKey('home_${user.uid}_$_languageCode'),
-                    languageCode: _languageCode,
-                  );
-                }
-
-                if (step == 'current_location') {
-                  return CurrentLocationPage(
-                    languageCode: _languageCode,
-                    selectedState: (data['selectedState'] ?? '').toString(),
-                    firstName: (data['firstName'] ?? '').toString(),
-                  );
-                }
-
-                if (step == 'highest_education') {
-                  return HighestEducationPage(
-                    languageCode: _languageCode,
-                    selectedState: (data['selectedState'] ?? '').toString(),
-                    firstName: (data['firstName'] ?? '').toString(),
-                    address: (data['address'] ?? '').toString(),
-                    gender: (data['gender'] ?? '').toString(),
-                    datingPreference:
-                        (data['datingPreference'] ?? '').toString(),
-                    age: (data['age'] ?? 18),
-                    minAgePreference: (data['minAgePreference'] ?? 18),
-                    maxAgePreference: (data['maxAgePreference'] ?? 50),
-                    maritalStatus: (data['maritalStatus'] ?? '').toString(),
-                    relationshipGoals:
-                        List<String>.from(data['relationshipGoals'] ?? []),
-                    photoUrls: List<String>.from(data['photoUrls'] ?? []),
-                  );
-                }
-
-                return HomePage(
-                  key: ValueKey('home_${user.uid}_$_languageCode'),
-                  languageCode: _languageCode,
-                );
-              },
+            // 🔥 FIX: bỏ Firestore để test
+            return HomePage(
+              key: ValueKey('home_${user.uid}_$_languageCode'),
+              languageCode: _languageCode,
             );
           }
 
