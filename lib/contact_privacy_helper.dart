@@ -27,11 +27,12 @@ class ContactPrivacyHelper {
     return phone;
   }
 
+  // TẠM THỜI TẮT CONTACTS ĐỂ TRÁNH BLACK SCREEN / CRASH iOS
   static Future<Set<String>> loadNormalizedContactPhones() async {
-    return {};
+    return <String>{};
   }
 
   static Future<Set<String>> loadNormalizedContactEmails() async {
-    return {};
+    return <String>{};
   }
 }
