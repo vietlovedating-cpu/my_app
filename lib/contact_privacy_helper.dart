@@ -1,5 +1,4 @@
 import 'package:flutter_contacts/flutter_contacts.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 class ContactPrivacyHelper {
   static String normalizePhone(String input) {
@@ -30,20 +29,27 @@ class ContactPrivacyHelper {
     return phone;
   }
 
+  static Future<List<Contact>> _safeLoadContacts() async {
+    try {
+      final granted = await FlutterContacts.requestPermission(readonly: true);
+
+      if (!granted) {
+        return <Contact>[];
+      }
+
+      return await FlutterContacts.getContacts(
+        withProperties: true,
+        withPhoto: false,
+        withThumbnail: false,
+      );
+    } catch (e) {
+      print('ContactPrivacyHelper error: $e');
+      return <Contact>[];
+    }
+  }
+
   static Future<Set<String>> loadNormalizedContactPhones() async {
-    final permission = await Permission.contacts.request();
-    if (!permission.isGranted) {
-      return <String>{};
-    }
-
-    if (!await FlutterContacts.requestPermission()) {
-      return <String>{};
-    }
-
-    final contacts = await FlutterContacts.getContacts(
-      withProperties: true,
-      withPhoto: false,
-    );
+    final contacts = await _safeLoadContacts();
 
     final Set<String> phones = {};
 
@@ -60,19 +66,7 @@ class ContactPrivacyHelper {
   }
 
   static Future<Set<String>> loadNormalizedContactEmails() async {
-    final permission = await Permission.contacts.request();
-    if (!permission.isGranted) {
-      return <String>{};
-    }
-
-    if (!await FlutterContacts.requestPermission()) {
-      return <String>{};
-    }
-
-    final contacts = await FlutterContacts.getContacts(
-      withProperties: true,
-      withPhoto: false,
-    );
+    final contacts = await _safeLoadContacts();
 
     final Set<String> emails = {};
 

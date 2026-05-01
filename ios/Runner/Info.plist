@@ -44,9 +44,6 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 
-	<key>NSContactsUsageDescription</key>
-	<string>We use your contacts to help hide your profile from people in your address book.</string>
-
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We use your photo library so you can upload profile photos and share images in the app.</string>
 
@@ -55,6 +52,9 @@
 
 	<key>NSCameraUsageDescription</key>
 	<string>We need camera access so you can take profile photos.</string>
+
+	<key>NSContactsUsageDescription</key>
+    <string>VietLoveDating uses contacts to help you avoid showing your profile to people in your phone contacts.</string>
 
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We use your location to show nearby matches.</string>
