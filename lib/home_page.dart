@@ -728,8 +728,9 @@ if (selectedStateFilter == null ||
       context,
       MaterialPageRoute(
         builder: (_) => BuyFlowerPage(
-          languageCode: widget.languageCode,
-        ),
+  languageCode: widget.languageCode,
+  autoBuyProductId: 'flower_1',
+),
       ),
     );
 

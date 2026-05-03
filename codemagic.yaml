@@ -1,52 +1,50 @@
 workflows:
-ios-release:
-name: iOS Release
-max_build_duration: 60
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
 
-```
-integrations:
-  app_store_connect: vietlovedating_key
+    integrations:
+      app_store_connect: vietlovedating_key
 
-environment:
-  flutter: stable
-  xcode: latest
-  cocoapods: default
-  ios_signing:
-    distribution_type: app_store
-    bundle_identifier: com.vietlovedating.app
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.vietlovedating.app
 
-scripts:
-  - name: Clean Flutter and iOS cache
-    script: |
-      flutter clean
-      rm -rf ios/Pods
-      rm -f ios/Podfile.lock
-      rm -rf ~/Library/Developer/Xcode/DerivedData
+    scripts:
+      - name: Clean everything
+        script: |
+          flutter clean
+          rm -rf ios/Pods ios/Podfile.lock
+          rm -rf ~/Library/Developer/Xcode/DerivedData
 
-  - name: Get Flutter packages
-    script: |
-      flutter pub get
+      - name: Get Flutter packages
+        script: |
+          flutter pub get
 
-  - name: Install CocoaPods
-    script: |
-      cd ios
-      pod install --repo-update
-      cd ..
+      - name: Install CocoaPods fresh
+        script: |
+          cd ios
+          pod repo update
+          pod install
+          cd ..
 
-  - name: Set up code signing
-    script: |
-      xcode-project use-profiles
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles
 
-  - name: Build iOS IPA
-    script: |
-      flutter build ipa --release
+      - name: Build iOS IPA
+        script: |
+          flutter build ipa --release
 
-artifacts:
-  - build/ios/ipa/*.ipa
-  - /tmp/xcodebuild_logs/*.log
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
 
-publishing:
-  app_store_connect:
-    auth: integration
-    submit_to_testflight: true
-```
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

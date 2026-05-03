@@ -140,10 +140,45 @@ Future<void> _saveHomeFeed(List<Map<String, dynamic>> profiles) async {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
+final swipesSnapshot = await FirebaseFirestore.instance
+    .collection('swipes')
+    .where('fromUserId', isEqualTo: user.uid)
+    .get();
 
-      final remainingIds =
-          pickUserIds.where((id) => !usedUserIds.contains(id)).toList();
+final swipedUserIds = swipesSnapshot.docs
+    .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
+    .toSet();
+      var remainingIds = pickUserIds
+    .where((id) =>
+        !usedUserIds.contains(id) &&
+        !swipedUserIds.contains(id)) // 👈 thêm dòng này
+    .toList();
+if (remainingIds.length < _dailyTopPicksLimit) {
+  final generatedTopPicks = await _loadTopPicks(currentUserData);
 
+  final extraIds = generatedTopPicks
+      .map((e) => (e['uid'] ?? e['docId'] ?? '').toString().trim())
+      .where((id) =>
+          id.isNotEmpty &&
+          !pickUserIds.contains(id) &&
+          !usedUserIds.contains(id) &&
+          !swipedUserIds.contains(id) &&
+          !remainingIds.contains(id))
+      .take(_dailyTopPicksLimit - remainingIds.length)
+      .toList();
+
+  if (extraIds.isNotEmpty) {
+    remainingIds.addAll(extraIds);
+    pickUserIds.addAll(extraIds);
+
+    await dailyRef.set({
+      'dateKey': _todayKey(),
+      'pickUserIds': pickUserIds,
+      'usedUserIds': usedUserIds,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+}
       final topPicks = await _loadProfilesByIds(remainingIds);
 
       if (!mounted) return;

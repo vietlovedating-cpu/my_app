@@ -2,28 +2,48 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CLIENT_ID</key>
+	<string>358333936335-ipsfdl5slhmp1bia9nh02rl702qa62o2.apps.googleusercontent.com</string>
+
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.358333936335-ipsfdl5slhmp1bia9nh02rl702qa62o2</string>
+
+	<key>ANDROID_CLIENT_ID</key>
+	<string>358333936335-gn6jk0kr9rvnf1rtkmid6ugpg7eksehq.apps.googleusercontent.com</string>
+
 	<key>API_KEY</key>
 	<string>AIzaSyD5xBmU_Qpr4PsCOYRsz6Ldjh4wIyl3zi4</string>
+
 	<key>GCM_SENDER_ID</key>
 	<string>358333936335</string>
+
 	<key>PLIST_VERSION</key>
 	<string>1</string>
+
 	<key>BUNDLE_ID</key>
 	<string>com.vietlovedating.app</string>
+
 	<key>PROJECT_ID</key>
 	<string>flutter-vietlove-dating</string>
+
 	<key>STORAGE_BUCKET</key>
 	<string>flutter-vietlove-dating.firebasestorage.app</string>
+
 	<key>IS_ADS_ENABLED</key>
 	<false/>
+
 	<key>IS_ANALYTICS_ENABLED</key>
 	<false/>
+
 	<key>IS_APPINVITE_ENABLED</key>
 	<true/>
+
 	<key>IS_GCM_ENABLED</key>
 	<true/>
+
 	<key>IS_SIGNIN_ENABLED</key>
 	<true/>
+
 	<key>GOOGLE_APP_ID</key>
 	<string>1:358333936335:ios:b4f070eb11719b4d54fdba</string>
 </dict>

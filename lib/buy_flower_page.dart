@@ -7,10 +7,12 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 class BuyFlowerPage extends StatefulWidget {
   final String languageCode;
+  final String? autoBuyProductId;
 
   const BuyFlowerPage({
     super.key,
     required this.languageCode,
+    this.autoBuyProductId,
   });
 
   @override
@@ -86,7 +88,9 @@ class _BuyFlowerPageState extends State<BuyFlowerPage> {
     }
 
     final response = await _iap.queryProductDetails(_productIds);
-
+debugPrint('FLOWER FOUND: ${response.productDetails.map((e) => e.id).toList()}');
+debugPrint('FLOWER NOT FOUND: ${response.notFoundIDs}');
+debugPrint('FLOWER ERROR: ${response.error}');
     final products = response.productDetails.toList();
 
     products.sort((a, b) {
@@ -102,6 +106,21 @@ class _BuyFlowerPageState extends State<BuyFlowerPage> {
       _selectedProduct = products.isNotEmpty ? products.first : null;
       _isLoading = false;
     });
+    if (widget.autoBuyProductId != null && products.isNotEmpty) {
+  final matched = products
+      .where((p) => p.id == widget.autoBuyProductId)
+      .toList();
+
+  if (matched.isNotEmpty) {
+    _selectedProduct = matched.first;
+
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (mounted) {
+        _buySelectedProduct();
+      }
+    });
+  }
+}
   }
 
   Future<void> _buySelectedProduct() async {
