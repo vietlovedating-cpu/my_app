@@ -2,7 +2,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.3+269
+version: 1.0.3+270
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -24,7 +24,7 @@ dependencies:
   geocoding: ^3.0.0
   translator: ^1.0.4
   shared_preferences: ^2.2.2
-  flutter_contacts: 1.1.7
+  # flutter_contacts: ^1.1.9+2
   url_launcher: ^6.3.0
   app_links: ^3.4.1
   flutter_local_notifications: ^17.0.0
