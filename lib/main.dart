@@ -33,17 +33,7 @@ Future<void> main() async {
     debugPrint('Flutter error: ${details.exception}');
   };
 
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-    }
-
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    debugPrint('Main init error: $e');
-  }
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());
 }
@@ -64,12 +54,17 @@ class _MyAppState extends State<MyApp> {
   bool _isReady = false;
   String? _startupError;
 
+  late final Future<FirebaseApp> _firebaseInit;
   late final PushNotificationService _pushService;
   bool _pushInitialized = false;
 
   @override
   void initState() {
     super.initState();
+
+    _firebaseInit = Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
     _pushService = PushNotificationService(
       navigatorKey: navigatorKey,
@@ -162,6 +157,29 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    return FutureBuilder<FirebaseApp>(
+      future: _firebaseInit,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: _loadingScreen(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: _errorScreen('Firebase init error: ${snapshot.error}'),
+          );
+        }
+
+        return _buildApp();
+      },
+    );
+  }
+
+  Widget _buildApp() {
     if (!_isReady) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -194,14 +212,10 @@ class _MyAppState extends State<MyApp> {
               if (user != null) {
                 _safeInitPush();
 
-                try {
-                  return HomePage(
-                    key: ValueKey('home_${user.uid}_$_languageCode'),
-                    languageCode: _languageCode,
-                  );
-                } catch (e) {
-                  return _errorScreen('HomePage error: $e');
-                }
+                return HomePage(
+                  key: ValueKey('home_${user.uid}_$_languageCode'),
+                  languageCode: _languageCode,
+                );
               }
 
               return SplashPage(
