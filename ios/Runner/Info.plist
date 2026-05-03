@@ -41,9 +41,6 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
-
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 
