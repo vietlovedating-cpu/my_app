@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+import 'current_location_page.dart';
+import 'highest_education_page.dart';
 import 'firebase_options.dart';
 import 'splash_page.dart';
 import 'home_page.dart';
@@ -20,20 +22,27 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-  } catch (e) {
-    debugPrint('Background Firebase init error: $e');
-  }
+  } catch (_) {}
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  FlutterError.onError = (FlutterErrorDetails details) {
-    FlutterError.presentError(details);
-    debugPrint('Flutter error: ${details.exception}');
-  };
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+    }
+  } catch (e) {
+    debugPrint('Firebase init error: $e');
+  }
 
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  try {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  } catch (e) {
+    debugPrint('Background message setup error: $e');
+  }
 
   runApp(const MyApp());
 }
@@ -52,19 +61,12 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   String _languageCode = 'vi';
   bool _isReady = false;
-  String? _startupError;
-
-  late final Future<FirebaseApp> _firebaseInit;
   late final PushNotificationService _pushService;
   bool _pushInitialized = false;
 
   @override
   void initState() {
     super.initState();
-
-    _firebaseInit = Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
 
     _pushService = PushNotificationService(
       navigatorKey: navigatorKey,
@@ -92,7 +94,6 @@ class _MyAppState extends State<MyApp> {
 
       setState(() {
         _languageCode = 'vi';
-        _startupError = 'Load language error: $e';
         _isReady = true;
       });
     }
@@ -127,103 +128,53 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  Widget _errorScreen(String message) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Center(
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                color: Colors.red,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _loadingScreen() {
-    return const Scaffold(
-      body: Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<FirebaseApp>(
-      future: _firebaseInit,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: _loadingScreen(),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            home: _errorScreen('Firebase init error: ${snapshot.error}'),
-          );
-        }
-
-        return _buildApp();
-      },
-    );
-  }
-
-  Widget _buildApp() {
     if (!_isReady) {
-      return MaterialApp(
+      return const MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: _loadingScreen(),
+        home: Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
       );
     }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
-      home: Builder(
-        builder: (context) {
-          if (_startupError != null) {
-            return _errorScreen(_startupError!);
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
           }
 
-          return StreamBuilder<User?>(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return _loadingScreen();
-              }
+          if (snapshot.hasError) {
+            return const Scaffold(
+              body: Center(child: Text('Auth error')),
+            );
+          }
 
-              if (snapshot.hasError) {
-                return _errorScreen('Auth error: ${snapshot.error}');
-              }
+          final user = snapshot.data;
 
-              final user = snapshot.data;
+          if (user != null) {
+            _safeInitPush();
 
-              if (user != null) {
-                _safeInitPush();
+            // 🔥 FIX: bỏ Firestore để test
+            return HomePage(
+              key: ValueKey('home_${user.uid}_$_languageCode'),
+              languageCode: _languageCode,
+            );
+          }
 
-                return HomePage(
-                  key: ValueKey('home_${user.uid}_$_languageCode'),
-                  languageCode: _languageCode,
-                );
-              }
-
-              return SplashPage(
-                languageCode: _languageCode,
-                onLanguageChanged: (lang) {
-                  MyApp.of(context)?.changeLanguage(lang);
-                },
-              );
+          return SplashPage(
+            languageCode: _languageCode,
+            onLanguageChanged: (lang) {
+              MyApp.of(context)?.changeLanguage(lang);
             },
           );
         },

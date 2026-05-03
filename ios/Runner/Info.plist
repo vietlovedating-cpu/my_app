@@ -70,6 +70,8 @@
 
 	<key>NSContactsUsageDescription</key>
 	<string>VietLoveDating uses contacts to help you avoid showing your profile to people in your phone contacts.</string>
+	<key>NSContactsUsageDescription</key>
+    <string>We use your contacts to help hide your profile from people in your address book.</string>
 
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We use your location to show nearby matches.</string>
