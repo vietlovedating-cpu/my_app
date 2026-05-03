@@ -1,11 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
-import 'current_location_page.dart';
-import 'highest_education_page.dart';
 import 'firebase_options.dart';
 import 'splash_page.dart';
 import 'home_page.dart';
@@ -22,29 +22,68 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
-  } catch (_) {}
+  } catch (e, s) {
+    debugPrint('🔥 Background Firebase init error: $e');
+    debugPrint('$s');
+  }
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.dumpErrorToConsole(details);
+    debugPrint('🔥 FLUTTER ERROR: ${details.exception}');
+    debugPrint('🔥 FLUTTER STACK: ${details.stack}');
+  };
+
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Text(
+                'Flutter error:\n\n${details.exception}\n\n${details.stack}',
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+
+  runZonedGuarded(() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+      }
+    } catch (e, s) {
+      debugPrint('🔥 Firebase init error: $e');
+      debugPrint('$s');
     }
-  } catch (e) {
-    debugPrint('Firebase init error: $e');
-  }
 
-  try {
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  } catch (e) {
-    debugPrint('Background message setup error: $e');
-  }
+    try {
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    } catch (e, s) {
+      debugPrint('🔥 Background message setup error: $e');
+      debugPrint('$s');
+    }
 
-  runApp(const MyApp());
+    runApp(const MyApp());
+  }, (error, stack) {
+    debugPrint('🔥 ZONE ERROR: $error');
+    debugPrint('🔥 ZONE STACK: $stack');
+  });
 }
 
 class MyApp extends StatefulWidget {
@@ -87,8 +126,9 @@ class _MyAppState extends State<MyApp> {
         _languageCode = savedLanguage;
         _isReady = true;
       });
-    } catch (e) {
-      debugPrint('Load language error: $e');
+    } catch (e, s) {
+      debugPrint('🔥 Load language error: $e');
+      debugPrint('$s');
 
       if (!mounted) return;
 
@@ -103,8 +143,9 @@ class _MyAppState extends State<MyApp> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('languageCode', lang);
-    } catch (e) {
-      debugPrint('Save language error: $e');
+    } catch (e, s) {
+      debugPrint('🔥 Save language error: $e');
+      debugPrint('$s');
     }
 
     if (!mounted) return;
@@ -122,8 +163,9 @@ class _MyAppState extends State<MyApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         await _pushService.init();
-      } catch (e) {
-        debugPrint('Push init error: $e');
+      } catch (e, s) {
+        debugPrint('🔥 Push init error: $e');
+        debugPrint('$s');
       }
     });
   }
@@ -134,6 +176,7 @@ class _MyAppState extends State<MyApp> {
       return const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: Scaffold(
+          backgroundColor: Colors.white,
           body: Center(
             child: CircularProgressIndicator(),
           ),
@@ -149,13 +192,20 @@ class _MyAppState extends State<MyApp> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(
+              backgroundColor: Colors.white,
               body: Center(child: CircularProgressIndicator()),
             );
           }
 
           if (snapshot.hasError) {
-            return const Scaffold(
-              body: Center(child: Text('Auth error')),
+            return Scaffold(
+              backgroundColor: Colors.white,
+              body: Center(
+                child: Text(
+                  'Auth error:\n${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
             );
           }
 
@@ -164,7 +214,6 @@ class _MyAppState extends State<MyApp> {
           if (user != null) {
             _safeInitPush();
 
-            // 🔥 FIX: bỏ Firestore để test
             return HomePage(
               key: ValueKey('home_${user.uid}_$_languageCode'),
               languageCode: _languageCode,
