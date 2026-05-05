@@ -39,7 +39,6 @@ class _MessagePageState extends State<MessagePage> {
   bool _isSendingImage = false;
 
 File? _pendingImageFile;
-Map<String, dynamic>? _replyingTo;
 
   String _currentUserPhotoUrl = '';
   String _currentUserName = '';
@@ -172,15 +171,6 @@ void _onMessageChanged(String value) {}
       .doc(widget.chatId)
       .collection('messages')
       .add({
-        'replyToText': _replyingTo == null
-    ? ''
-    : (_replyingTo!['text'] ?? '').toString(),
-'replyToType': _replyingTo == null
-    ? ''
-    : (_replyingTo!['type'] ?? '').toString(),
-'replyToImageUrl': _replyingTo == null
-    ? ''
-    : (_replyingTo!['imageUrl'] ?? '').toString(),
     'senderId': user.uid,
     'receiverId': widget.otherUserId,
     'senderName': _currentUserName,
@@ -210,9 +200,6 @@ void _onMessageChanged(String value) {}
     'lastMessageAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 
-  setState(() {
-  _replyingTo = null;
-});
 
 WidgetsBinding.instance.addPostFrameCallback((_) {
   _scrollToBottom();
@@ -526,163 +513,110 @@ Future<void> _pickImageOnly() async {
   required String text,
   required String type,
   required String imageUrl,
-
-  required String replyToText,
-  required String replyToType,
-  required String replyToImageUrl,
-
   required String timeText,
   required String avatarUrl,
   required bool isRead,
 }) {
-    final isHeart = type == 'heart';
-    final isImage = type == 'image';
+  final isHeart = type == 'heart';
+  final isImage = type == 'image';
 
-    final avatarWidget = _buildAvatar(
-      avatarUrl,
-      radius: 18,
-    );
+  final avatarWidget = _buildAvatar(
+    avatarUrl,
+    radius: 18,
+  );
 
-    final bubble = Column(
-      crossAxisAlignment:
-          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Container(
-          constraints: const BoxConstraints(maxWidth: 270),
-          padding: isHeart
-              ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
-              : isImage
-                  ? const EdgeInsets.all(4)
-                  : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: isHeart
-              ? null
-              : BoxDecoration(
-                  color: isMe
-                      ? const Color(0xFFE91E63)
-                      : const Color(0xFFFFF0F5),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(isMe ? 18 : 6),
-                    bottomRight: Radius.circular(isMe ? 6 : 18),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  border: isMe
-                      ? null
-                      : Border.all(color: const Color(0xFFFFD5E6)),
-                ),
-          child: Column(
-  crossAxisAlignment:
-      isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-  mainAxisSize: MainAxisSize.min,
-  children: [
-    if (replyToText.isNotEmpty || replyToType.isNotEmpty)
+  final bubble = Column(
+    crossAxisAlignment:
+        isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+    children: [
       Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: replyToType == 'image'
-            ? Text(
-                _tr('Ảnh', 'Photo'),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+        constraints: const BoxConstraints(maxWidth: 270),
+        padding: isHeart
+            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
+            : isImage
+                ? const EdgeInsets.all(4)
+                : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: isHeart
+            ? null
+            : BoxDecoration(
+                color: isMe
+                    ? const Color(0xFFE91E63)
+                    : const Color(0xFFFFF0F5),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(18),
+                  topRight: const Radius.circular(18),
+                  bottomLeft: Radius.circular(isMe ? 18 : 6),
+                  bottomRight: Radius.circular(isMe ? 6 : 18),
                 ),
-              )
-            : Text(
-                replyToText,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: isMe
+                    ? null
+                    : Border.all(color: const Color(0xFFFFD5E6)),
+              ),
+        child: _buildBubbleContent(
+          type: type,
+          text: text,
+          imageUrl: imageUrl,
+          isMe: isMe,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (timeText.isNotEmpty)
+              Text(
+                timeText,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
+                  color: Colors.black45,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            if (isMe && timeText.isNotEmpty) const SizedBox(width: 6),
+            if (isMe)
+              Text(
+                isRead ? _tr('Đã xem', 'Seen') : _tr('Đã gửi', 'Sent'),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isRead ? const Color(0xFFE91E63) : Colors.black45,
                   fontWeight: FontWeight.w600,
                 ),
               ),
+          ],
+        ),
       ),
-
-    _buildBubbleContent(
-      type: type,
-      text: text,
-      imageUrl: imageUrl,
-      isMe: isMe,
-    ),
-  ],
-),
-        ),
-        const SizedBox(height: 4),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (timeText.isNotEmpty)
-                Text(
-                  timeText,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Colors.black45,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              if (isMe && timeText.isNotEmpty) const SizedBox(width: 6),
-              if (isMe)
-                Text(
-                  isRead ? _tr('Đã xem', 'Seen') : _tr('Đã gửi', 'Sent'),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isRead ? const Color(0xFFE91E63) : Colors.black45,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-
-    return GestureDetector(
-  onHorizontalDragEnd: (details) {
-    if (details.primaryVelocity != null &&
-        details.primaryVelocity! > 0) {
-      setState(() {
-        _replyingTo = {
-          'text': text,
-          'type': type,
-          'imageUrl': imageUrl,
-        };
-      });
-    }
-  },
-  child: Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: isMe
-            ? [
-                Flexible(child: bubble),
-                const SizedBox(width: 8),
-                avatarWidget,
-              ]
-            : [
-                avatarWidget,
-                const SizedBox(width: 8),
-                Flexible(child: bubble),
-              ],
-      ),
-        ),
+    ],
   );
-  }
+
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      mainAxisAlignment:
+          isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: isMe
+          ? [
+              Flexible(child: bubble),
+              const SizedBox(width: 8),
+              avatarWidget,
+            ]
+          : [
+              avatarWidget,
+              const SizedBox(width: 8),
+              Flexible(child: bubble),
+            ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -782,9 +716,6 @@ Future<void> _pickImageOnly() async {
           final text = (data['text'] ?? '').toString();
           final type = (data['type'] ?? 'text').toString();
           final imageUrl = (data['imageUrl'] ?? '').toString();
-          final replyToText = (data['replyToText'] ?? '').toString();
-final replyToType = (data['replyToType'] ?? '').toString();
-final replyToImageUrl = (data['replyToImageUrl'] ?? '').toString();
           final timestamp = data['createdAt'] as Timestamp?;
           final isRead = data['isRead'] == true;
           final isMe = senderId == currentUser?.uid;
@@ -805,9 +736,6 @@ final replyToImageUrl = (data['replyToImageUrl'] ?? '').toString();
   text: text,
   type: type,
   imageUrl: imageUrl,
-  replyToText: replyToText,
-  replyToType: replyToType,
-  replyToImageUrl: replyToImageUrl,
   timeText: _formatTime(timestamp),
   avatarUrl: avatarUrl,
   isRead: isMe ? isRead : false,
@@ -834,38 +762,7 @@ final replyToImageUrl = (data['replyToImageUrl'] ?? '').toString();
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_replyingTo != null)
-  Container(
-    margin: const EdgeInsets.only(bottom: 6),
-    padding: const EdgeInsets.all(8),
-    decoration: BoxDecoration(
-      color: Colors.pink.shade50,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xFFFFC7DE)),
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            _replyingTo!['type'] == 'image'
-                ? _tr('Đang trả lời ảnh', 'Replying to photo')
-                : (_replyingTo!['text'] ?? '').toString(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-        IconButton(
-          onPressed: () {
-            setState(() {
-              _replyingTo = null;
-            });
-          },
-          icon: const Icon(Icons.close, color: Colors.black54),
-        ),
-      ],
-    ),
-  ),
+      
         if (_pendingImageFile != null)
           Container(
             margin: const EdgeInsets.only(bottom: 8),
