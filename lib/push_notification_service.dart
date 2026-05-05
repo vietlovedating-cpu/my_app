@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'message_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -235,7 +235,26 @@ const initSettings = InitializationSettings(
     String? groupId,
   }) {
     print('OPEN FROM PUSH route=$route groupId=$groupId');
+if (route == 'chat') {
+  final chatId = groupId;
 
+  final nav = navigatorKey.currentState;
+  if (nav == null || chatId == null || chatId.isEmpty) return;
+
+  nav.push(
+    MaterialPageRoute(
+      builder: (_) => MessagePage(
+        languageCode: getLanguageCode(),
+        chatId: chatId,
+        otherUserId: '', // tạm thời để trống
+        otherUserName: '',
+        otherUserPhotoUrl: '',
+      ),
+    ),
+  );
+
+  return;
+}
     if (route != 'group_renew' || groupId == null || groupId.isEmpty) return;
 
     final nav = navigatorKey.currentState;
