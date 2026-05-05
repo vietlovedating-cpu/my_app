@@ -20,8 +20,10 @@ class MessagePage extends StatefulWidget {
     required this.languageCode,
     required this.chatId,
     required this.otherUserId,
+    
     required this.otherUserName,
     required this.otherUserPhotoUrl,
+    
   });
 
   @override
@@ -35,6 +37,9 @@ class _MessagePageState extends State<MessagePage> {
 
   
   bool _isSendingImage = false;
+
+File? _pendingImageFile;
+Map<String, dynamic>? _replyingTo;
 
   String _currentUserPhotoUrl = '';
   String _currentUserName = '';
@@ -167,6 +172,15 @@ void _onMessageChanged(String value) {}
       .doc(widget.chatId)
       .collection('messages')
       .add({
+        'replyToText': _replyingTo == null
+    ? ''
+    : (_replyingTo!['text'] ?? '').toString(),
+'replyToType': _replyingTo == null
+    ? ''
+    : (_replyingTo!['type'] ?? '').toString(),
+'replyToImageUrl': _replyingTo == null
+    ? ''
+    : (_replyingTo!['imageUrl'] ?? '').toString(),
     'senderId': user.uid,
     'receiverId': widget.otherUserId,
     'senderName': _currentUserName,
@@ -196,8 +210,24 @@ void _onMessageChanged(String value) {}
     'lastMessageAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    _scrollToBottom();
+  setState(() {
+  _replyingTo = null;
+});
+
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  _scrollToBottom();
+});
+}
+Future<void> _pickImageOnly() async {
+  final XFile? pickedFile = await _imagePicker.pickImage(
+    source: ImageSource.gallery,
+    imageQuality: 75,
+  );
+
+  if (pickedFile == null) return;
+
+  setState(() {
+    _pendingImageFile = File(pickedFile.path);
   });
 }
 
@@ -492,14 +522,19 @@ void _onMessageChanged(String value) {}
   }
 
   Widget _buildMessageBubble({
-    required bool isMe,
-    required String text,
-    required String type,
-    required String imageUrl,
-    required String timeText,
-    required String avatarUrl,
-    required bool isRead,
-  }) {
+  required bool isMe,
+  required String text,
+  required String type,
+  required String imageUrl,
+
+  required String replyToText,
+  required String replyToType,
+  required String replyToImageUrl,
+
+  required String timeText,
+  required String avatarUrl,
+  required bool isRead,
+}) {
     final isHeart = type == 'heart';
     final isImage = type == 'image';
 
@@ -542,12 +577,46 @@ void _onMessageChanged(String value) {}
                       ? null
                       : Border.all(color: const Color(0xFFFFD5E6)),
                 ),
-          child: _buildBubbleContent(
-            type: type,
-            text: text,
-            imageUrl: imageUrl,
-            isMe: isMe,
-          ),
+          child: Column(
+  crossAxisAlignment:
+      isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    if (replyToText.isNotEmpty || replyToType.isNotEmpty)
+      Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: replyToType == 'image'
+            ? Text(
+                _tr('Ảnh', 'Photo'),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            : Text(
+                replyToText,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+
+    _buildBubbleContent(
+      type: type,
+      text: text,
+      imageUrl: imageUrl,
+      isMe: isMe,
+    ),
+  ],
+),
         ),
         const SizedBox(height: 4),
         Padding(
@@ -580,8 +649,21 @@ void _onMessageChanged(String value) {}
       ],
     );
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+    return GestureDetector(
+  onHorizontalDragEnd: (details) {
+    if (details.primaryVelocity != null &&
+        details.primaryVelocity! > 0) {
+      setState(() {
+        _replyingTo = {
+          'text': text,
+          'type': type,
+          'imageUrl': imageUrl,
+        };
+      });
+    }
+  },
+  child: Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment:
             isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -598,7 +680,8 @@ void _onMessageChanged(String value) {}
                 Flexible(child: bubble),
               ],
       ),
-    );
+        ),
+  );
   }
 
   @override
@@ -699,6 +782,9 @@ void _onMessageChanged(String value) {}
           final text = (data['text'] ?? '').toString();
           final type = (data['type'] ?? 'text').toString();
           final imageUrl = (data['imageUrl'] ?? '').toString();
+          final replyToText = (data['replyToText'] ?? '').toString();
+final replyToType = (data['replyToType'] ?? '').toString();
+final replyToImageUrl = (data['replyToImageUrl'] ?? '').toString();
           final timestamp = data['createdAt'] as Timestamp?;
           final isRead = data['isRead'] == true;
           final isMe = senderId == currentUser?.uid;
@@ -715,116 +801,202 @@ void _onMessageChanged(String value) {}
                   : _effectiveOtherUserPhotoUrl);
 
           return _buildMessageBubble(
-            isMe: isMe,
-            text: text,
-            type: type,
-            imageUrl: imageUrl,
-            timeText: _formatTime(timestamp),
-            avatarUrl: avatarUrl,
-            isRead: isMe ? isRead : false,
-          );
+  isMe: isMe,
+  text: text,
+  type: type,
+  imageUrl: imageUrl,
+  replyToText: replyToText,
+  replyToType: replyToType,
+  replyToImageUrl: replyToImageUrl,
+  timeText: _formatTime(timestamp),
+  avatarUrl: avatarUrl,
+  isRead: isMe ? isRead : false,
+);
         },
       );
     },
   ),
 ),
-          SafeArea(
-            top: false,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF7FB),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, -2),
+         SafeArea(
+  top: false,
+  child: Container(
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7FB),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 8,
+          offset: const Offset(0, -2),
+        ),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_replyingTo != null)
+  Container(
+    margin: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: Colors.pink.shade50,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFFFFC7DE)),
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            _replyingTo!['type'] == 'image'
+                ? _tr('Đang trả lời ảnh', 'Replying to photo')
+                : (_replyingTo!['text'] ?? '').toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        IconButton(
+          onPressed: () {
+            setState(() {
+              _replyingTo = null;
+            });
+          },
+          icon: const Icon(Icons.close, color: Colors.black54),
+        ),
+      ],
+    ),
+  ),
+        if (_pendingImageFile != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFFC7DE)),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.file(
+                    _pendingImageFile!,
+                    width: 70,
+                    height: 70,
+                    fit: BoxFit.cover,
                   ),
-                ],
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  InkWell(
-                    onTap: _isSendingImage ? null : _pickAndSendImage,
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFE4EF),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFFFC7DE)),
-                      ),
-                      child: _isSendingImage
-                          ? const Padding(
-                              padding: EdgeInsets.all(10),
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(
-                              Icons.image_outlined,
-                              color: Color(0xFFE91E63),
-                            ),
-                    ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _tr('Gửi ảnh này?', 'Send this photo?'),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      onChanged: _onMessageChanged,
-                      onSubmitted: (_) => _sendMessage(),
-                      minLines: 1,
-                      maxLines: 5,
-                      textInputAction: TextInputAction.send,
-                      decoration: InputDecoration(
-                        hintText: _tr('Nhập tin nhắn...', 'Type a message...'),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFFFD5E6),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFE91E63),
-                            width: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    setState(() {
+                      _pendingImageFile = null;
+                    });
+                  },
+                  icon: const Icon(Icons.close, color: Colors.black54),
+                ),
+                IconButton(
+                  onPressed: _isSendingImage ? null : _pickAndSendImage,
+                  icon: const Icon(
+                    Icons.check_circle,
+                    color: Color(0xFFE91E63),
                   ),
-                  const SizedBox(width: 8),
-                  InkWell(
-                    onTap: _sendMessage,
-                    borderRadius: BorderRadius.circular(999),
-                    child: Container(
-                      width: 48,
-                      height: 48,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFFE91E63),
-                      ),
-                      child: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
+
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            InkWell(
+              onTap: _isSendingImage ? null : _pickImageOnly,
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE4EF),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFFFC7DE)),
+                ),
+                child: _isSendingImage
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(
+                        Icons.image_outlined,
+                        color: Color(0xFFE91E63),
+                      ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                onChanged: _onMessageChanged,
+                onSubmitted: (_) => _sendMessage(),
+                minLines: 1,
+                maxLines: 5,
+                textInputAction: TextInputAction.send,
+                decoration: InputDecoration(
+                  hintText: _tr('Nhập tin nhắn...', 'Type a message...'),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFFFD5E6),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE91E63),
+                      width: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            InkWell(
+              onTap: _sendMessage,
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFE91E63),
+                ),
+                child: const Icon(
+                  Icons.send_rounded,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  ),
+),
         ],
       ),
     );

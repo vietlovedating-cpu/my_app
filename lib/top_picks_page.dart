@@ -2530,8 +2530,10 @@ final homeFeedUserIds = homeFeedSnapshot.docs
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              _buildOnlineDot(isOnline),
+              if (isOnline) ...[
+  const SizedBox(width: 10),
+  _buildOnlineDot(true),
+],
             ],
           ),
         ),
