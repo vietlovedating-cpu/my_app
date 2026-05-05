@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 
 
 class PrivacyProfilePage extends StatefulWidget {
@@ -141,9 +142,9 @@ class _PrivacyProfilePageState extends State<PrivacyProfilePage> {
 
     if (!allow) return;
 
-    final status = await Permission.contacts.request();
+    final granted = await FlutterContacts.requestPermission(readonly: true);
 
-    if (status.isGranted) {
+if (granted) {
       setState(() => _hideFromContacts = true);
       await _saveSetting('hideFromContacts', true);
 

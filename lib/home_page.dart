@@ -81,7 +81,11 @@ void initState() {
   _setOnline(true);
 
   _handleAuthChanged(FirebaseAuth.instance.currentUser);
-  // _loadMyContactsForPrivacy();
+  Future.delayed(const Duration(seconds: 1), () {
+  if (mounted) {
+    _loadMyContactsForPrivacy();
+  }
+});
   _updateUserLocation();
 
   _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {

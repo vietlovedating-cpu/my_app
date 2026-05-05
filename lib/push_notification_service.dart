@@ -204,7 +204,9 @@ const initSettings = InitializationSettings(
   void _listenOpenAppFromNotification() {
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       final route = message.data['route']?.toString();
-      final groupId = message.data['groupId']?.toString();
+      final groupId =
+    message.data['chatId']?.toString() ??
+    message.data['groupId']?.toString();
 
       _handleNavigationFromPayload(
         route: route,
@@ -218,7 +220,9 @@ const initSettings = InitializationSettings(
     if (initialMessage == null) return;
 
     final route = initialMessage.data['route']?.toString();
-    final groupId = initialMessage.data['groupId']?.toString();
+    final groupId =
+    initialMessage.data['chatId']?.toString() ??
+    initialMessage.data['groupId']?.toString();
 
     _handleNavigationFromPayload(
       route: route,
