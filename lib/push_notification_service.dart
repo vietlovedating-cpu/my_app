@@ -130,7 +130,21 @@ const initSettings = InitializationSettings(
     final user = FirebaseAuth.instance.currentUser;
     print('CURRENT USER = ${user?.uid}');
     if (user == null) return;
+if (Platform.isIOS) {
+  String? apnsToken = await _messaging.getAPNSToken();
 
+  if (apnsToken == null) {
+    await Future.delayed(const Duration(seconds: 2));
+    apnsToken = await _messaging.getAPNSToken();
+  }
+
+  if (apnsToken == null) {
+    print('APNS TOKEN STILL NULL');
+    return;
+  }
+
+  print('APNS TOKEN READY');
+}
     final token = await _messaging.getToken();
     print('FCM TOKEN = $token');
     if (token == null || token.isEmpty) return;
