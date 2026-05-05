@@ -4,9 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
-import 'current_location_page.dart';
-import 'highest_education_page.dart';
-import 'firebase_options.dart';
 import 'splash_page.dart';
 import 'home_page.dart';
 import 'push_notification_service.dart';
@@ -18,9 +15,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+      await Firebase.initializeApp();
     }
   } catch (_) {}
 }
@@ -28,9 +23,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp();
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
@@ -50,7 +43,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   String _languageCode = 'vi';
-  bool _isReady = false;
+  bool _isReady = true;
   late final PushNotificationService _pushService;
   bool _pushInitialized = false;
 
@@ -120,55 +113,26 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_isReady) {
-      return const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Center(
-            child: CircularProgressIndicator(),
-          ),
-        ),
-      );
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user != null) {
+      _safeInitPush();
     }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          if (snapshot.hasError) {
-            return const Scaffold(
-              body: Center(child: Text('Auth error')),
-            );
-          }
-
-          final user = snapshot.data;
-
-          if (user != null) {
-            _safeInitPush();
-
-            // 🔥 FIX: bỏ Firestore để test
-            return HomePage(
+      home: user != null
+          ? HomePage(
               key: ValueKey('home_${user.uid}_$_languageCode'),
               languageCode: _languageCode,
-            );
-          }
-
-          return SplashPage(
-            languageCode: _languageCode,
-            onLanguageChanged: (lang) {
-              MyApp.of(context)?.changeLanguage(lang);
-            },
-          );
-        },
-      ),
+            )
+          : SplashPage(
+              languageCode: _languageCode,
+              onLanguageChanged: (lang) {
+                changeLanguage(lang);
+              },
+            ),
       onGenerateRoute: (settings) {
         if (settings.name == '/group-renew') {
           final args = settings.arguments as Map<String, dynamic>? ?? {};

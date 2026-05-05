@@ -1330,15 +1330,16 @@ class _MyProfilePageState extends State<MyProfilePage> {
         elevation: 0,
         foregroundColor: const Color(0xFF7A2E6E),
         centerTitle: true,
-        title: Text(
-          _tr(isVi, '❤️❤️❤️', '❤️❤️❤️'),
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 22,
-            color: Color(0xFF7A2E6E),
-            letterSpacing: 0.2,
-          ),
-        ),
+        title: const Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    Icon(Icons.favorite, color: Color(0xFF7A2E6E), size: 22),
+    SizedBox(width: 6),
+    Icon(Icons.favorite, color: Color(0xFF7A2E6E), size: 22),
+    SizedBox(width: 6),
+    Icon(Icons.favorite, color: Color(0xFF7A2E6E), size: 22),
+  ],
+),
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 10),

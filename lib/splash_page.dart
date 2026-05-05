@@ -23,11 +23,23 @@ class _SplashPageState extends State<SplashPage> {
   void initState() {
     super.initState();
 
-    _timer = Timer(const Duration(seconds: 2), _goNext);
+    print('SPLASH: initState');
+
+    _timer = Timer(const Duration(seconds: 2), () {
+      print('SPLASH: timer fired');
+      _goNext();
+    });
   }
 
   void _goNext() {
-    if (!mounted) return;
+    print('SPLASH: goNext called');
+
+    if (!mounted) {
+      print('SPLASH: not mounted');
+      return;
+    }
+
+    print('SPLASH: navigating to WelcomePage');
 
     Navigator.pushReplacement(
       context,
@@ -42,7 +54,8 @@ class _SplashPageState extends State<SplashPage> {
 
   @override
   void dispose() {
-    _timer?.cancel(); // 🔥 tránh memory leak
+    print('SPLASH: dispose');
+    _timer?.cancel();
     super.dispose();
   }
 

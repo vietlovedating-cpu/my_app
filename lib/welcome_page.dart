@@ -118,7 +118,7 @@ class _WelcomePageState extends State<WelcomePage>
                         'assets/images/couple.jpg',
                         width: double.infinity,
                         height: screenWidth < 420 ? 260 : 300,
-                        fit: BoxFit.contain,
+                        fit: BoxFit.cover,
                       ),
                     ),
                     Positioned(
