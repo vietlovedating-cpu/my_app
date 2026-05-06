@@ -217,6 +217,96 @@ Future<void> _pickImageOnly() async {
     _pendingImageFile = File(pickedFile.path);
   });
 }
+Future<void> _sendPendingImage() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null || _pendingImageFile == null || _isSendingImage) {
+    return;
+  }
+
+  try {
+    setState(() {
+      _isSendingImage = true;
+    });
+
+    final file = _pendingImageFile!;
+
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.jpg';
+
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('chat_images')
+        .child(widget.chatId)
+        .child(fileName);
+
+    final metadata = SettableMetadata(
+      contentType: 'image/jpeg',
+    );
+
+    await storageRef.putFile(file, metadata);
+
+    final imageUrl = await storageRef.getDownloadURL();
+
+    final firestore = FirebaseFirestore.instance;
+
+    await firestore
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .add({
+      'senderId': user.uid,
+      'receiverId': widget.otherUserId,
+      'senderName': _currentUserName,
+      'senderPhotoUrl': _currentUserPhotoUrl,
+      'text': '',
+      'type': 'image',
+      'imageUrl': imageUrl,
+      'createdAt': FieldValue.serverTimestamp(),
+      'isRead': false,
+    });
+
+    await firestore.collection('chats').doc(widget.chatId).set({
+      'chatId': widget.chatId,
+      'participants': [user.uid, widget.otherUserId],
+      'lastMessage': _tr('Đã gửi một ảnh', 'Sent a photo'),
+      'lastMessageType': 'image',
+      'lastSenderId': user.uid,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'typing': {
+        user.uid: false,
+        widget.otherUserId: false,
+      },
+    }, SetOptions(merge: true));
+
+    await firestore.collection('matches').doc(widget.chatId).set({
+      'lastMessage': _tr('Đã gửi một ảnh', 'Sent a photo'),
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    setState(() {
+      _pendingImageFile = null;
+    });
+
+    _scrollToBottom();
+  } catch (e) {
+    debugPrint('SEND IMAGE ERROR: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Send image error: $e'),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isSendingImage = false;
+      });
+    }
+  }
+}
 
   Future<void> _pickAndSendImage() async {
   final user = FirebaseAuth.instance.currentUser;
@@ -799,7 +889,7 @@ Future<void> _pickImageOnly() async {
                   icon: const Icon(Icons.close, color: Colors.black54),
                 ),
                 IconButton(
-                  onPressed: _isSendingImage ? null : _pickAndSendImage,
+  onPressed: _isSendingImage ? null : _sendPendingImage,
                   icon: const Icon(
                     Icons.check_circle,
                     color: Color(0xFFE91E63),
@@ -873,7 +963,13 @@ Future<void> _pickImageOnly() async {
             ),
             const SizedBox(width: 8),
             InkWell(
-              onTap: _sendMessage,
+              onTap: () {
+  if (_pendingImageFile != null) {
+    _sendPendingImage();
+  } else {
+    _sendMessage();
+  }
+},
               borderRadius: BorderRadius.circular(999),
               child: Container(
                 width: 48,

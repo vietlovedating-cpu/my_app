@@ -809,8 +809,23 @@ if (selectedStateFilter == null ||
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(context, controller.text.trim());
-              },
+  final text = controller.text.trim();
+
+  if (text.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Vui lòng nhập lời nhắn trước khi gửi hoa.'
+              : 'Please write a message before sending a flower.',
+        ),
+      ),
+    );
+    return;
+  }
+
+  Navigator.pop(context, text);
+},
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFCC3D7A),
                 shape: RoundedRectangleBorder(
@@ -1581,28 +1596,11 @@ if (user != null) {
 
   final vipExpiresAt = data['vipExpiresAt'];
 
-  if (vipExpiresAt is Timestamp) {
-    final expiresAt = vipExpiresAt.toDate();
-
-    if (expiresAt.isBefore(DateTime.now())) {
-      return false;
-    }
+  if (vipExpiresAt is! Timestamp) {
+    return false;
   }
 
-  final isVip = data['isVip'];
-  final vipUnlocked = data['vipUnlocked'];
-  final membership = _normalizeString(data['membership']);
-  final plan = _normalizeString(data['plan']);
-  final subscription = _normalizeString(data['subscriptionType']);
-
-  return isVip == true ||
-      vipUnlocked == true ||
-      membership == 'vip' ||
-      plan == 'vip' ||
-      subscription == 'vip' ||
-      membership == 'premium' ||
-      plan == 'premium' ||
-      subscription == 'premium';
+  return vipExpiresAt.toDate().isAfter(DateTime.now());
 }
 
   String _normalizeString(dynamic value) {
