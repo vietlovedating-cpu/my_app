@@ -49,7 +49,7 @@ class _MyAppState extends State<MyApp> {
   String _languageCode = 'vi';
   bool _isReady = true;
   late final PushNotificationService _pushService;
-  bool _pushInitialized = false;
+  String? _lastPushUserId;
 
   @override
   void initState() {
@@ -101,27 +101,29 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
-  void _safeInitPush() {
-    if (_pushInitialized) return;
+  void _safeInitPush(String userId) {
+  if (_lastPushUserId == userId) return;
 
-    _pushInitialized = true;
+  _lastPushUserId = userId;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        await _pushService.init();
-      } catch (e) {
-        debugPrint('Push init error: $e');
-      }
-    });
-  }
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      await _pushService.init();
+    } catch (e) {
+      debugPrint('Push init error: $e');
+    }
+  });
+}
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user != null) {
-      _safeInitPush();
-    }
+  _safeInitPush(user.uid);
+} else {
+  _lastPushUserId = null;
+}
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,

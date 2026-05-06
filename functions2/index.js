@@ -176,8 +176,8 @@ if (!messageEnabled) {
   return;
 }
 
-let notificationTitle = senderName;
-let notificationBody = text;
+let notificationTitle = "💬 New message";
+let notificationBody = `${senderName} sent you a message.`;
 
 if (messageType === "flower") {
   notificationTitle = "🌹 New flower";
@@ -194,6 +194,7 @@ await sendPushNotification({
   body: notificationBody,
   data: {
     route: "chat",
+    chatId: event.params.chatId,
     userId: senderId,
     type: messageType,
   },
