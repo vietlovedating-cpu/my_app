@@ -716,8 +716,8 @@ if (selectedStateFilter == null ||
             title: Text(isVi ? 'Hết lượt tặng hoa' : 'No flowers left'),
             content: Text(
               isVi
-                  ? 'Bạn đã dùng hết 3 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$1.99 cho 1 flower.'
-                  : 'You have used all 3 free flowers. Please buy VIP or purchase 1 extra flower for \$1.99.',
+                  ? 'Bạn đã dùng hết 5 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$1.99 cho 1 flower.'
+                  : 'You have used all 5 free flowers. Please buy VIP or purchase 1 extra flower for \$1.99.',
             ),
             actions: [
               TextButton(
@@ -998,7 +998,7 @@ Future<bool> _canSendFlower() async {
 
   final sentCount = await _sentFlowerCount();
 
-  if (sentCount < 3) return true;
+  if (sentCount < 5) return true;
 
   return _flowerBalance() > 0;
 }
@@ -1011,8 +1011,8 @@ Future<bool> _consumePurchasedFlowerIfNeeded() async {
 
   final sentCount = await _sentFlowerCount();
 
-  // Free user vẫn còn trong 3 flower miễn phí
-  if (sentCount < 3) return true;
+  // Free user vẫn còn trong 5 flower miễn phí
+  if (sentCount < 5) return true;
 
   final userRef =
       FirebaseFirestore.instance.collection('users').doc(user.uid);

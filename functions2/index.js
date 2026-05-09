@@ -1,5 +1,8 @@
+require('dotenv').config();
+
 const admin = require("firebase-admin");
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const functions = require("firebase-functions/v1");
 
 admin.initializeApp();
 async function isNotificationEnabled(userId, type) {
@@ -207,6 +210,7 @@ await sendPushNotification({
   }
 );
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onRequest } = require("firebase-functions/v2/https");
 
 exports.remindUnreadMessages = onSchedule(
   {
@@ -271,6 +275,183 @@ await admin.firestore().collection("users").doc(receiverId).set(
       console.log("REMINDER SENT");
     } catch (e) {
       console.error("remindUnreadMessages error:", e);
+    }
+  }
+);
+
+
+
+
+
+
+
+exports.addFreeGroupsForNewUser = functions.auth.user().onCreate(
+  async (user) => {
+    try {
+
+      if (!user) return;
+
+      const uid = user.uid;
+      const email = user.email || "";
+
+      // lấy thêm info user
+      const userSnap = await admin
+        .firestore()
+        .collection("users")
+        .doc(uid)
+        .get();
+
+      const userData = userSnap.data() || {};
+
+      const firstName = userData.firstName || "";
+      const mainPhotoUrl = userData.mainPhotoUrl || "";
+
+      const groups = [
+  "weekend_coffee",
+  "hiking_camping",
+  "gym_fitness",
+  "speed_dating",
+];
+
+      // hết free sau 2 tháng
+      const expiresAt = admin.firestore.Timestamp.fromDate(
+        new Date("2026-07-07T23:59:59+10:00")
+      );
+
+      const batch = admin.firestore().batch();
+
+      for (const groupId of groups) {
+        const ref = admin
+          .firestore()
+          .collection("groups")
+          .doc(groupId)
+          .collection("members")
+          .doc(uid);
+
+        batch.set(
+          ref,
+          {
+            userId: uid,
+            uid: uid,
+            email: email,
+            firstName: firstName,
+            mainPhotoUrl: mainPhotoUrl,
+
+            membershipActive: true,
+
+            expiresAt: expiresAt,
+
+            joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+            expiredHandled: false,
+            reminder7dSent: false,
+            reminder3dSent: false,
+
+            source: "promo",
+
+            planType: "promo_2_months",
+
+            price: 0,
+
+            currency: "AUD",
+
+            groupId: groupId,
+          },
+          { merge: true }
+        );
+      }
+
+      await batch.commit();
+
+      console.log("FREE GROUPS ADDED FOR:", uid);
+    } catch (e) {
+      console.error("addFreeGroupsForNewUser error:", e);
+    }
+  }
+);
+
+
+
+
+
+
+exports.addPromoForAllExistingUsers = onRequest(
+  {
+    region: "us-central1",
+  },
+  async (req, res) => {
+    try {
+      const secret = req.query.secret;
+
+      if (secret !== "vietlove_free_2026") {
+        res.status(403).send("Forbidden");
+        return;
+      }
+
+      const usersSnapshot = await admin.firestore().collection("users").get();
+
+      const groups = [
+        "weekend_coffee",
+        "hiking_camping",
+        "gym_fitness",
+        "speed_dating",
+      ];
+
+      const expiresAt = admin.firestore.Timestamp.fromDate(
+        new Date("2026-07-07T23:59:59+10:00")
+      );
+
+      let count = 0;
+
+      for (const userDoc of usersSnapshot.docs) {
+        const uid = userDoc.id;
+        const userData = userDoc.data() || {};
+
+        const batch = admin.firestore().batch();
+
+        for (const groupId of groups) {
+          const ref = admin
+            .firestore()
+            .collection("groups")
+            .doc(groupId)
+            .collection("members")
+            .doc(uid);
+
+          batch.set(
+            ref,
+            {
+              userId: uid,
+              uid: uid,
+              email: userData.email || "",
+              firstName: userData.firstName || "",
+              mainPhotoUrl: userData.mainPhotoUrl || "",
+              membershipActive: true,
+              expiresAt: expiresAt,
+              joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              expiredHandled: false,
+              reminder7dSent: false,
+              reminder3dSent: false,
+              source: "promo",
+              planType: "promo_2_months",
+              price: 0,
+              currency: "AUD",
+              groupId: groupId,
+            },
+            { merge: true }
+          );
+        }
+
+        await batch.commit();
+        count++;
+      }
+
+      res.status(200).send(`DONE. Total users updated: ${count}`);
+    } catch (e) {
+      console.error("addPromoForAllExistingUsers error:", e);
+      res.status(500).send(e.toString());
     }
   }
 );

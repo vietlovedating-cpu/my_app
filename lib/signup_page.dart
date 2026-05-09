@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'main.dart';
 import 'terms_page.dart';
 import 'privacy_page.dart';
@@ -80,7 +81,7 @@ Future<void> _changeLanguage(String lang) async {
               Navigator.pop(context);
 
               try {
-                await FirebaseAuth.instance.signInWithEmailAndPassword(
+                await FirebaseAuth.instance.createUserWithEmailAndPassword(
                   email: emailController.text.trim(),
                   password: passwordController.text.trim(),
                 );
@@ -160,16 +161,20 @@ Future<void> _changeLanguage(String lang) async {
 final user = userCredential.user;
 
 if (user != null) {
+  final fcmToken = await FirebaseMessaging.instance.getToken();
+
+  print('SIGNUP FCM TOKEN: $fcmToken');
+
   await FirebaseFirestore.instance
       .collection('users')
       .doc(user.uid)
       .set({
     'uid': user.uid,
-   'email': emailController.text.trim(),
+    'email': emailController.text.trim(),
     'firstName': firstNameController.text.trim(),
     'surname': surnameController.text.trim(),
-
-
+    'fcmToken': fcmToken,
+    'fcmUpdatedAt': FieldValue.serverTimestamp(),
     'profileCompleted': false,
     'createdAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));

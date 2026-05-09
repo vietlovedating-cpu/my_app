@@ -1,11 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'home_page.dart';
 import 'forgot_password_page.dart';
 import 'signup_page.dart';
 import 'main.dart';
+
 
 class LoginPage extends StatefulWidget {
   final String? initialLanguageCode;
@@ -95,6 +99,27 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.remove('saved_email');
     await prefs.remove('saved_password');
   }
+  Future<void> _saveFcmToken() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return;
+
+    final fcmToken = await FirebaseMessaging.instance.getToken();
+
+    print('LOGIN FCM TOKEN: $fcmToken');
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'fcmToken': fcmToken,
+      'fcmUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  } catch (e) {
+    print('SAVE FCM ERROR: $e');
+  }
+}
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -112,6 +137,7 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       await _saveLoginIfNeeded();
+await _saveFcmToken();
 
       if (!mounted) return;
 
@@ -180,7 +206,88 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
+Future<void> _loginWithGoogle() async {
+  FocusScope.of(context).unfocus();
 
+  setState(() {
+    isLoading = true;
+  });
+
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+
+    await googleSignIn.signOut();
+
+    final GoogleSignInAccount? googleUser =
+        await googleSignIn.signIn();
+
+    if (googleUser == null) {
+      setState(() {
+        isLoading = false;
+      });
+      return;
+    }
+
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    await FirebaseAuth.instance.signInWithCredential(
+      credential,
+    );
+
+    await _clearSavedLogin();
+await _saveFcmToken();
+
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => HomePage(
+          key: ValueKey(
+            'home_${FirebaseAuth.instance.currentUser?.uid ?? 'guest'}_$languageCode',
+          ),
+          languageCode: languageCode,
+        ),
+      ),
+    );
+  } on FirebaseAuthException catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Đăng nhập Google thất bại: ${e.message}'
+              : 'Google sign in failed: ${e.message}',
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không thể đăng nhập Google: $e'
+              : 'Could not sign in with Google: $e',
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+}
   Future<void> _loginWithApple() async {
     FocusScope.of(context).unfocus();
 
@@ -196,6 +303,7 @@ class _LoginPageState extends State<LoginPage> {
       await FirebaseAuth.instance.signInWithProvider(appleProvider);
 
       await _clearSavedLogin();
+await _saveFcmToken();
 
       if (!mounted) return;
 
@@ -461,6 +569,30 @@ class _LoginPageState extends State<LoginPage> {
                         : Text(isVi ? 'Đăng nhập' : 'Login'),
                   ),
                 ),
+
+                const SizedBox(height: 14),
+SizedBox(
+  width: double.infinity,
+  height: 52,
+  child: OutlinedButton.icon(
+    onPressed: isLoading ? null : _loginWithGoogle,
+    style: OutlinedButton.styleFrom(
+      foregroundColor: Colors.black,
+      side: const BorderSide(color: Colors.black12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      backgroundColor: Colors.white,
+    ),
+    icon: const Icon(Icons.g_mobiledata, size: 30),
+    label: Text(
+      isVi ? 'Đăng nhập với Google' : 'Continue with Google',
+      style: const TextStyle(
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  ),
+),
                 if (showAppleButton) ...[
                   const SizedBox(height: 14),
                   SizedBox(
