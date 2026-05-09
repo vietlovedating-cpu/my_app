@@ -29,7 +29,7 @@ workflows:
         script: |
           cd ios
           pod repo update
-          pod install
+          pod install --repo-update
           cd ..
 
       - name: Set up code signing
