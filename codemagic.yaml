@@ -30,8 +30,9 @@ workflows:
           cd ios
           rm -rf Pods Podfile.lock
           pod deintegrate
-          pod setup
-          pod install --repo-update
+          pod repo update
+          pod update GTMSessionFetcher/Core --repo-update
+          pod install --repo-update --verbose
           cd ..
 
       - name: Set up code signing
