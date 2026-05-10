@@ -2,7 +2,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.4+424
+version: 1.0.4+425
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -11,8 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  google_sign_in: ^7.2.0
-
+  google_sign_in: 6.2.1
 
   provider: ^6.0.5
   cupertino_icons: ^1.0.6
@@ -42,6 +41,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.1
   flutter_launcher_icons: ^0.13.1
+
+dependency_overrides:
+  google_sign_in_ios: 5.7.8
 
 flutter:
   uses-material-design: true
