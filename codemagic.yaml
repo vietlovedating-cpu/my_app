@@ -28,8 +28,9 @@ workflows:
       - name: Install CocoaPods fresh
         script: |
           cd ios
+          rm -rf Pods Podfile.lock
+          pod cache clean GTMSessionFetcher --all || true
           pod repo update
-          pod update GTMSessionFetcher/Core
           pod install --repo-update
           cd ..
 
