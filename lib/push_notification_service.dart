@@ -138,13 +138,14 @@ if (Platform.isIOS) {
     apnsToken = await _messaging.getAPNSToken();
   }
 
-  if (apnsToken == null) {
-    print('APNS TOKEN STILL NULL');
-    return;
-  }
-
+   if (apnsToken == null) {
+  print('APNS TOKEN STILL NULL');
+} else {
   print('APNS TOKEN READY');
 }
+
+  print('APNS TOKEN READY');
+}         
     final token = await _messaging.getToken();
     print('FCM TOKEN = $token');
     if (token == null || token.isEmpty) return;

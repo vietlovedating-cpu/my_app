@@ -103,11 +103,22 @@ class _LoginPageState extends State<LoginPage> {
   try {
     final user = FirebaseAuth.instance.currentUser;
 
+    print('FCM USER: ${user?.uid}');
+
     if (user == null) return;
+
+    final permission = await FirebaseMessaging.instance.requestPermission();
+
+    print('FCM PERMISSION: ${permission.authorizationStatus}');
 
     final fcmToken = await FirebaseMessaging.instance.getToken();
 
     print('LOGIN FCM TOKEN: $fcmToken');
+
+    if (fcmToken == null) {
+      print('FCM TOKEN IS NULL');
+      return;
+    }
 
     await FirebaseFirestore.instance
         .collection('users')
@@ -116,6 +127,8 @@ class _LoginPageState extends State<LoginPage> {
       'fcmToken': fcmToken,
       'fcmUpdatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    print('FCM TOKEN SAVED');
   } catch (e) {
     print('SAVE FCM ERROR: $e');
   }

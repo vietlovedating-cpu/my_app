@@ -28,7 +28,19 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+final settings = await FirebaseMessaging.instance.requestPermission(
+  alert: true,
+  badge: true,
+  sound: true,
+);
 
+print('MAIN PERMISSION: ${settings.authorizationStatus}');
+
+final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+print('MAIN APNS TOKEN: $apnsToken');
+
+final fcmToken = await FirebaseMessaging.instance.getToken();
+print('MAIN FCM TOKEN: $fcmToken');
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());
