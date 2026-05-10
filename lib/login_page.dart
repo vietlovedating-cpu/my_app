@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -227,31 +226,32 @@ Future<void> _loginWithGoogle() async {
   });
 
   try {
-    final GoogleSignIn googleSignIn = GoogleSignIn();
+    /// final GoogleSignIn googleSignIn = GoogleSignIn();
+///
+/// await googleSignIn.signOut();
+///
+/// final GoogleSignInAccount? googleUser =
+///     await googleSignIn.signIn();
+///
+/// if (googleUser == null) {
+///   setState(() {
+///     isLoading = false;
+///   });
+///   return;
+/// }
+///
 
-    await googleSignIn.signOut();
-
-    final GoogleSignInAccount? googleUser =
-        await googleSignIn.signIn();
-
-    if (googleUser == null) {
-      setState(() {
-        isLoading = false;
-      });
-      return;
-    }
-
-    final GoogleSignInAuthentication googleAuth =
-        await googleUser.authentication;
-
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    await FirebaseAuth.instance.signInWithCredential(
-      credential,
-    );
+    /// final GoogleSignInAuthentication googleAuth =
+///     await googleUser.authentication;
+///
+/// final credential = GoogleAuthProvider.credential(
+///   accessToken: googleAuth.accessToken,
+///   idToken: googleAuth.idToken,
+/// );
+///
+/// await FirebaseAuth.instance.signInWithCredential(
+///   credential,
+/// );
 
     await _clearSavedLogin();
 await _saveFcmToken();
