@@ -28,22 +28,38 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-final settings = await FirebaseMessaging.instance.requestPermission(
-  alert: true,
-  badge: true,
-  sound: true,
-);
 
-print('MAIN PERMISSION: ${settings.authorizationStatus}');
-
-final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-print('MAIN APNS TOKEN: $apnsToken');
-
-final fcmToken = await FirebaseMessaging.instance.getToken();
-print('MAIN FCM TOKEN: $fcmToken');
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  FirebaseMessaging.onBackgroundMessage(
+    _firebaseMessagingBackgroundHandler,
+  );
 
   runApp(const MyApp());
+
+  // Chạy sau khi app đã mở
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      final settings =
+          await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      print('MAIN PERMISSION: ${settings.authorizationStatus}');
+
+      final apnsToken =
+          await FirebaseMessaging.instance.getAPNSToken();
+
+      print('MAIN APNS TOKEN: $apnsToken');
+
+      final fcmToken =
+          await FirebaseMessaging.instance.getToken();
+
+      print('MAIN FCM TOKEN: $fcmToken');
+    } catch (e) {
+      debugPrint('MAIN FCM INIT ERROR: $e');
+    }
+  });
 }
 
 class MyApp extends StatefulWidget {
