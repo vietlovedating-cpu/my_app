@@ -106,11 +106,37 @@ class _LoginPageState extends State<LoginPage> {
 
     if (user == null) return;
 
-    final permission = await FirebaseMessaging.instance.requestPermission();
+final permission =
+    await FirebaseMessaging.instance.requestPermission();
 
-    print('FCM PERMISSION: ${permission.authorizationStatus}');
+print('FCM PERMISSION: ${permission.authorizationStatus}');
 
-    final fcmToken = await FirebaseMessaging.instance.getToken();
+String? fcmToken;
+
+if (defaultTargetPlatform == TargetPlatform.iOS) {
+  await Future.delayed(const Duration(seconds: 2));
+
+  final apnsToken =
+      await FirebaseMessaging.instance.getAPNSToken();
+
+  print('LOGIN APNS TOKEN: $apnsToken');
+
+  if (apnsToken == null) {
+    print('APNS TOKEN STILL NULL');
+    return;
+  }
+}
+
+fcmToken = await FirebaseMessaging.instance.getToken();
+
+print('LOGIN FCM TOKEN: $fcmToken');
+
+if (fcmToken == null) {
+  print('FCM TOKEN IS NULL');
+  return;
+}
+
+fcmToken = await FirebaseMessaging.instance.getToken();
 
     print('LOGIN FCM TOKEN: $fcmToken');
 
@@ -583,54 +609,8 @@ await _saveFcmToken();
                   ),
                 ),
 
-                const SizedBox(height: 14),
-SizedBox(
-  width: double.infinity,
-  height: 52,
-  child: OutlinedButton.icon(
-    onPressed: isLoading ? null : _loginWithGoogle,
-    style: OutlinedButton.styleFrom(
-      foregroundColor: Colors.black,
-      side: const BorderSide(color: Colors.black12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      backgroundColor: Colors.white,
-    ),
-    icon: const Icon(Icons.g_mobiledata, size: 30),
-    label: Text(
-      isVi ? 'Đăng nhập với Google' : 'Continue with Google',
-      style: const TextStyle(
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  ),
-),
-                if (showAppleButton) ...[
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton.icon(
-                      onPressed: isLoading ? null : _loginWithApple,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
-                        side: const BorderSide(color: Colors.black12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        backgroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.apple),
-                      label: Text(
-                        isVi ? 'Đăng nhập với Apple' : 'Continue with Apple',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+              
+                
                 const SizedBox(height: 20),
                 Center(
                   child: Wrap(

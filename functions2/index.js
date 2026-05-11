@@ -1,10 +1,38 @@
-require('dotenv').config();
+require("dotenv").config();
 
 const admin = require("firebase-admin");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const functions = require("firebase-functions/v1");
 
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+
 admin.initializeApp();
+exports.deleteUnverifiedUserByEmail = onCall(async (request) => {
+  const email = String(request.data.email || "").trim().toLowerCase();
+
+  if (!email) {
+    throw new HttpsError("invalid-argument", "Missing email");
+  }
+
+  const user = await admin.auth().getUserByEmail(email);
+
+  if (user.emailVerified) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Email already verified"
+    );
+  }
+
+  await admin.auth().deleteUser(user.uid);
+
+  await admin.firestore().collection("users").doc(user.uid).delete().catch(() => {});
+
+  return {
+    ok: true,
+    deletedUid: user.uid,
+  };
+});
 async function isNotificationEnabled(userId, type) {
   try {
     const snap = await admin
@@ -209,8 +237,6 @@ await sendPushNotification({
     }
   }
 );
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onRequest } = require("firebase-functions/v2/https");
 
 exports.remindUnreadMessages = onSchedule(
   {

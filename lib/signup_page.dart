@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'main.dart';
 import 'terms_page.dart';
 import 'privacy_page.dart';
@@ -81,13 +82,13 @@ Future<void> _changeLanguage(String lang) async {
               Navigator.pop(context);
 
               try {
-                await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                  email: emailController.text.trim(),
-                  password: passwordController.text.trim(),
-                );
+                final credential =
+    await FirebaseAuth.instance.signInWithEmailAndPassword(
+  email: emailController.text.trim().toLowerCase(),
+  password: passwordController.text.trim(),
+);
 
-                await FirebaseAuth.instance.currentUser
-                    ?.sendEmailVerification();
+await credential.user?.sendEmailVerification();
 
                 if (!mounted) return;
 
@@ -161,25 +162,22 @@ Future<void> _changeLanguage(String lang) async {
 final user = userCredential.user;
 
 if (user != null) {
-  final fcmToken = await FirebaseMessaging.instance.getToken();
-
-  print('SIGNUP FCM TOKEN: $fcmToken');
+  await user.sendEmailVerification();
 
   await FirebaseFirestore.instance
       .collection('users')
       .doc(user.uid)
       .set({
     'uid': user.uid,
-    'email': emailController.text.trim(),
+    'email': emailController.text.trim().toLowerCase(),
     'firstName': firstNameController.text.trim(),
     'surname': surnameController.text.trim(),
-    'fcmToken': fcmToken,
-    'fcmUpdatedAt': FieldValue.serverTimestamp(),
+    'emailVerified': false,
     'profileCompleted': false,
+    'onboardingStep': 'email_verification',
     'createdAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 }
-      await auth.currentUser?.sendEmailVerification();
 
       if (!mounted) return;
 
@@ -206,9 +204,32 @@ if (user != null) {
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-        await _showEmailAlreadyExistsDialog(isVi);
-        return;
-      }
+  try {
+    final email = emailController.text.trim().toLowerCase();
+
+    await FirebaseFunctions.instance
+        .httpsCallable('deleteUnverifiedUserByEmail')
+        .call({
+      'email': email,
+    });
+
+    await _signUp();
+    return;
+  } catch (deleteError) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+    ? 'Email này đã được sử dụng. Nếu bạn chưa xác minh email, hãy thử lại sau vài giây để tạo lại tài khoản. Nếu đã xác minh, vui lòng đăng nhập.'
+    : 'This email is already in use. If you have not verified your email yet, please try again in a few seconds to recreate your account. If your email is already verified, please log in.',
+        ),
+      ),
+    );
+    return;
+  }
+}
 
       String message;
 

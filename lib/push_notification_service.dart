@@ -127,36 +127,47 @@ const initSettings = InitializationSettings(
   }
 
   Future<void> _saveToken() async {
+  try {
     final user = FirebaseAuth.instance.currentUser;
     print('CURRENT USER = ${user?.uid}');
+
     if (user == null) return;
-if (Platform.isIOS) {
-  String? apnsToken = await _messaging.getAPNSToken();
+
+    if (Platform.isIOS) {
+  await Future.delayed(const Duration(seconds: 3));
+
+  final apnsToken = await _messaging.getAPNSToken();
+
+  print('APNS TOKEN = $apnsToken');
 
   if (apnsToken == null) {
-    await Future.delayed(const Duration(seconds: 2));
-    apnsToken = await _messaging.getAPNSToken();
+    print('APNS TOKEN NULL - SKIP FCM TOKEN');
+    return;
   }
-
-   if (apnsToken == null) {
-  print('APNS TOKEN STILL NULL');
-} else {
-  print('APNS TOKEN READY');
 }
 
-  print('APNS TOKEN READY');
-}         
-    final token = await _messaging.getToken();
+final token = await _messaging.getToken();
     print('FCM TOKEN = $token');
-    if (token == null || token.isEmpty) return;
 
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+    if (token == null || token.isEmpty) {
+      print('FCM TOKEN NULL - NOT SAVED');
+      return;
+    }
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
       'fcmToken': token,
       'fcmUpdatedAt': FieldValue.serverTimestamp(),
+      'fcmPlatform': Platform.isIOS ? 'ios' : 'android',
     }, SetOptions(merge: true));
 
     print('TOKEN SAVED TO FIRESTORE');
+  } catch (e) {
+    print('SAVE TOKEN ERROR: $e');
   }
+}
 
   void _listenTokenRefresh() {
     _messaging.onTokenRefresh.listen((token) async {
