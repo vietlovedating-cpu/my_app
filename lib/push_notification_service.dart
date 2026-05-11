@@ -127,45 +127,72 @@ const initSettings = InitializationSettings(
   }
 
   Future<void> _saveToken() async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    print('CURRENT USER = ${user?.uid}');
+  final user = FirebaseAuth.instance.currentUser;
+  print('CURRENT USER = ${user?.uid}');
 
-    if (user == null) return;
+  if (user == null) return;
+
+  final userRef =
+      FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+  try {
+    await userRef.set({
+      'pushDebugLastRunAt': FieldValue.serverTimestamp(),
+      'pushDebugPlatform': Platform.isIOS ? 'ios' : 'android',
+      'pushDebugStep': 'started',
+    }, SetOptions(merge: true));
 
     if (Platform.isIOS) {
-  await Future.delayed(const Duration(seconds: 3));
+      await Future.delayed(const Duration(seconds: 3));
 
-  final apnsToken = await _messaging.getAPNSToken();
+      final apnsToken = await _messaging.getAPNSToken();
 
-  print('APNS TOKEN = $apnsToken');
+      print('APNS TOKEN = $apnsToken');
 
-  if (apnsToken == null) {
-    print('APNS TOKEN NULL - SKIP FCM TOKEN');
-    return;
-  }
-}
+      await userRef.set({
+        'pushDebugApnsTokenNull': apnsToken == null,
+        'pushDebugStep': apnsToken == null ? 'apns_null' : 'apns_ok',
+        'pushDebugUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-final token = await _messaging.getToken();
+      if (apnsToken == null) {
+        print('APNS TOKEN NULL - SKIP FCM TOKEN');
+        return;
+      }
+    }
+
+    final token = await _messaging.getToken();
     print('FCM TOKEN = $token');
+
+    await userRef.set({
+      'pushDebugFcmTokenNull': token == null || token.isEmpty,
+      'pushDebugStep':
+          token == null || token.isEmpty ? 'fcm_null' : 'fcm_ok',
+      'pushDebugUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
 
     if (token == null || token.isEmpty) {
       print('FCM TOKEN NULL - NOT SAVED');
       return;
     }
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({
+    await userRef.set({
       'fcmToken': token,
       'fcmUpdatedAt': FieldValue.serverTimestamp(),
       'fcmPlatform': Platform.isIOS ? 'ios' : 'android',
+      'pushDebugStep': 'saved',
+      'pushDebugError': FieldValue.delete(),
     }, SetOptions(merge: true));
 
     print('TOKEN SAVED TO FIRESTORE');
   } catch (e) {
     print('SAVE TOKEN ERROR: $e');
+
+    await userRef.set({
+      'pushDebugStep': 'error',
+      'pushDebugError': e.toString(),
+      'pushDebugUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 }
 
