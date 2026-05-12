@@ -51,6 +51,7 @@ double? selectedDistanceKm;
   String? selectedReligionFilter;
   String? selectedRelationshipGoalFilter;
   String? selectedMaritalStatusFilter;
+  String? selectedHeightFilter;
   String? selectedResidentStatusFilter;
   String? selectedEducationFilter;
   String? selectedSmokingFilter;
@@ -147,6 +148,7 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       selectedReligionFilter = null;
       selectedRelationshipGoalFilter = null;
       selectedMaritalStatusFilter = null;
+      selectedHeightFilter = null;
       selectedResidentStatusFilter = null;
       selectedEducationFilter = null;
       selectedSmokingFilter = null;
@@ -631,7 +633,12 @@ if (selectedStateFilter == null ||
             selectedMaritalStatusFilter) {
       return false;
     }
-
+    if (selectedHeightFilter != null &&
+    selectedHeightFilter!.isNotEmpty &&
+    _normalizeString(profile['height']) !=
+        _normalizeString(selectedHeightFilter)) {
+  return false;
+}
     if (selectedResidentStatusFilter != null &&
         selectedResidentStatusFilter!.isNotEmpty &&
         _normalizeString(profile['residentStatus']) !=
@@ -1369,6 +1376,7 @@ Future<void> _sendMatchNotification(
           initialReligion: selectedReligionFilter,
           initialRelationshipGoal: selectedRelationshipGoalFilter,
           initialMaritalStatus: selectedMaritalStatusFilter,
+          initialHeight: selectedHeightFilter,
           initialResidentStatus: selectedResidentStatusFilter,
           initialEducation: selectedEducationFilter,
           initialSmoking: selectedSmokingFilter,
@@ -1409,6 +1417,7 @@ Future<void> _sendMatchNotification(
               selectedReligionFilter = null;
               selectedRelationshipGoalFilter = null;
               selectedMaritalStatusFilter = null;
+              selectedHeightFilter = null;
               selectedResidentStatusFilter = null;
               selectedEducationFilter = null;
               selectedSmokingFilter = null;
@@ -1462,6 +1471,7 @@ if (user != null) {
           selectedReligionFilter = result.religion;
           selectedRelationshipGoalFilter = result.relationshipGoal;
           selectedMaritalStatusFilter = result.maritalStatus;
+          selectedHeightFilter = result.height;
           selectedResidentStatusFilter = result.residentStatus;
           selectedEducationFilter = result.education;
           selectedSmokingFilter = result.smoking;
@@ -1471,6 +1481,7 @@ if (user != null) {
           selectedReligionFilter = null;
           selectedRelationshipGoalFilter = null;
           selectedMaritalStatusFilter = null;
+          selectedHeightFilter = null;
           selectedResidentStatusFilter = null;
           selectedEducationFilter = null;
           selectedSmokingFilter = null;
@@ -2720,6 +2731,8 @@ final String gender = _translateProfileValue(genderRaw, isVi);
       isVi,
     );
 
+    final String height = _firstNonEmpty(profile, ['height', 'heightCm']);
+
     final String maritalStatus = _translateProfileValue(
       _firstNonEmpty(profile, ['maritalStatus']),
       isVi,
@@ -2884,6 +2897,13 @@ final String gender = _translateProfileValue(genderRaw, isVi);
                 ],
                 _buildInfoSlide(
                   items: [
+                    if (height.isNotEmpty)
+  _InfoItem(
+    icon: Icons.height_rounded,
+    label: _label('Chiều cao', 'Height'),
+    text: height,
+  ),
+
                     if (maritalStatus.isNotEmpty)
                       _InfoItem(
                         icon: Icons.favorite_outline_rounded,

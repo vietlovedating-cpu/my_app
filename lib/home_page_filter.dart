@@ -10,6 +10,7 @@ class HomePageFilterResult {
   final String? religion;
   final String? relationshipGoal;
   final String? maritalStatus;
+  final String? height;
   final String? residentStatus;
   final String? education;
   final String? smoking;
@@ -25,6 +26,7 @@ class HomePageFilterResult {
     required this.religion,
     required this.relationshipGoal,
     required this.maritalStatus,
+    required this.height,
     required this.residentStatus,
     required this.education,
     required this.smoking,
@@ -46,6 +48,7 @@ class HomePageFilterSheet extends StatefulWidget {
   final String? initialReligion;
   final String? initialRelationshipGoal;
   final String? initialMaritalStatus;
+  final String? initialHeight;
   final String? initialResidentStatus;
   final String? initialEducation;
   final String? initialSmoking;
@@ -73,6 +76,7 @@ class HomePageFilterSheet extends StatefulWidget {
     required this.initialReligion,
     required this.initialRelationshipGoal,
     required this.initialMaritalStatus,
+    required this.initialHeight,
     required this.initialResidentStatus,
     required this.initialEducation,
     required this.initialSmoking,
@@ -100,6 +104,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   late String? tempReligion;
   late String? tempGoal;
   late String? tempMarital;
+  late String? tempHeight;
   late String? tempResident;
   late String? tempEducation;
   late String? tempSmoking;
@@ -123,6 +128,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     tempReligion = widget.initialReligion;
     tempGoal = widget.initialRelationshipGoal;
     tempMarital = widget.initialMaritalStatus;
+    tempHeight = widget.initialHeight;
     tempResident = widget.initialResidentStatus;
     tempEducation = widget.initialEducation;
     tempSmoking = widget.initialSmoking;
@@ -138,6 +144,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
         minAge: tempMinAge,
         maxAge: tempMaxAge,
         state: tempState,
+        height: tempHeight,
         distanceKm: widget.initialDistanceKm == null
     ? null
     : tempDistanceKm,
@@ -398,6 +405,24 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
                   },
                 ),
                 const SizedBox(height: 12),
+
+_dropdownBox(
+  title: _label('Chiều cao', 'Height'),
+  value: tempHeight,
+  items: const [
+    '',
+    '150-159 cm',
+    '160-169 cm',
+    '170-179 cm',
+    '180+ cm',
+  ],
+  onChanged: (value) {
+    setState(() {
+      tempHeight = value == null || value.isEmpty ? null : value;
+    });
+  },
+),
+                const SizedBox(height: 12),
                 _dropdownBox(
                   title: _label('Tình trạng cư trú', 'Resident status'),
                   value: tempResident,
@@ -475,6 +500,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
                 _vipLockedTile(_label('Tôn giáo', 'Religion')),
                 _vipLockedTile(_label('Mục tiêu hẹn hò', 'Relationship goal')),
                 _vipLockedTile(_label('Tình trạng hôn nhân', 'Marital status')),
+                _vipLockedTile(_label('Chiều cao', 'Height')),
                 _vipLockedTile(_label('Tình trạng cư trú', 'Resident status')),
                 _vipLockedTile(_label('Bằng cấp', 'Education')),
                 _vipLockedTile(_label('Hút thuốc', 'Smoking')),
