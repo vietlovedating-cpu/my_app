@@ -2760,12 +2760,7 @@ final String gender = _translateProfileValue(genderRaw, isVi);
     );
 
     final String haveChildren = _translateProfileValue(
-  _firstNonEmpty(profile, [
-    'haveChildren',
-    'hasChildren',
-    'childrenStatus',
-    'children',
-  ]),
+  (profile['haveChildren'] ?? '').toString(),
   isVi,
 );
 
@@ -2938,11 +2933,11 @@ final String gender = _translateProfileValue(genderRaw, isVi);
                         text: maritalStatus,
                       ),
                     if (haveChildren.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.child_care_outlined,
-                        label: _label('Có con', 'Have children'),
-                        text: haveChildren,
-                      ),
+  _InfoItem(
+    icon: Icons.child_care_outlined,
+    label: _label('Con cái', 'Children'),
+    text: haveChildren,
+  ),
                     if (relationshipGoal.isNotEmpty)
                       _InfoItem(
                         icon: Icons.flag_circle_outlined,
