@@ -1166,13 +1166,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
                   label: _tr(isVi, 'Tình trạng hôn nhân', 'Marital status'),
                   text: maritalStatus,
                 ),
-                    if (haveChildren.isNotEmpty)
-     if (haveChildren.isNotEmpty)
-      _InfoItem(
-        icon: Icons.child_care_outlined,
-        label: _tr(isVi, 'Con cái', 'Children'),
-        text: haveChildren,
-      ),
+    if (haveChildren.isNotEmpty)
+  _InfoItem(
+    icon: Icons.child_care_outlined,
+    label: isVi ? 'Con cái' : 'Children',
+    text: haveChildren,
+  ),
               if (relationshipGoal.isNotEmpty)
                 _InfoItem(
                   icon: Icons.favorite_rounded,
