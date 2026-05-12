@@ -263,7 +263,17 @@ final isUnread =
 
                   return InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () {
+                    onTap: () async {
+                      await FirebaseFirestore.instance
+    .collection('chats')
+    .doc(chatId)
+    .set({
+  'lastReadBy': {
+    currentUser.uid: FieldValue.serverTimestamp(),
+  },
+}, SetOptions(merge: true));
+
+if (!context.mounted) return;
                       Navigator.push(
                         context,
                         MaterialPageRoute(
