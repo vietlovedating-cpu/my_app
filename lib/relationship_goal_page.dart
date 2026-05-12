@@ -115,6 +115,7 @@ class _RelationshipGoalPageState extends State<RelationshipGoalPage> {
           minAgePreference: widget.minAgePreference,
           maxAgePreference: widget.maxAgePreference,
           maritalStatus: widget.maritalStatus,
+          haveChildren: widget.haveChildren,
 
           // ✅ truyền KEY list
           relationshipGoals: selectedRelationshipGoals,

@@ -12,6 +12,7 @@ class PhotoIntroPage extends StatelessWidget {
   final int minAgePreference;
   final int maxAgePreference;
   final String maritalStatus;
+  final String haveChildren;
   final List<String> relationshipGoals;
   final List<String> initialPhotoUrls;
   final bool isEditingFromHome;
@@ -28,6 +29,7 @@ class PhotoIntroPage extends StatelessWidget {
     required this.minAgePreference,
     required this.maxAgePreference,
     required this.maritalStatus,
+    required this.haveChildren,
     required this.relationshipGoals,
     this.initialPhotoUrls = const [],
     this.isEditingFromHome = false,
@@ -115,6 +117,7 @@ class PhotoIntroPage extends StatelessWidget {
                           minAgePreference: minAgePreference,
                           maxAgePreference: maxAgePreference,
                           maritalStatus: maritalStatus,
+                          haveChildren: haveChildren,
                           relationshipGoals: relationshipGoals,
                           initialPhotoUrls: initialPhotoUrls,
                           isEditingFromHome: isEditingFromHome,

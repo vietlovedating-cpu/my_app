@@ -2940,11 +2940,14 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
         text: maritalStatus,
       ),
 
-   if (true)
+   if ((profile['haveChildren'] ?? '').toString().trim().isNotEmpty)
   _InfoItem(
     icon: Icons.child_care_outlined,
-    label: 'DEBUG',
-    text: '${profile['haveChildren']}',
+    label: _label('Con cái', 'Children'),
+    text: _translateProfileValue(
+      (profile['haveChildren'] ?? '').toString(),
+      isVi,
+    ),
   ),
 
     if (relationshipGoal.isNotEmpty)

@@ -23,6 +23,7 @@ class UploadPhotosPage extends StatefulWidget {
   final int minAgePreference;
   final int maxAgePreference;
   final String maritalStatus;
+  final String haveChildren;
   final List<String> relationshipGoals;
   final List<String> initialPhotoUrls;
   final bool isEditingFromHome;
@@ -39,6 +40,7 @@ class UploadPhotosPage extends StatefulWidget {
     required this.minAgePreference,
     required this.maxAgePreference,
     required this.maritalStatus,
+    required this.haveChildren,
     required this.relationshipGoals,
     this.initialPhotoUrls = const [],
     this.isEditingFromHome = false,
@@ -197,6 +199,7 @@ class _UploadPhotosPageState extends State<UploadPhotosPage> {
   'photoUrls': allPhotoUrls,
   'photos': allPhotoUrls,
   'mainPhotoUrl': allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
+  'haveChildren': widget.haveChildren,
   'onboardingStep': 'highest_education',
   'updatedAt': FieldValue.serverTimestamp(),
 }, SetOptions(merge: true));
