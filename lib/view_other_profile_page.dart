@@ -1135,25 +1135,26 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
   }
 
   Widget _buildOnlineDot(bool isOnline) {
-    return Container(
-      width: 14,
-      height: 14,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: isOnline ? const Color(0xFF2ECC71) : const Color(0xFFE74C3C),
-        boxShadow: [
-          BoxShadow(
-            color: (isOnline
-                    ? const Color(0xFF2ECC71)
-                    : const Color(0xFFE74C3C))
-                .withOpacity(0.35),
-            blurRadius: 10,
-            spreadRadius: 1.2,
-          ),
-        ],
-      ),
-    );
+  if (!isOnline) {
+    return const SizedBox.shrink();
   }
+
+  return Container(
+    width: 14,
+    height: 14,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: const Color(0xFF2ECC71),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFF2ECC71).withOpacity(0.35),
+          blurRadius: 10,
+          spreadRadius: 1.2,
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildMainCirclePhoto(String imageUrl) {
     return Container(
