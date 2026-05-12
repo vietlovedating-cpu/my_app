@@ -633,11 +633,32 @@ if (selectedStateFilter == null ||
             selectedMaritalStatusFilter) {
       return false;
     }
-    if (selectedHeightFilter != null &&
-    selectedHeightFilter!.isNotEmpty &&
-    _normalizeString(profile['height']) !=
-        _normalizeString(selectedHeightFilter)) {
-  return false;
+    if (selectedHeightFilter != null && selectedHeightFilter!.isNotEmpty) {
+  final heightText = (profile['height'] ?? '').toString();
+  final heightCm = int.tryParse(heightText.replaceAll(RegExp(r'[^0-9]'), ''));
+
+  if (heightCm == null) {
+    return false;
+  }
+
+  if (selectedHeightFilter == '150-159 cm' &&
+      (heightCm < 150 || heightCm > 159)) {
+    return false;
+  }
+
+  if (selectedHeightFilter == '160-169 cm' &&
+      (heightCm < 160 || heightCm > 169)) {
+    return false;
+  }
+
+  if (selectedHeightFilter == '170-179 cm' &&
+      (heightCm < 170 || heightCm > 179)) {
+    return false;
+  }
+
+  if (selectedHeightFilter == '180+ cm' && heightCm < 180) {
+    return false;
+  }
 }
     if (selectedResidentStatusFilter != null &&
         selectedResidentStatusFilter!.isNotEmpty &&
@@ -2739,9 +2760,14 @@ final String gender = _translateProfileValue(genderRaw, isVi);
     );
 
     final String haveChildren = _translateProfileValue(
-      _firstNonEmpty(profile, ['haveChildren', 'hasChildren', 'childrenStatus']),
-      isVi,
-    );
+  _firstNonEmpty(profile, [
+    'haveChildren',
+    'hasChildren',
+    'childrenStatus',
+    'children',
+  ]),
+  isVi,
+);
 
     String relationshipGoal = _extractRelationshipGoalKey(profile);
     relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
@@ -2863,6 +2889,13 @@ final String gender = _translateProfileValue(genderRaw, isVi);
                         label: _label('Tôn giáo', 'Religion'),
                         text: religion,
                       ),
+                      if (height.isNotEmpty)
+  _InfoItem(
+    icon: Icons.height_rounded,
+    label: _label('Chiều cao', 'Height'),
+    text: height,
+  ),
+
                   ],
                 ),
                 if (getPhoto(2).isNotEmpty) ...[
@@ -2897,13 +2930,7 @@ final String gender = _translateProfileValue(genderRaw, isVi);
                 ],
                 _buildInfoSlide(
                   items: [
-                    if (height.isNotEmpty)
-  _InfoItem(
-    icon: Icons.height_rounded,
-    label: _label('Chiều cao', 'Height'),
-    text: height,
-  ),
-
+                    
                     if (maritalStatus.isNotEmpty)
                       _InfoItem(
                         icon: Icons.favorite_outline_rounded,
