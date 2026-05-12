@@ -230,6 +230,20 @@ class MessagesListPage extends StatelessWidget {
               final lastMessage = (data['lastMessage'] ?? '').toString();
               final updatedAt = data['updatedAt'] as Timestamp?;
               final chatId = (data['chatId'] ?? docs[index].id).toString();
+              final lastSenderId = (data['lastSenderId'] ?? '').toString();
+
+final lastReadBy = Map<String, dynamic>.from(
+  data['lastReadBy'] ?? {},
+);
+
+final myLastReadAt = lastReadBy[currentUser.uid] as Timestamp?;
+
+final isUnread =
+    lastSenderId.isNotEmpty &&
+    lastSenderId != currentUser.uid &&
+    updatedAt != null &&
+    (myLastReadAt == null ||
+        updatedAt.toDate().isAfter(myLastReadAt.toDate()));
 
               return FutureBuilder<Map<String, String>>(
                 future: _getOtherUserInfo(
@@ -268,11 +282,16 @@ class MessagesListPage extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFFFFF0F5),
-                            Color(0xFFFFFFFF),
-                          ],
+                        gradient: LinearGradient(
+  colors: isUnread
+      ? [
+          const Color(0xFFFFD6E7),
+          const Color(0xFFFFF3F8),
+        ]
+      : [
+          const Color(0xFFFFF0F5),
+          const Color(0xFFFFFFFF),
+        ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -311,10 +330,12 @@ class MessagesListPage extends StatelessWidget {
                                   lastMessage,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.black54,
-                                    fontSize: 13,
-                                  ),
+                                  style: TextStyle(
+  color: isUnread ? Colors.black87 : Colors.black54,
+  fontSize: 13,
+  fontWeight:
+      isUnread ? FontWeight.w700 : FontWeight.w400,
+),
                                 ),
                               ],
                             ),
