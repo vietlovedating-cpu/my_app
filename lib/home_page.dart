@@ -2932,29 +2932,29 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
                   ),
                 ],
                 _buildInfoSlide(
-                  items: [
-                    
-                    if (maritalStatus.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.favorite_outline_rounded,
-                        label: _label('Tình trạng hôn nhân', 'Marital status'),
-                        text: maritalStatus,
-                      ),
-                    if (haveChildren.isNotEmpty)
- if (childrenText.isNotEmpty)
-  _InfoItem(
-    icon: Icons.child_care_outlined,
-    label: _label('Con cái', 'Children'),
-    text: 'TEST CHILDREN: $childrenText',
-  ),
-                    if (relationshipGoal.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.flag_circle_outlined,
-                        label: _label('Mục tiêu hẹn hò', 'Relationship goal'),
-                        text: relationshipGoal,
-                      ),
-                  ],
-                ),
+  items: [
+    if (maritalStatus.isNotEmpty)
+      _InfoItem(
+        icon: Icons.favorite_outline_rounded,
+        label: _label('Tình trạng hôn nhân', 'Marital status'),
+        text: maritalStatus,
+      ),
+
+    if (childrenText.isNotEmpty)
+      _InfoItem(
+        icon: Icons.child_care_outlined,
+        label: _label('Con cái', 'Children'),
+        text: childrenText,
+      ),
+
+    if (relationshipGoal.isNotEmpty)
+      _InfoItem(
+        icon: Icons.flag_circle_outlined,
+        label: _label('Mục tiêu hẹn hò', 'Relationship goal'),
+        text: relationshipGoal,
+      ),
+  ],
+),
                 if (getPhoto(4).isNotEmpty) ...[
                   const SizedBox(height: 18),
                   _buildPhotoBlock(getPhoto(4)),
