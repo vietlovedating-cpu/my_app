@@ -2753,7 +2753,15 @@ final String gender = _translateProfileValue(genderRaw, isVi);
     );
 
     final String height = _firstNonEmpty(profile, ['height', 'heightCm']);
-
+final String haveChildren = _translateProfileValue(
+  _firstNonEmpty(profile, [
+    'haveChildren',
+    'children',
+    'childrenStatus',
+    'hasChildren',
+  ]),
+  isVi,
+);
     final String maritalStatus = _translateProfileValue(
       _firstNonEmpty(profile, ['maritalStatus']),
       isVi,
