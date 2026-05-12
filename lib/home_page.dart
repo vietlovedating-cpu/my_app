@@ -2767,13 +2767,13 @@ final String haveChildren = _translateProfileValue(
       isVi,
     );
 
-    final String haveChildren = _translateProfileValue(
+    final String childrenText = _translateProfileValue(
   (profile['haveChildren'] ?? '').toString(),
   isVi,
 );
 
-    String relationshipGoal = _extractRelationshipGoalKey(profile);
-    relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
+String relationshipGoal = _extractRelationshipGoalKey(profile);
+relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
 
     final String residentStatus = _translateProfileValue(
       _firstNonEmpty(profile, ['residentStatus']),
