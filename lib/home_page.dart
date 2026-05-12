@@ -2941,10 +2941,11 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
                         text: maritalStatus,
                       ),
                     if (haveChildren.isNotEmpty)
+ if (childrenText.isNotEmpty)
   _InfoItem(
     icon: Icons.child_care_outlined,
     label: _label('Con cái', 'Children'),
-    text: haveChildren,
+    text: 'TEST CHILDREN: $childrenText',
   ),
                     if (relationshipGoal.isNotEmpty)
                       _InfoItem(
