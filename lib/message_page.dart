@@ -165,7 +165,33 @@ void _onMessageChanged(String value) {}
   _messageController.clear();
 
   final firestore = FirebaseFirestore.instance;
+final blockedDoc = await firestore
+    .collection('users')
+    .doc(user.uid)
+    .collection('blockedUsers')
+    .doc(widget.otherUserId)
+    .get();
 
+if (blockedDoc.exists) {
+  if (!mounted) return;
+
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text(
+      _tr(
+        'Đã chặn người dùng này',
+        'You blocked this user',
+      ),
+    ),
+  ),
+);
+
+if (Navigator.canPop(context)) {
+  Navigator.of(context).pop();
+}
+
+  return;
+}
   await firestore
       .collection('chats')
       .doc(widget.chatId)
@@ -751,6 +777,87 @@ Future<void> _sendPendingImage() async {
     ],
   ),
 ),
+        actions: [
+  PopupMenuButton<String>(
+    icon: const Icon(Icons.more_vert),
+    onSelected: (value) async {
+      if (value == 'block') {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(
+              _tr(
+                'Chặn người dùng?',
+                'Block this user?',
+              ),
+            ),
+            content: Text(
+              _tr(
+                'Bạn có chắc muốn chặn người dùng này không?',
+                'Are you sure you want to block this user?',
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(_tr('Không', 'No')),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: Text(_tr('Có', 'Yes')),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm != true) return;
+
+        final currentUser =
+            FirebaseAuth.instance.currentUser;
+
+        if (currentUser == null) return;
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('blockedUsers')
+            .doc(widget.otherUserId)
+            .set({
+          'blockedAt': FieldValue.serverTimestamp(),
+          'userId': widget.otherUserId,
+          'name': _effectiveOtherUserName,
+          'photoUrl': _effectiveOtherUserPhotoUrl,
+        });
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _tr(
+                'Đã chặn người dùng này',
+                'You blocked this user',
+              ),
+            ),
+          ),
+        );
+
+        Navigator.pop(context);
+      }
+    },
+    itemBuilder: (context) => [
+      PopupMenuItem(
+        value: 'block',
+        child: Text(
+          _tr(
+            'Chặn người dùng',
+            'Block User',
+          ),
+        ),
+      ),
+    ],
+  ),
+],
       ),
       body: Column(
         children: [

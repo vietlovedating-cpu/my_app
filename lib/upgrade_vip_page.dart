@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -205,8 +206,24 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                     const SizedBox(height: 14),
                     Text(
                       isVi
-                          ? 'Bạn đã chọn gói VIP ${plan.titleVi} cho ${_displayPrice(plan)}.'
-                          : 'You selected VIP ${plan.titleEn} for ${_displayPrice(plan)}.',
+    ? plan.id == '1_week'
+        ? 'Bạn đã chọn gói VIP 1 tuần tự động gia hạn mỗi tuần với giá ${_displayPrice(plan)}.'
+        : plan.id == '1_month'
+            ? 'Bạn đã chọn gói VIP 1 tháng tự động gia hạn mỗi tháng với giá ${_displayPrice(plan)}.'
+            : plan.id == '2_months'
+                ? 'Bạn đã chọn gói VIP 2 tháng tự động gia hạn mỗi 2 tháng với giá ${_displayPrice(plan)}.'
+                : plan.id == '3_months'
+                    ? 'Bạn đã chọn gói VIP 3 tháng tự động gia hạn mỗi 3 tháng với giá ${_displayPrice(plan)}.'
+                    : 'Bạn đã chọn gói VIP 6 tháng tự động gia hạn mỗi 6 tháng với giá ${_displayPrice(plan)}.'
+    : plan.id == '1_week'
+        ? 'You selected a 1 week VIP auto-renewable subscription for ${_displayPrice(plan)}.'
+        : plan.id == '1_month'
+            ? 'You selected a 1 month VIP auto-renewable subscription for ${_displayPrice(plan)}.'
+            : plan.id == '2_months'
+                ? 'You selected a 2 months VIP auto-renewable subscription for ${_displayPrice(plan)}.'
+                : plan.id == '3_months'
+                    ? 'You selected a 3 months VIP auto-renewable subscription for ${_displayPrice(plan)}.'
+                    : 'You selected a 6 months VIP auto-renewable subscription for ${_displayPrice(plan)}.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 15,
@@ -231,23 +248,77 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: ElevatedButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF5B4BDB),
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text(
-                              _label('Mua', 'Purchase'),
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+  child: ElevatedButton(
+    onPressed: () => Navigator.pop(context, true),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF5B4BDB),
+      minimumSize: const Size.fromHeight(48),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+    ),
+    child: Text(
+      _label('Mua', 'Purchase'),
+      style: const TextStyle(color: Colors.white),
+    ),
+  ),
+),
+],
+),
+
+const SizedBox(height: 12),
+
+Center(
+  child: Wrap(
+    alignment: WrapAlignment.center,
+    children: [
+      if (Platform.isIOS)
+      GestureDetector(
+        onTap: () async {
+          final uri = Uri.parse(
+            'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+          );
+
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+        },
+        child: Text(
+          _label('Điều khoản sử dụng', 'Terms of Use'),
+          style: const TextStyle(
+            decoration: TextDecoration.underline,
+            color: Colors.blue,
+            fontSize: 13,
+          ),
+        ),
+      ),
+
+      const Text('  •  '),
+
+      GestureDetector(
+        onTap: () async {
+          final uri = Uri.parse(
+            'https://hexagonal-tungsten-804.notion.site/TERMS-CONDITIONS-2d39b7e1b623803b8f46d5877e01b67d',
+          );
+
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+        },
+        child: Text(
+          _label('Chính sách bảo mật', 'Privacy Policy'),
+          style: const TextStyle(
+            decoration: TextDecoration.underline,
+            color: Colors.blue,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    ],
+  ),
+),
                   ],
                 ),
               ),

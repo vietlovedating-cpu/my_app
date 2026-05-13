@@ -3556,7 +3556,18 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
   Widget build(BuildContext context) {
     final isVi = widget.languageCode == 'vi';
 
-    return Scaffold(
+    return PopScope(
+  canPop: _selectedBottomIndex == 0,
+  onPopInvoked: (didPop) {
+    if (didPop) return;
+
+    if (_selectedBottomIndex != 0) {
+      setState(() {
+        _selectedBottomIndex = 0;
+      });
+    }
+  },
+  child: Scaffold(
       extendBodyBehindAppBar: _selectedBottomIndex == 0,
       backgroundColor: const Color(0xFFFFF8FB),
       appBar: AppBar(
@@ -3652,7 +3663,8 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
           ),
         ],
       ),
-    );
+     ),
+);
   }
 }
 

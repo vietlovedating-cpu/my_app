@@ -37,32 +37,32 @@ class MatchPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF7FB),
       appBar: AppBar(
-  backgroundColor: const Color(0xFFFFF7FB),
-  elevation: 0,
-  centerTitle: true,
-  toolbarHeight: 70, // 👈 thêm dòng này
-  actions: [
-    IconButton(
-      tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
-      icon: const Icon(
-        Icons.star_rounded,
-        color: Color(0xFFF4A261),
-        size: 42, // 👈 đẹp nhất (đừng 48 quá to)
-      ),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => LikesAndViewsHubPage(
-              languageCode: languageCode,
+        backgroundColor: const Color(0xFFFFF7FB),
+        elevation: 0,
+        centerTitle: true,
+        toolbarHeight: 70,
+        actions: [
+          IconButton(
+            tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
+            icon: const Icon(
+              Icons.star_rounded,
+              color: Color(0xFFF4A261),
+              size: 42,
             ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LikesAndViewsHubPage(
+                    languageCode: languageCode,
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
-    ),
-    const SizedBox(width: 10),
-  ],
-),
+          const SizedBox(width: 10),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: FirebaseFirestore.instance
             .collection('matches')
@@ -149,17 +149,30 @@ class MatchPage extends StatelessWidget {
                     .doc(otherUid)
                     .get(),
                 builder: (context, userSnapshot) {
+                  if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+
+                  if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final userData = userSnapshot.data!.data() ?? {};
+
+                  final String displayName = _capitalizeName(
+                    (userData['firstName'] ?? otherName).toString(),
+                  );
+
+                  final String displayPhoto =
+                      (userData['mainPhotoUrl'] ?? otherPhoto).toString().trim();
+
                   int age = 0;
+                  final rawAge = userData['age'];
 
-                  if (userSnapshot.hasData && userSnapshot.data!.exists) {
-                    final userData = userSnapshot.data!.data() ?? {};
-                    final rawAge = userData['age'];
-
-                    if (rawAge is int) {
-                      age = rawAge;
-                    } else {
-                      age = int.tryParse('${rawAge ?? ''}') ?? 0;
-                    }
+                  if (rawAge is int) {
+                    age = rawAge;
+                  } else {
+                    age = int.tryParse('${rawAge ?? ''}') ?? 0;
                   }
 
                   return InkWell(
@@ -172,8 +185,8 @@ class MatchPage extends StatelessWidget {
                             languageCode: languageCode,
                             chatId: chatId,
                             otherUserId: otherUid,
-                            otherUserName: otherName,
-                            otherUserPhotoUrl: otherPhoto,
+                            otherUserName: displayName,
+                            otherUserPhotoUrl: displayPhoto,
                           ),
                         ),
                       );
@@ -199,9 +212,10 @@ class MatchPage extends StatelessWidget {
                           CircleAvatar(
                             radius: 31,
                             backgroundColor: Colors.grey.shade200,
-                            backgroundImage:
-                                otherPhoto.isNotEmpty ? NetworkImage(otherPhoto) : null,
-                            child: otherPhoto.isEmpty
+                            backgroundImage: displayPhoto.isNotEmpty
+                                ? NetworkImage(displayPhoto)
+                                : null,
+                            child: displayPhoto.isEmpty
                                 ? const Icon(Icons.person, size: 30)
                                 : null,
                           ),
@@ -211,7 +225,9 @@ class MatchPage extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  age > 0 ? '$otherName, $age' : otherName,
+                                  age > 0
+                                      ? '$displayName, $age'
+                                      : displayName,
                                   style: const TextStyle(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w800,

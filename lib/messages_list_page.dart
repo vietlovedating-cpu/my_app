@@ -101,13 +101,11 @@ class MessagesListPage extends StatelessWidget {
     required String fallbackName,
     required String fallbackPhoto,
   }) async {
-    String name = fallbackName.trim();
-    String photo = fallbackPhoto.trim();
-
-    if (name.isNotEmpty && photo.isNotEmpty) {
+    if (otherUserId.trim().isEmpty) {
       return {
-        'name': name,
-        'photo': photo,
+        'deleted': 'true',
+        'name': '',
+        'photo': '',
       };
     }
 
@@ -117,21 +115,33 @@ class MessagesListPage extends StatelessWidget {
           .doc(otherUserId)
           .get();
 
+      if (!userDoc.exists) {
+        return {
+          'deleted': 'true',
+          'name': '',
+          'photo': '',
+        };
+      }
+
       final userData = userDoc.data() ?? {};
 
-      if (name.isEmpty) {
-        name = (userData['firstName'] ?? '').toString().trim();
-      }
+      final name = (userData['firstName'] ?? fallbackName).toString().trim();
 
-      if (photo.isEmpty) {
-        photo = (userData['mainPhotoUrl'] ?? '').toString().trim();
-      }
-    } catch (_) {}
+      final photo =
+          (userData['mainPhotoUrl'] ?? fallbackPhoto).toString().trim();
 
-    return {
-      'name': name,
-      'photo': photo,
-    };
+      return {
+        'deleted': 'false',
+        'name': name,
+        'photo': photo,
+      };
+    } catch (_) {
+      return {
+        'deleted': 'true',
+        'name': '',
+        'photo': '',
+      };
+    }
   }
 
   @override
@@ -149,218 +159,247 @@ class MessagesListPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF7FB),
       appBar: AppBar(
-  backgroundColor: const Color(0xFFFFF7FB),
-  elevation: 0,
-  centerTitle: true,
-  toolbarHeight: 70, // 👈 thêm dòng này
-  actions: [
-    IconButton(
-      tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
-      icon: const Icon(
-        Icons.star_rounded,
-        color: Color(0xFFF4A261),
-        size: 42, // 👈 đẹp nhất (đừng 48 quá to)
-      ),
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => LikesAndViewsHubPage(
-              languageCode: languageCode,
+        backgroundColor: const Color(0xFFFFF7FB),
+        elevation: 0,
+        centerTitle: true,
+        toolbarHeight: 70,
+        actions: [
+          IconButton(
+            tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
+            icon: const Icon(
+              Icons.star_rounded,
+              color: Color(0xFFF4A261),
+              size: 42,
             ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => LikesAndViewsHubPage(
+                    languageCode: languageCode,
+                  ),
+                ),
+              );
+            },
           ),
-        );
-      },
-    ),
-    const SizedBox(width: 10),
-  ],
-),
+          const SizedBox(width: 10),
+        ],
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection('chats')
-            .where('participants', arrayContains: currentUser.uid)
-            .orderBy('updatedAt', descending: true)
+            .collection('users')
+            .doc(currentUser.uid)
+            .collection('blockedUsers')
             .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        builder: (context, blockedSnapshot) {
+          final blockedIds = blockedSnapshot.data?.docs
+                  .map((doc) => doc.id)
+                  .toSet() ??
+              <String>{};
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(_tr('Có lỗi xảy ra', 'Something went wrong')),
-            );
-          }
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('chats')
+                .where('participants', arrayContains: currentUser.uid)
+                .orderBy('updatedAt', descending: true)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final docs = snapshot.data?.docs ?? [];
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(_tr('Có lỗi xảy ra', 'Something went wrong')),
+                );
+              }
 
-          if (docs.isEmpty) {
-            return Center(
-              child: Text(
-                _tr('Chưa có cuộc trò chuyện nào', 'No conversations yet'),
-              ),
-            );
-          }
+              final docs = snapshot.data?.docs ?? [];
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final data = docs[index].data() as Map<String, dynamic>;
+              if (docs.isEmpty) {
+                return Center(
+                  child: Text(
+                    _tr('Chưa có cuộc trò chuyện nào', 'No conversations yet'),
+                  ),
+                );
+              }
 
-              final participants = List<String>.from(data['participants'] ?? []);
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final data = docs[index].data() as Map<String, dynamic>;
 
-              final otherUserId = participants.firstWhere(
-                (id) => id != currentUser.uid,
-                orElse: () => '',
-              );
+                  final participants =
+                      List<String>.from(data['participants'] ?? []);
 
-              final names = Map<String, dynamic>.from(
-                data['participantNames'] ?? {},
-              );
+                  final otherUserId = participants.firstWhere(
+                    (id) => id != currentUser.uid,
+                    orElse: () => '',
+                  );
 
-              final photos = Map<String, dynamic>.from(
-                data['participantPhotos'] ?? {},
-              );
+                  if (blockedIds.contains(otherUserId)) {
+                    return const SizedBox.shrink();
+                  }
 
-              final fallbackName = (names[otherUserId] ?? '').toString().trim();
-              final fallbackPhoto = (photos[otherUserId] ?? '').toString().trim();
+                  final names = Map<String, dynamic>.from(
+                    data['participantNames'] ?? {},
+                  );
 
-              final lastMessage = (data['lastMessage'] ?? '').toString();
-              final updatedAt = data['updatedAt'] as Timestamp?;
-              final chatId = (data['chatId'] ?? docs[index].id).toString();
-              final lastSenderId = (data['lastSenderId'] ?? '').toString();
+                  final photos = Map<String, dynamic>.from(
+                    data['participantPhotos'] ?? {},
+                  );
 
-final lastReadBy = Map<String, dynamic>.from(
-  data['lastReadBy'] ?? {},
-);
+                  final fallbackName =
+                      (names[otherUserId] ?? '').toString().trim();
+                  final fallbackPhoto =
+                      (photos[otherUserId] ?? '').toString().trim();
 
-final myLastReadAt = lastReadBy[currentUser.uid] as Timestamp?;
+                  final lastMessage = (data['lastMessage'] ?? '').toString();
+                  final updatedAt = data['updatedAt'] as Timestamp?;
+                  final chatId = (data['chatId'] ?? docs[index].id).toString();
+                  final lastSenderId = (data['lastSenderId'] ?? '').toString();
 
-final isUnread =
-    lastSenderId.isNotEmpty &&
-    lastSenderId != currentUser.uid &&
-    updatedAt != null &&
-    (myLastReadAt == null ||
-        updatedAt.toDate().isAfter(myLastReadAt.toDate()));
+                  final lastReadBy = Map<String, dynamic>.from(
+                    data['lastReadBy'] ?? {},
+                  );
 
-              return FutureBuilder<Map<String, String>>(
-                future: _getOtherUserInfo(
-                  otherUserId: otherUserId,
-                  fallbackName: fallbackName,
-                  fallbackPhoto: fallbackPhoto,
-                ),
-                builder: (context, userSnapshot) {
-                  final userInfo = userSnapshot.data ??
-                      {
-                        'name': fallbackName,
-                        'photo': fallbackPhoto,
-                      };
+                  final myLastReadAt = lastReadBy[currentUser.uid] as Timestamp?;
 
-                  final otherName = (userInfo['name'] ?? '').trim();
-                  final otherPhoto = (userInfo['photo'] ?? '').trim();
+                  final isUnread = lastSenderId.isNotEmpty &&
+                      lastSenderId != currentUser.uid &&
+                      updatedAt != null &&
+                      (myLastReadAt == null ||
+                          updatedAt.toDate().isAfter(myLastReadAt.toDate()));
 
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(20),
-                    onTap: () async {
-                      await FirebaseFirestore.instance
-    .collection('chats')
-    .doc(chatId)
-    .set({
-  'lastReadBy': {
-    currentUser.uid: FieldValue.serverTimestamp(),
-  },
-}, SetOptions(merge: true));
+                  return FutureBuilder<Map<String, String>>(
+                    future: _getOtherUserInfo(
+                      otherUserId: otherUserId,
+                      fallbackName: fallbackName,
+                      fallbackPhoto: fallbackPhoto,
+                    ),
+                    builder: (context, userSnapshot) {
+                      final userInfo = userSnapshot.data ??
+                          {
+                            'deleted': 'false',
+                            'name': fallbackName,
+                            'photo': fallbackPhoto,
+                          };
 
-if (!context.mounted) return;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MessagePage(
-                            languageCode: languageCode,
-                            chatId: chatId,
-                            otherUserId: otherUserId,
-                            otherUserName: otherName.isNotEmpty
-                                ? otherName
-                                : _tr('Người dùng', 'User'),
-                            otherUserPhotoUrl: otherPhoto,
+                      if (userInfo['deleted'] == 'true') {
+                        return const SizedBox.shrink();
+                      }
+
+                      final otherName = (userInfo['name'] ?? '').trim();
+                      final otherPhoto = (userInfo['photo'] ?? '').trim();
+
+                      return InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () async {
+                          await FirebaseFirestore.instance
+                              .collection('chats')
+                              .doc(chatId)
+                              .set({
+                            'lastReadBy': {
+                              currentUser.uid: FieldValue.serverTimestamp(),
+                            },
+                          }, SetOptions(merge: true));
+
+                          if (!context.mounted) return;
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => MessagePage(
+                                languageCode: languageCode,
+                                chatId: chatId,
+                                otherUserId: otherUserId,
+                                otherUserName: otherName.isNotEmpty
+                                    ? otherName
+                                    : _tr('Người dùng', 'User'),
+                                otherUserPhotoUrl: otherPhoto,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isUnread
+                                  ? [
+                                      const Color(0xFFFFD6E7),
+                                      const Color(0xFFFFF3F8),
+                                    ]
+                                  : [
+                                      const Color(0xFFFFF0F5),
+                                      const Color(0xFFFFFFFF),
+                                    ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(0xFFFFD6E7),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.pink.withOpacity(0.08),
+                                blurRadius: 12,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              _buildAvatar(otherPhoto, radius: 26),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      otherName.isNotEmpty
+                                          ? otherName
+                                          : _tr('Người dùng', 'User'),
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      lastMessage,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: isUnread
+                                            ? Colors.black87
+                                            : Colors.black54,
+                                        fontSize: 13,
+                                        fontWeight: isUnread
+                                            ? FontWeight.w700
+                                            : FontWeight.w400,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _formatTime(updatedAt),
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black45,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
                     },
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-  colors: isUnread
-      ? [
-          const Color(0xFFFFD6E7),
-          const Color(0xFFFFF3F8),
-        ]
-      : [
-          const Color(0xFFFFF0F5),
-          const Color(0xFFFFFFFF),
-        ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFFFFD6E7),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.pink.withOpacity(0.08),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          _buildAvatar(otherPhoto, radius: 26),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  otherName.isNotEmpty
-                                      ? otherName
-                                      : _tr('Người dùng', 'User'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  lastMessage,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-  color: isUnread ? Colors.black87 : Colors.black54,
-  fontSize: 13,
-  fontWeight:
-      isUnread ? FontWeight.w700 : FontWeight.w400,
-),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatTime(updatedAt),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.black45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   );
                 },
               );
