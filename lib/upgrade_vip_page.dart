@@ -207,25 +207,25 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
                     Text(
                       isVi
     ? plan.id == '1_week'
-        ? 'Bạn đã chọn gói VIP 1 tuần tự động gia hạn mỗi tuần với giá ${_displayPrice(plan)}.'
-        : plan.id == '1_month'
-            ? 'Bạn đã chọn gói VIP 1 tháng tự động gia hạn mỗi tháng với giá ${_displayPrice(plan)}.'
-            : plan.id == '2_months'
-                ? 'Bạn đã chọn gói VIP 2 tháng tự động gia hạn mỗi 2 tháng với giá ${_displayPrice(plan)}.'
-                : plan.id == '3_months'
-                    ? 'Bạn đã chọn gói VIP 3 tháng tự động gia hạn mỗi 3 tháng với giá ${_displayPrice(plan)}.'
-                    : 'Bạn đã chọn gói VIP 6 tháng tự động gia hạn mỗi 6 tháng với giá ${_displayPrice(plan)}.'
-    : plan.id == '1_week'
-        ? 'You selected a 1 week VIP auto-renewable subscription for ${_displayPrice(plan)}.'
-        : plan.id == '1_month'
-            ? 'You selected a 1 month VIP auto-renewable subscription for ${_displayPrice(plan)}.'
-            : plan.id == '2_months'
-                ? 'You selected a 2 months VIP auto-renewable subscription for ${_displayPrice(plan)}.'
-                : plan.id == '3_months'
-                    ? 'You selected a 3 months VIP auto-renewable subscription for ${_displayPrice(plan)}.'
-                    : 'You selected a 6 months VIP auto-renewable subscription for ${_displayPrice(plan)}.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
+    ? 'Bạn đã chọn gói VIP 1 tuần tự động gia hạn mỗi tuần với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
+    : plan.id == '1_month'
+        ? 'Bạn đã chọn gói VIP 1 tháng tự động gia hạn mỗi tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
+        : plan.id == '2_months'
+            ? 'Bạn đã chọn gói VIP 2 tháng tự động gia hạn mỗi 2 tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
+            : plan.id == '3_months'
+                ? 'Bạn đã chọn gói VIP 3 tháng tự động gia hạn mỗi 3 tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
+                : 'Bạn đã chọn gói VIP 6 tháng tự động gia hạn mỗi 6 tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
+: plan.id == '1_week'
+    ? 'You selected a 1 week VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
+    : plan.id == '1_month'
+        ? 'You selected a 1 month VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
+        : plan.id == '2_months'
+            ? 'You selected a 2 months VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
+            : plan.id == '3_months'
+                ? 'You selected a 3 months VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
+                : 'You selected a 6 months VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.',
+textAlign: TextAlign.center,
+style: const TextStyle(
                         fontSize: 15,
                         color: Colors.black54,
                         height: 1.45,
@@ -276,7 +276,7 @@ Center(
       GestureDetector(
         onTap: () async {
           final uri = Uri.parse(
-            'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+            'https://dulcet-dolphin-87ef73.netlify.app/',
           );
 
           await launchUrl(
@@ -299,7 +299,7 @@ Center(
       GestureDetector(
         onTap: () async {
           final uri = Uri.parse(
-            'https://hexagonal-tungsten-804.notion.site/TERMS-CONDITIONS-2d39b7e1b623803b8f46d5877e01b67d',
+            'https://golden-wisp-3463e6.netlify.app/',
           );
 
           await launchUrl(

@@ -87,12 +87,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     bool active = false;
     if (data != null) {
-      final membershipActive = data['membershipActive'] == true;
-      final expiresAt = data['expiresAt'] as Timestamp?;
-      active = membershipActive &&
-          expiresAt != null &&
-          expiresAt.toDate().isAfter(DateTime.now());
-    }
+  final membershipActive = data['membershipActive'] == true;
+  final expiresAt = data['expiresAt'] as Timestamp?;
+
+  final isExpired = expiresAt == null ||
+      expiresAt.toDate().isBefore(DateTime.now());
+
+  if (membershipActive && isExpired) {
+    await _membersRef.doc(user.uid).set({
+      'membershipActive': false,
+    }, SetOptions(merge: true));
+  }
+
+  active = membershipActive && !isExpired;
+}
 
     if (!mounted) return;
     setState(() {
@@ -636,13 +644,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
     final allDocs = snapshot.data?.docs ?? [];
 
     final docs = allDocs.where((doc) {
-      final data = doc.data();
-      final membershipActive = data['membershipActive'] == true;
-      final expiresAt = data['expiresAt'] as Timestamp?;
-      return membershipActive &&
-          expiresAt != null &&
-          expiresAt.toDate().isAfter(now);
-    }).toList();
+  final data = doc.data();
+
+  final membershipActive = data['membershipActive'] == true;
+  final expiresAt = data['expiresAt'] as Timestamp?;
+
+  final isDeleted = data['isDeleted'] == true ||
+      data['deleted'] == true ||
+      data['accountDeleted'] == true ||
+      data['status'] == 'deleted';
+
+  return !isDeleted &&
+      membershipActive &&
+      expiresAt != null &&
+      expiresAt.toDate().isAfter(now);
+}).toList();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
