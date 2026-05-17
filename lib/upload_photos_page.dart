@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -417,27 +418,26 @@ class _UploadPhotosPageState extends State<UploadPhotosPage> {
             Positioned.fill(
               child: InkWell(
                 onTap: () => _pickPhotoForSlot(index),
-                child: Image.network(
-                  existingUrl,
-                  fit: BoxFit.cover,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    debugPrint('IMAGE LOAD ERROR slot $index: $error');
-                    debugPrint('BAD URL: $existingUrl');
-                    return const Center(
-                      child: Icon(
-                        Icons.broken_image_outlined,
-                        color: Colors.grey,
-                        size: 28,
-                      ),
-                    );
-                  },
-                ),
+                child: CachedNetworkImage(
+  imageUrl: existingUrl,
+  fit: BoxFit.cover,
+  memCacheWidth: 600,
+  placeholder: (context, url) => const Center(
+    child: CircularProgressIndicator(strokeWidth: 2),
+  ),
+  errorWidget: (context, url, error) {
+    debugPrint('IMAGE LOAD ERROR slot $index: $error');
+    debugPrint('BAD URL: $existingUrl');
+
+    return const Center(
+      child: Icon(
+        Icons.broken_image_outlined,
+        color: Colors.grey,
+        size: 28,
+      ),
+    );
+  },
+),
               ),
             ),
             Positioned(

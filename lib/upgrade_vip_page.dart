@@ -299,7 +299,7 @@ Center(
       GestureDetector(
         onTap: () async {
           final uri = Uri.parse(
-            'https://golden-wisp-3463e6.netlify.app/',
+            'https://eloquent-sorbet-6cf41f.netlify.app/',
           );
 
           await launchUrl(

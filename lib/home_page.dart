@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -2191,50 +2192,48 @@ double _degToRad(double degree) {
   }
 
   Widget _buildMainCirclePhoto(String imageUrl) {
-    return Container(
-      width: 200,
-      height: 200,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.grey.shade200,
-        border: Border.all(color: Colors.white, width: 5),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFFE4EF),
-            Color(0xFFFFF6FA),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFCC3D7A).withOpacity(0.18),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
-          ),
+  return Container(
+    width: 200,
+    height: 200,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.grey.shade200,
+      border: Border.all(color: Colors.white, width: 5),
+      gradient: const LinearGradient(
+        colors: [
+          Color(0xFFFFE4EF),
+          Color(0xFFFFF6FA),
         ],
       ),
-      child: ClipOval(
-        child: imageUrl.isNotEmpty
-            ? Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.pink),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(
-                    child: Icon(Icons.person, size: 74, color: Colors.grey),
-                  );
-                },
-              )
-            : const Center(
-                child: Icon(Icons.person, size: 74, color: Colors.grey),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.18),
+          blurRadius: 26,
+          offset: const Offset(0, 12),
+        ),
+      ],
+    ),
+    child: ClipOval(
+      child: imageUrl.isNotEmpty
+          ? CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              memCacheWidth: 600,
+              placeholder: (context, url) => const Center(
+                child: CircularProgressIndicator(color: Colors.pink),
               ),
-      ),
-    );
-  }
+              errorWidget: (context, url, error) {
+                return const Center(
+                  child: Icon(Icons.person, size: 74, color: Colors.grey),
+                );
+              },
+            )
+          : const Center(
+              child: Icon(Icons.person, size: 74, color: Colors.grey),
+            ),
+    ),
+  );
+}
 
   Widget _buildPhotoBlock(String imageUrl) {
     return Container(
@@ -2254,25 +2253,23 @@ double _degToRad(double degree) {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: imageUrl.isNotEmpty
-            ? Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.pink),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return const Center(
-                    child: Icon(
-                      Icons.image_not_supported,
-                      size: 48,
-                      color: Colors.grey,
-                    ),
-                  );
-                },
-              )
+    ? CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: BoxFit.cover,
+        memCacheWidth: 900,
+        placeholder: (context, url) => const Center(
+          child: CircularProgressIndicator(color: Colors.pink),
+        ),
+        errorWidget: (context, url, error) {
+          return const Center(
+            child: Icon(
+              Icons.image_not_supported,
+              size: 48,
+              color: Colors.grey,
+            ),
+          );
+        },
+      )
             : const Center(
                 child: Icon(
                   Icons.image_not_supported,

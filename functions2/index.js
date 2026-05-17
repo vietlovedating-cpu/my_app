@@ -1,3 +1,4 @@
+const sgMail = require("@sendgrid/mail");
 require("dotenv").config();
 
 const admin = require("firebase-admin");
@@ -8,6 +9,7 @@ const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https")
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
+
 exports.deleteUnverifiedUserByEmail = onCall(async (request) => {
   const email = String(request.data.email || "").trim().toLowerCase();
 
@@ -478,6 +480,195 @@ exports.addPromoForAllExistingUsers = onRequest(
     } catch (e) {
       console.error("addPromoForAllExistingUsers error:", e);
       res.status(500).send(e.toString());
+    }
+  }
+);
+
+exports.sendIncompleteProfileReminderEmails = onSchedule(
+  {
+    schedule: "every day 09:00",
+    region: "us-central1",
+    timeZone: "Australia/Sydney",
+    secrets: ["SENDGRID_KEY"]
+  },
+  async () => {
+    try {
+
+      sgMail.setApiKey(process.env.SENDGRID_KEY);
+
+      const db = admin.firestore();
+
+      const now = new Date();
+
+      // 3 ngày trước
+      const threeDaysAgo = new Date(
+        now.getTime() - 3 * 24 * 60 * 60 * 1000
+      );
+
+      const snapshot = await db
+        .collection("users")
+        .where("profileCompleted", "==", false)
+        .get();
+
+      if (snapshot.empty) {
+        console.log("No incomplete users");
+        return;
+      }
+
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+
+        const email = data.email || "";
+        const firstName = data.firstName || "there";
+
+        if (!email) continue;
+
+        const lastReminderEmailAt =
+          data.lastReminderEmailAt?.toDate?.();
+
+        // nếu chưa đủ 3 ngày thì skip
+        if (
+          lastReminderEmailAt &&
+          lastReminderEmailAt > threeDaysAgo
+        ) {
+          continue;
+        }
+
+        const appLink =
+          "https://thunderous-malabi-3689ef.netlify.app/";
+
+        await sgMail.send({
+          to: email,
+          from: "vietlovedating@gmail.com",
+
+          subject:
+            "Complete your VietLove profile 💕 | Hoàn tất hồ sơ VietLove 💕",
+
+          html: `
+            <div style="font-family: Arial; line-height:1.7; padding:20px;">
+
+              <h2>Hi ${firstName},</h2>
+
+              <p>
+                Your VietLove profile is waiting for you 💕
+              </p>
+
+              <p>
+                Complete your registration to start matching and chatting with Vietnamese singles nearby.
+              </p>
+
+              <p>
+                <a href="${appLink}"
+                  style="
+                    background:#e91e63;
+                    color:white;
+                    padding:12px 20px;
+                    border-radius:8px;
+                    text-decoration:none;
+                    display:inline-block;
+                  ">
+                  Continue Registration
+                </a>
+              </p>
+
+              <hr style="margin:30px 0;" />
+
+              <h2>Xin chào ${firstName},</h2>
+
+              <p>
+                Hồ sơ VietLove của bạn vẫn đang chờ hoàn tất 💕
+              </p>
+
+              <p>
+                Hoàn tất đăng ký để bắt đầu ghép đôi và trò chuyện với người Việt độc thân gần bạn.
+              </p>
+
+              <p>
+                <a href="${appLink}"
+                  style="
+                    background:#e91e63;
+                    color:white;
+                    padding:12px 20px;
+                    border-radius:8px;
+                    text-decoration:none;
+                    display:inline-block;
+                  ">
+                  Tiếp tục đăng ký
+                </a>
+              </p>
+
+            </div>
+          `,
+        });
+
+        // update thời gian gửi email gần nhất
+        await doc.ref.set(
+          {
+            lastReminderEmailAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+        console.log("Reminder email sent to:", email);
+      }
+
+      console.log("DONE sending incomplete profile reminders");
+    } catch (e) {
+      console.error(
+        "sendIncompleteProfileReminderEmails error:",
+        e
+      );
+    }
+  }
+);
+
+
+
+exports.sendSupportRequestEmail = onDocumentCreated(
+  {
+    document: "support_requests/{requestId}",
+    region: "us-central1",
+    secrets: ["SENDGRID_KEY"],
+  },
+  async (event) => {
+    try {
+      const data = event.data.data();
+
+      const contactEmail = data.contactEmail || "";
+      const message = data.message || "";
+      const userId = data.userId || "";
+      const userEmail = data.userEmail || "";
+
+      await sgMail.send({
+        to: "vietlovedating@gmail.com",
+        from: "vietlovedating@gmail.com",
+        replyTo: contactEmail,
+        subject: "New Support Request - VietLove Dating",
+        html: `
+          <div style="font-family: Arial; padding:20px;">
+            <h2>New Support Request</h2>
+
+            <p><strong>User Email:</strong> ${contactEmail}</p>
+
+            <p><strong>Firebase Email:</strong> ${userEmail}</p>
+
+            <p><strong>User ID:</strong> ${userId}</p>
+
+            <hr/>
+
+            <p><strong>Message:</strong></p>
+
+            <div style="white-space: pre-line;">
+              ${message}
+            </div>
+          </div>
+        `,
+      });
+
+      console.log("Support email sent");
+    } catch (e) {
+      console.error("sendSupportRequestEmail error:", e);
     }
   }
 );

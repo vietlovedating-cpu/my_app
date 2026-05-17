@@ -95,8 +95,8 @@ await FirebaseFirestore.instance
         SnackBar(
           content: Text(
             isVi
-                ? 'Không thể gửi lại email xác minh'
-                : 'Could not resend verification email',
+                ? 'Vui lòng chờ 60 giây trước khi gửi lại email.'
+                : 'Please wait 60 seconds before resending.',
           ),
         ),
       );
