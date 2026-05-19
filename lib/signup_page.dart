@@ -204,31 +204,18 @@ if (user != null) {
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
-  try {
-    final email = emailController.text.trim().toLowerCase();
+  if (!mounted) return;
 
-    await FirebaseFunctions.instance
-        .httpsCallable('deleteUnverifiedUserByEmail')
-        .call({
-      'email': email,
-    });
-
-    await _signUp();
-    return;
-  } catch (deleteError) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isVi
-    ? 'Email này đã được sử dụng. Nếu bạn chưa xác minh email, hãy thử lại sau vài giây để tạo lại tài khoản. Nếu đã xác minh, vui lòng đăng nhập.'
-    : 'This email is already in use. If you have not verified your email yet, please try again in a few seconds to recreate your account. If your email is already verified, please log in.',
-        ),
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isVi
+            ? 'Email này đã được sử dụng. Vui lòng đăng nhập hoặc dùng email khác.'
+            : 'This email is already in use. Please log in or use another email.',
       ),
-    );
-    return;
-  }
+    ),
+  );
+  return;
 }
 
       String message;
