@@ -135,157 +135,140 @@ await credential.user?.sendEmailVerification();
   }
 
   Future<void> _signUp() async {
-    final isVi = languageCode == 'vi';
-    if (!_formKey.currentState!.validate()) return;
+  final isVi = languageCode == 'vi';
 
-    if (!isChecked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isVi
-                ? 'Bạn phải đồng ý Điều khoản và Chính sách quyền riêng tư'
-                : 'You must agree to the Terms & Privacy Policy',
-          ),
+  if (!_formKey.currentState!.validate()) return;
+
+  if (!isChecked) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Bạn phải đồng ý Điều khoản và Chính sách quyền riêng tư'
+              : 'You must agree to the Terms & Privacy Policy',
         ),
-      );
-      return;
-    }
-
-    final auth = FirebaseAuth.instance;
-
-    try {
-
-  final cleanEmail =
-      emailController.text.trim().toLowerCase();
-
-  final existingUser = await FirebaseFirestore.instance
-      .collection('users')
-      .where('email', isEqualTo: cleanEmail)
-      .limit(1)
-      .get();
-
-  if (existingUser.docs.isNotEmpty) {
-    throw Exception(
-      'Email này đã có tài khoản. Vui lòng đăng nhập.',
+      ),
     );
+    return;
   }
 
-  final userCredential =
-      await auth.createUserWithEmailAndPassword(
-    email: cleanEmail,
-    password: passwordController.text.trim(),
-  );
+  final auth = FirebaseAuth.instance;
+  final cleanEmail = emailController.text.trim().toLowerCase();
+  final cleanPassword = passwordController.text.trim();
 
-
-final user = userCredential.user;
-
-if (user != null) {
-  await user.sendEmailVerification();
-
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .set({
-    'uid': user.uid,
-    'email': cleanEmail,
-    'firstName': firstNameController.text.trim(),
-    'surname': surnameController.text.trim(),
-    'emailVerified': false,
-    'profileCompleted': false,
-    'onboardingStep': 'email_verification',
-    'createdAt': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
-}
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isVi
-                ? 'Đăng ký thành công. Vui lòng kiểm tra email để xác minh tài khoản. Hãy kiểm tra cả Spam.'
-                : 'Sign up successful. Please check your email to verify your account. Please also check Spam.',
-          ),
-        ),
-      );
-
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VerifyEmailPage(
-            languageCode: languageCode,
-            firstName: firstNameController.text.trim(),
-          ),
-        ),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
   try {
-    final email = emailController.text.trim().toLowerCase();
+    final userCredential = await auth.createUserWithEmailAndPassword(
+      email: cleanEmail,
+      password: cleanPassword,
+    );
 
-    await FirebaseFunctions.instance
-        .httpsCallable('deleteUnverifiedUserByEmail')
-        .call({
-      'email': email,
-    });
+    final user = userCredential.user;
 
-    await _signUp();
-    return;
-  } catch (deleteError) {
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'user-null',
+        message: 'User is null after signup',
+      );
+    }
+
+    await user.sendEmailVerification();
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      'uid': user.uid,
+      'email': cleanEmail,
+      'firstName': firstNameController.text.trim(),
+      'surname': surnameController.text.trim(),
+      'emailVerified': false,
+      'profileCompleted': false,
+      'onboardingStep': 'email_verification',
+      'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           isVi
-    ? 'Email này đã được sử dụng. Nếu bạn chưa xác minh email, hãy thử lại sau vài giây để tạo lại tài khoản. Nếu đã xác minh, vui lòng đăng nhập.'
-    : 'This email is already in use. If you have not verified your email yet, please try again in a few seconds to recreate your account. If your email is already verified, please log in.',
+              ? 'Đăng ký thành công. Vui lòng kiểm tra email để xác minh tài khoản. Hãy kiểm tra cả Spam.'
+              : 'Sign up successful. Please check your email to verify your account. Please also check Spam.',
         ),
       ),
     );
-    return;
-  }
-}
 
-      String message;
+    if (!mounted) return;
 
-      if (e.code == 'weak-password') {
-  message = isVi
-      ? 'Mật khẩu quá yếu. Vui lòng nhập ít nhất 6 ký tự.'
-      : 'Password is too weak. Please enter at least 6 characters.';
-} else if (e.code == 'invalid-email') {
-  message = isVi
-      ? 'Email không hợp lệ. Vui lòng kiểm tra lại email.'
-      : 'Invalid email. Please check your email address.';
-} else if (e.code == 'email-already-in-use') {
-  message = isVi
-      ? 'Email này đã có tài khoản. Vui lòng đăng nhập.'
-      : 'This email already has an account. Please log in.';
-} else {
-  message = isVi
-      ? 'Đăng ký thất bại. Vui lòng thử lại.'
-      : 'Sign up failed. Please try again.';
-}
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isVi ? 'Đã có lỗi xảy ra' : 'Something went wrong',
-          ),
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VerifyEmailPage(
+          languageCode: languageCode,
+          firstName: firstNameController.text.trim(),
         ),
-      );
+      ),
+    );
+  } on FirebaseAuthException catch (e) {
+    String message;
+
+    if (e.code == 'email-already-in-use') {
+      message = isVi
+          ? 'Email này đã có tài khoản. Vui lòng đăng nhập.'
+          : 'This email already has an account. Please log in.';
+    } else if (e.code == 'invalid-email') {
+      message = isVi
+          ? 'Email không hợp lệ. Vui lòng kiểm tra lại email.'
+          : 'Invalid email. Please check your email address.';
+    } else if (e.code == 'weak-password') {
+      message = isVi
+          ? 'Mật khẩu quá yếu. Vui lòng nhập ít nhất 6 ký tự.'
+          : 'Password is too weak. Please enter at least 6 characters.';
+    } else if (e.code == 'operation-not-allowed') {
+      message = isVi
+          ? 'Đăng ký bằng email/password chưa được bật trong Firebase.'
+          : 'Email/password signup is not enabled in Firebase.';
+    } else {
+      message = isVi
+          ? 'Đăng ký thất bại. Vui lòng thử lại.'
+          : 'Sign up failed. Please try again.';
     }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  } on FirebaseException catch (e) {
+    String message;
+
+    if (e.code == 'permission-denied') {
+      message = isVi
+          ? 'Không có quyền lưu hồ sơ. Vui lòng kiểm tra Firestore Rules.'
+          : 'No permission to save profile. Please check Firestore Rules.';
+    } else {
+      message = isVi
+          ? 'Không thể lưu hồ sơ. Vui lòng thử lại.'
+          : 'Could not save profile. Please try again.';
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Đã có lỗi xảy ra. Vui lòng thử lại.'
+              : 'Something went wrong. Please try again.',
+        ),
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
