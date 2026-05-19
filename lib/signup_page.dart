@@ -154,10 +154,28 @@ await credential.user?.sendEmailVerification();
     final auth = FirebaseAuth.instance;
 
     try {
-     final userCredential = await auth.createUserWithEmailAndPassword(
-  email: emailController.text.trim(),
-  password: passwordController.text.trim(),
-);
+
+  final cleanEmail =
+      emailController.text.trim().toLowerCase();
+
+  final existingUser = await FirebaseFirestore.instance
+      .collection('users')
+      .where('email', isEqualTo: cleanEmail)
+      .limit(1)
+      .get();
+
+  if (existingUser.docs.isNotEmpty) {
+    throw Exception(
+      'Email này đã có tài khoản. Vui lòng đăng nhập.',
+    );
+  }
+
+  final userCredential =
+      await auth.createUserWithEmailAndPassword(
+    email: cleanEmail,
+    password: passwordController.text.trim(),
+  );
+
 
 final user = userCredential.user;
 
@@ -169,7 +187,7 @@ if (user != null) {
       .doc(user.uid)
       .set({
     'uid': user.uid,
-    'email': emailController.text.trim().toLowerCase(),
+    'email': cleanEmail,
     'firstName': firstNameController.text.trim(),
     'surname': surnameController.text.trim(),
     'emailVerified': false,
@@ -234,12 +252,22 @@ if (user != null) {
       String message;
 
       if (e.code == 'weak-password') {
-        message = isVi ? 'Mật khẩu quá yếu' : 'Password is too weak';
-      } else if (e.code == 'invalid-email') {
-        message = isVi ? 'Email không hợp lệ' : 'Invalid email';
-      } else {
-        message = isVi ? 'Đăng ký thất bại' : 'Sign up failed';
-      }
+  message = isVi
+      ? 'Mật khẩu quá yếu. Vui lòng nhập ít nhất 6 ký tự.'
+      : 'Password is too weak. Please enter at least 6 characters.';
+} else if (e.code == 'invalid-email') {
+  message = isVi
+      ? 'Email không hợp lệ. Vui lòng kiểm tra lại email.'
+      : 'Invalid email. Please check your email address.';
+} else if (e.code == 'email-already-in-use') {
+  message = isVi
+      ? 'Email này đã có tài khoản. Vui lòng đăng nhập.'
+      : 'This email already has an account. Please log in.';
+} else {
+  message = isVi
+      ? 'Đăng ký thất bại. Vui lòng thử lại.'
+      : 'Sign up failed. Please try again.';
+}
 
       if (!mounted) return;
 

@@ -143,23 +143,32 @@ const initSettings = InitializationSettings(
     }, SetOptions(merge: true));
 
     if (Platform.isIOS) {
-      await Future.delayed(const Duration(seconds: 3));
+  String? apnsToken;
 
-      final apnsToken = await _messaging.getAPNSToken();
+  for (int i = 0; i < 10; i++) {
+    await Future.delayed(const Duration(seconds: 2));
 
-      print('APNS TOKEN = $apnsToken');
+    apnsToken = await _messaging.getAPNSToken();
 
-      await userRef.set({
-        'pushDebugApnsTokenNull': apnsToken == null,
-        'pushDebugStep': apnsToken == null ? 'apns_null' : 'apns_ok',
-        'pushDebugUpdatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+    print('APNS RETRY $i = $apnsToken');
 
-      if (apnsToken == null) {
-        print('APNS TOKEN NULL - SKIP FCM TOKEN');
-        return;
-      }
+    if (apnsToken != null && apnsToken.isNotEmpty) {
+      break;
     }
+  }
+
+  await userRef.set({
+    'pushDebugApnsTokenNull': apnsToken == null || apnsToken.isEmpty,
+    'pushDebugStep':
+        apnsToken == null || apnsToken.isEmpty ? 'apns_null' : 'apns_ok',
+    'pushDebugUpdatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
+  if (apnsToken == null || apnsToken.isEmpty) {
+    print('APNS TOKEN STILL NULL - SKIP FCM TOKEN');
+    return;
+  }
+}
 
     final token = await _messaging.getToken();
     print('FCM TOKEN = $token');

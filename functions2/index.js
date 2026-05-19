@@ -672,3 +672,24 @@ exports.sendSupportRequestEmail = onDocumentCreated(
     }
   }
 );
+
+
+const { onUserDeleted } = require("firebase-functions/v2/identity");
+
+exports.cleanupDeletedUser = onUserDeleted(async (event) => {
+  const user = event.data;
+
+  if (!user) return;
+
+  const uid = user.uid;
+
+  console.log("Cleaning deleted user:", uid);
+
+  try {
+    await admin.firestore().collection("users").doc(uid).delete();
+
+    console.log("Deleted Firestore user:", uid);
+  } catch (e) {
+    console.error("Cleanup error:", e);
+  }
+});
