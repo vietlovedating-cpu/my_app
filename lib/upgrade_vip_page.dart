@@ -275,15 +275,17 @@ Center(
       if (Platform.isIOS)
       GestureDetector(
         onTap: () async {
-          final uri = Uri.parse(
-            'https://dulcet-dolphin-87ef73.netlify.app/',
-          );
+  final uri = Uri.parse(
+    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+  );
 
-          await launchUrl(
-            uri,
-            mode: LaunchMode.externalApplication,
-          );
-        },
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+},
         child: Text(
           _label('Điều khoản sử dụng', 'Terms of Use'),
           style: const TextStyle(
@@ -298,15 +300,17 @@ Center(
 
       GestureDetector(
         onTap: () async {
-          final uri = Uri.parse(
-            'https://eloquent-sorbet-6cf41f.netlify.app/',
-          );
+  final uri = Uri.parse(
+    'https://eloquent-sorbet-6cf41f.netlify.app/',
+  );
 
-          await launchUrl(
-            uri,
-            mode: LaunchMode.externalApplication,
-          );
-        },
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+},
         child: Text(
           _label('Chính sách bảo mật', 'Privacy Policy'),
           style: const TextStyle(
@@ -853,8 +857,8 @@ final String platform = Platform.isIOS ? 'app_store' : 'google_play';
                     _featureItem(
                       '❤️',
                       _label(
-                        'Nhắn tin và gởi hoa không giới hạn',
-                        'Unlimited message and send flowers',
+                        'Nhắn tin không giới hạn',
+                        'Unlimited messaging',
                       ),
                     ),
                     _featureItem(
@@ -906,7 +910,7 @@ final String platform = Platform.isIOS ? 'app_store' : 'google_play';
                               ),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                                        const SizedBox(height: 10),
                     Center(
                       child: TextButton(
                         onPressed: (_isBuying || _isRestoring)
@@ -931,7 +935,64 @@ final String platform = Platform.isIOS ? 'app_store' : 'google_play';
                               ),
                       ),
                     ),
-                  ],
+
+                    const SizedBox(height: 12),
+
+                    Center(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        children: [
+                          GestureDetector(
+                            onTap: () async {
+  final uri = Uri.parse(
+    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+  );
+
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+},
+                            child: Text(
+                              _label('Điều khoản sử dụng', 'Terms of Use'),
+                              style: const TextStyle(
+                                decoration: TextDecoration.underline,
+                                color: Colors.blue,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+
+                          const Text('  •  '),
+
+                          GestureDetector(
+                            onTap: () async {
+  final uri = Uri.parse(
+    'https://eloquent-sorbet-6cf41f.netlify.app/',
+  );
+
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+    );
+  }
+},
+                            child: Text(
+                              _label('Chính sách bảo mật', 'Privacy Policy'),
+                              style: const TextStyle(
+                                decoration: TextDecoration.underline,
+                                color: Colors.blue,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],                  
                 ),
               ),
             ],

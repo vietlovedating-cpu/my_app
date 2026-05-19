@@ -151,87 +151,93 @@ await FirebaseFirestore.instance
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.email_outlined,
-                size: 100,
-                color: Colors.pink,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                isVi
-                    ? 'Chúng tôi đã gửi email xác minh cho bạn'
-                    : 'We have sent you a verification email',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.pink,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                isVi
-                    ? 'Vui lòng kiểm tra hộp thư đến và cả thư mục Spam.\n\nSau khi xác minh xong, ứng dụng sẽ tự động chuyển sang bước tiếp theo.'
-                    : 'Please check your inbox and Spam folder.\n\nAfter verification, the app will automatically continue to the next step.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black54,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton(
-                  onPressed: _resendEmail,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.pink,
-                    side: const BorderSide(color: Colors.pink),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(isVi ? 'Gửi lại email' : 'Resend Email'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: isLoading ? null : _manualCheck,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2.5,
-                          ),
-                        )
-                      : Text(
-                          isVi ? 'Tôi đã xác minh' : 'I have verified',
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ),
+  child: SingleChildScrollView(
+    padding: const EdgeInsets.all(24),
+    child: ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: MediaQuery.of(context).size.height -
+            kToolbarHeight -
+            MediaQuery.of(context).padding.top -
+            MediaQuery.of(context).padding.bottom,
       ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.email_outlined,
+            size: 100,
+            color: Colors.pink,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            isVi
+                ? 'Chúng tôi đã gửi email xác minh cho bạn'
+                : 'We have sent you a verification email',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.pink,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            isVi
+                ? 'Vui lòng kiểm tra hộp thư đến và cả thư mục Spam.\n\nSau khi xác minh xong, ứng dụng sẽ tự động chuyển sang bước tiếp theo.'
+                : 'Please check your inbox and Spam folder.\n\nAfter verification, the app will automatically continue to the next step.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 15,
+              color: Colors.black54,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 32),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton(
+              onPressed: _resendEmail,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.pink,
+                side: const BorderSide(color: Colors.pink),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(isVi ? 'Gửi lại email' : 'Resend Email'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: isLoading ? null : _manualCheck,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.pink,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : Text(isVi ? 'Tôi đã xác minh' : 'I have verified'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  ),
+),
     );
   }
 }

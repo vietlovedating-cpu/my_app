@@ -45,10 +45,10 @@ class MatchPage extends StatelessWidget {
           IconButton(
             tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
             icon: const Icon(
-              Icons.star_rounded,
-              color: Color(0xFFF4A261),
-              size: 42,
-            ),
+  Icons.people_alt_rounded,
+  color: Color(0xFFE76F51),
+  size: 42,
+),
             onPressed: () {
               Navigator.push(
                 context,

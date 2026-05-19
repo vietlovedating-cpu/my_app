@@ -464,11 +464,12 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
 );
 
 // 👉 DÁN FUNCTION MỚI Ở ĐÂY
-exports.checkVipSubscriptions = onSchedule(
+exports.checkMemberships = onSchedule(
   {
     schedule: "every 24 hours",
     timeZone: "Australia/Sydney",
     region: "us-central1",
+    secrets: ["SENDGRID_KEY"],
   },
   async () => {
     const usersSnap = await admin.firestore()

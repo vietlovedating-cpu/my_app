@@ -167,10 +167,10 @@ class MessagesListPage extends StatelessWidget {
           IconButton(
             tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
             icon: const Icon(
-              Icons.star_rounded,
-              color: Color(0xFFF4A261),
-              size: 42,
-            ),
+  Icons.notifications_active_rounded,
+  color: Color(0xFFE63946),
+  size: 43,
+),
             onPressed: () {
               Navigator.push(
                 context,

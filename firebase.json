@@ -37,7 +37,7 @@
     },
     {
       "source": "functions2",
-      "codebase": "functions",
+      "codebase": "functions2",
       "disallowLegacyRuntimeConfig": true,
       "ignore": [
         "node_modules",

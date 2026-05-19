@@ -185,8 +185,8 @@ debugPrint('FLOWER ERROR: ${response.error}');
           SnackBar(
             content: Text(
               _label(
-                'Mua flower thành công.',
-                'Flowers purchased successfully.',
+                'Purchase successful.',
+                'Messaging access unlocked.',
               ),
             ),
           ),
@@ -229,10 +229,10 @@ debugPrint('FLOWER ERROR: ${response.error}');
     final count = _flowerCountFromProductId(product.id);
 
     if (count == 1) {
-      return _label('1 flower', '1 flower');
-    }
+  return _label('1 messaging access', '1 messaging access');
+}
 
-    return _label('$count flowers', '$count flowers');
+return _label('$count messaging accesses', '$count messaging accesses');
   }
 
   @override
@@ -242,7 +242,7 @@ debugPrint('FLOWER ERROR: ${response.error}');
       appBar: AppBar(
         backgroundColor: const Color(0xFFCC3D7A),
         foregroundColor: Colors.white,
-        title: Text(_label('Mua Flower', 'Buy Flowers')),
+        title: Text(_label('Mở khóa nhắn tin', 'Unlock Messaging')),
       ),
       body: _isLoading
           ? const Center(
@@ -267,8 +267,8 @@ debugPrint('FLOWER ERROR: ${response.error}');
                         padding: const EdgeInsets.all(24),
                         child: Text(
                           _label(
-                            'Chưa tìm thấy gói flower. Hãy kiểm tra product ID trên Apple/Google.',
-                            'No flower products found. Please check your product IDs on Apple/Google.',
+                            'Chưa tìm thấy gói nhắn tin.',
+                            'No messaging packages found.',
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -287,8 +287,8 @@ debugPrint('FLOWER ERROR: ${response.error}');
                           const SizedBox(height: 16),
                           Text(
                             _label(
-                              'Mua thêm flowers để gửi lời nhắn đặc biệt',
-                              'Buy more flowers to send a special message',
+                              'Mở khóa thêm lượt nhắn tin',
+                              'Unlock more messaging access',
                             ),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
