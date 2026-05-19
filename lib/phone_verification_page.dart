@@ -78,66 +78,13 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
 
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
-        phoneNumber: fullPhoneNumber,
+  phoneNumber: fullPhoneNumber,
+  timeout: const Duration(seconds: 60),
+  forceResendingToken: _resendToken,
 
         verificationCompleted: (PhoneAuthCredential credential) async {
-          try {
-            final user = FirebaseAuth.instance.currentUser;
-
-            if (user != null) {
-  await user.linkWithCredential(credential);
-
-  await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .set({
-    'phoneNumber': fullPhoneNumber,
-    'phoneVerified': true,
-  }, SetOptions(merge: true));
-}
-
-            if (!mounted) return;
-
-            setState(() {
-              _isSendingCode = false;
-            });
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  isVi
-                      ? 'Số điện thoại đã được xác minh tự động'
-                      : 'Phone number verified automatically',
-                ),
-              ),
-            );
-             Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => IntroPage(
-          languageCode: widget.languageCode,
-          firstName: widget.firstName,
-        ),
-      ),
-    );
-          } on FirebaseAuthException catch (e) {
-            if (!mounted) return;
-
-            setState(() {
-              _isSendingCode = false;
-            });
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  isVi
-                      ? 'Xác minh tự động thất bại: ${e.message ?? 'Có lỗi xảy ra'}'
-                      : 'Auto verification failed: ${e.message ?? 'Something went wrong'}',
-                ),
-              ),
-            );
-          }
-        },
+  // Do not auto-link on iOS. User will enter OTP manually.
+},
 
         verificationFailed: (FirebaseAuthException e) {
           if (!mounted) return;
@@ -238,9 +185,20 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
 
       final user = FirebaseAuth.instance.currentUser;
 
-      if (user != null) {
-        await user.linkWithCredential(credential);
-      }
+      if (user == null) {
+  throw FirebaseAuthException(
+    code: 'no-current-user',
+    message: 'No current user found',
+  );
+}
+
+await user.linkWithCredential(credential);
+
+await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+  'phoneNumber': fullPhoneNumber,
+  'phoneVerified': true,
+  'onboardingStep': 'intro_questions',
+}, SetOptions(merge: true));
 
       if (!mounted) return;
 
