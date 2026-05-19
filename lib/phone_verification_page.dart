@@ -79,7 +79,6 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
     try {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: fullPhoneNumber,
-        forceResendingToken: _resendToken,
 
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
