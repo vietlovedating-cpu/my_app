@@ -211,26 +211,26 @@ await credential.user?.sendEmailVerification();
     String message;
 
     if (e.code == 'email-already-in-use') {
-      message = isVi
-          ? 'Email này đã có tài khoản. Vui lòng đăng nhập.'
-          : 'This email already has an account. Please log in.';
-    } else if (e.code == 'invalid-email') {
-      message = isVi
-          ? 'Email không hợp lệ. Vui lòng kiểm tra lại email.'
-          : 'Invalid email. Please check your email address.';
-    } else if (e.code == 'weak-password') {
-      message = isVi
-          ? 'Mật khẩu quá yếu. Vui lòng nhập ít nhất 6 ký tự.'
-          : 'Password is too weak. Please enter at least 6 characters.';
-    } else if (e.code == 'operation-not-allowed') {
-      message = isVi
-          ? 'Đăng ký bằng email/password chưa được bật trong Firebase.'
-          : 'Email/password signup is not enabled in Firebase.';
-    } else {
-      message = isVi
-          ? 'Đăng ký thất bại. Vui lòng thử lại.'
-          : 'Sign up failed. Please try again.';
-    }
+  message = isVi
+      ? 'Email này đã có tài khoản. Vui lòng đăng nhập.'
+      : 'This email already has an account. Please log in.';
+} else if (e.code == 'invalid-email') {
+  message = isVi
+      ? 'Email không hợp lệ. Vui lòng kiểm tra lại email.'
+      : 'Invalid email. Please check your email address.';
+} else if (e.code == 'weak-password') {
+  message = isVi
+      ? 'Mật khẩu quá yếu. Vui lòng nhập ít nhất 6 ký tự.'
+      : 'Password is too weak. Please enter at least 6 characters.';
+} else if (e.code == 'operation-not-allowed') {
+  message = isVi
+      ? 'Đăng ký bằng email/password chưa được bật trong Firebase.'
+      : 'Email/password signup is not enabled in Firebase.';
+} else {
+  message = isVi
+      ? 'Đăng ký thất bại. Vui lòng thử lại.'
+      : 'Sign up failed. Please try again.';
+}
 
     if (!mounted) return;
 
