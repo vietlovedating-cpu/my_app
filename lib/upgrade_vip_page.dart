@@ -272,54 +272,51 @@ Center(
   child: Wrap(
     alignment: WrapAlignment.center,
     children: [
-      if (Platform.isIOS)
-      GestureDetector(
-        onTap: () async {
-  final uri = Uri.parse(
-    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
-  );
+      if (Platform.isIOS) ...[
+  GestureDetector(
+    onTap: () async {
+      final uri = Uri.parse(
+        'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+      );
 
-  if (await canLaunchUrl(uri)) {
+      await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+    },
+    child: Text(
+      _label('Điều khoản sử dụng', 'Terms of Use'),
+      style: const TextStyle(
+        decoration: TextDecoration.underline,
+        color: Colors.blue,
+        fontSize: 13,
+      ),
+    ),
+  ),
+
+  const Text('  •  '),
+],
+
+GestureDetector(
+  onTap: () async {
+    final uri = Uri.parse(
+      'https://eloquent-sorbet-6cf41f.netlify.app/',
+    );
+
     await launchUrl(
       uri,
       mode: LaunchMode.externalApplication,
     );
-  }
-},
-        child: Text(
-          _label('Điều khoản sử dụng', 'Terms of Use'),
-          style: const TextStyle(
-            decoration: TextDecoration.underline,
-            color: Colors.blue,
-            fontSize: 13,
-          ),
-        ),
-      ),
-
-      const Text('  •  '),
-
-      GestureDetector(
-        onTap: () async {
-  final uri = Uri.parse(
-    'https://eloquent-sorbet-6cf41f.netlify.app/',
-  );
-
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-  }
-},
-        child: Text(
-          _label('Chính sách bảo mật', 'Privacy Policy'),
-          style: const TextStyle(
-            decoration: TextDecoration.underline,
-            color: Colors.blue,
-            fontSize: 13,
-          ),
-        ),
-      ),
+  },
+  child: Text(
+    _label('Chính sách bảo mật', 'Privacy Policy'),
+    style: const TextStyle(
+      decoration: TextDecoration.underline,
+      color: Colors.blue,
+      fontSize: 13,
+    ),
+  ),
+),
     ],
   ),
 ),
@@ -942,53 +939,51 @@ final String platform = Platform.isIOS ? 'app_store' : 'google_play';
                       child: Wrap(
                         alignment: WrapAlignment.center,
                         children: [
-                          GestureDetector(
-                            onTap: () async {
-  final uri = Uri.parse(
-    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
-  );
+                          if (Platform.isIOS) ...[
+  GestureDetector(
+    onTap: () async {
+      final uri = Uri.parse(
+        'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
+      );
 
-  if (await canLaunchUrl(uri)) {
+      await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+    },
+    child: Text(
+      _label('Điều khoản sử dụng', 'Terms of Use'),
+      style: const TextStyle(
+        decoration: TextDecoration.underline,
+        color: Colors.blue,
+        fontSize: 13,
+      ),
+    ),
+  ),
+
+  const Text('  •  '),
+],
+
+GestureDetector(
+  onTap: () async {
+    final uri = Uri.parse(
+      'https://eloquent-sorbet-6cf41f.netlify.app/',
+    );
+
     await launchUrl(
       uri,
       mode: LaunchMode.externalApplication,
     );
-  }
-},
-                            child: Text(
-                              _label('Điều khoản sử dụng', 'Terms of Use'),
-                              style: const TextStyle(
-                                decoration: TextDecoration.underline,
-                                color: Colors.blue,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-
-                          const Text('  •  '),
-
-                          GestureDetector(
-                            onTap: () async {
-  final uri = Uri.parse(
-    'https://eloquent-sorbet-6cf41f.netlify.app/',
-  );
-
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(
-      uri,
-      mode: LaunchMode.externalApplication,
-    );
-  }
-},
-                            child: Text(
-                              _label('Chính sách bảo mật', 'Privacy Policy'),
-                              style: const TextStyle(
-                                decoration: TextDecoration.underline,
-                                color: Colors.blue,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
+  },
+  child: Text(
+    _label('Chính sách bảo mật', 'Privacy Policy'),
+    style: const TextStyle(
+      decoration: TextDecoration.underline,
+      color: Colors.blue,
+      fontSize: 13,
+    ),
+  ),
+),
                         ],
                       ),
                     ),
