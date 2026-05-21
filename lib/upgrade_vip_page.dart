@@ -668,16 +668,6 @@ final String platform = Platform.isIOS ? 'app_store' : 'google_play';
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8FB),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
@@ -907,31 +897,34 @@ final String platform = Platform.isIOS ? 'app_store' : 'google_play';
                               ),
                       ),
                     ),
-                                        const SizedBox(height: 10),
-                    Center(
-                      child: TextButton(
-                        onPressed: (_isBuying || _isRestoring)
-                            ? null
-                            : _restorePurchases,
-                        child: _isRestoring
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                _label(
-                                  'Khôi phục mua hàng',
-                                  'Restore Purchases',
-                                ),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                      ),
-                    ),
+                                        /*
+const SizedBox(height: 10),
+
+Center(
+  child: TextButton(
+    onPressed: (_isBuying || _isRestoring)
+        ? null
+        : _restorePurchases,
+    child: _isRestoring
+        ? const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+            ),
+          )
+        : Text(
+            _label(
+              'Khôi phục mua hàng',
+              'Restore Purchases',
+            ),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+  ),
+),
+*/
 
                     const SizedBox(height: 12),
 

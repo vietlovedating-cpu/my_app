@@ -655,11 +655,12 @@ class BlockedListPage extends StatelessWidget {
                   _tr('Bạn chưa đăng nhập.', 'You are not signed in.'),
                 ),
               )
-            : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(currentUser.uid)
-                    .snapshots(),
+            : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+  stream: FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUser.uid)
+      .collection('blocked_users')
+      .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Center(
@@ -667,11 +668,9 @@ class BlockedListPage extends StatelessWidget {
                     );
                   }
 
-                  final data = snapshot.data!.data() ?? {};
-                  final blockedUsers =
-                      List<Map<String, dynamic>>.from(data['blockedUsers'] ?? []);
+                  final blockedUsers = snapshot.data!.docs;
 
-                  if (blockedUsers.isEmpty) {
+if (blockedUsers.isEmpty) {
                     return Center(
                       child: Text(
                         _tr(
@@ -691,10 +690,11 @@ class BlockedListPage extends StatelessWidget {
                     padding: const EdgeInsets.all(18),
                     itemCount: blockedUsers.length,
                     itemBuilder: (context, index) {
-                      final item = blockedUsers[index];
-                      final uid = (item['uid'] ?? '').toString();
-                      final name = (item['name'] ?? '').toString();
-                      final photoUrl = (item['photoUrl'] ?? '').toString();
+                      final item = blockedUsers[index].data();
+
+final uid = blockedUsers[index].id;
+final name = (item['name'] ?? '').toString();
+final photoUrl = (item['photoUrl'] ?? '').toString();
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -723,23 +723,12 @@ class BlockedListPage extends StatelessWidget {
                           ),
                           trailing: TextButton(
                             onPressed: () async {
-                              final userRef = FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(currentUser.uid);
-
-                              final currentDoc = await userRef.get();
-                              final currentData = currentDoc.data() ?? {};
-                              final currentBlocked = List<Map<String, dynamic>>.from(
-                                currentData['blockedUsers'] ?? [],
-                              );
-
-                              currentBlocked.removeWhere(
-                                (e) => (e['uid'] ?? '').toString() == uid,
-                              );
-
-                              await userRef.set({
-                                'blockedUsers': currentBlocked,
-                              }, SetOptions(merge: true));
+                              await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUser.uid)
+    .collection('blocked_users')
+    .doc(uid)
+    .delete();
                             },
                             child: Text(
                               _tr('Bỏ chặn', 'Unblock'),

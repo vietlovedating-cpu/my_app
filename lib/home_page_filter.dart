@@ -475,7 +475,7 @@ _dropdownBox(
                 ),
                 const SizedBox(height: 12),
                 _dropdownBox(
-                  title: _label('Uống rượu', 'Drinking'),
+                  title: _label('Uống rượu,nhậu', 'Drinking'),
                   value: tempDrinking,
                   items: const ['', 'yes', 'no', 'sometimes'],
                   onChanged: (value) {

@@ -395,8 +395,8 @@ My issue is:
                   Expanded(
                     child: Text(
                       _tr(
-                        'Bạn có thể liên hệ với chúng tôi qua email, WhatsApp hoặc gửi yêu cầu trực tiếp bên dưới. Chúng tôi sẽ phản hồi sớm nhất có thể.',
-                        'You can contact us by email, WhatsApp, or submit a support request below. We will reply as soon as possible.',
+                        'Bạn có thể liên hệ với chúng tôi qua email, WhatsApp. Chúng tôi sẽ phản hồi sớm nhất có thể, cảm ơn.',
+                        'You can contact us by email, WhatsApp. We will reply as soon as possible. Thank you',
                       ),
                       style: const TextStyle(
                         fontSize: 13.5,

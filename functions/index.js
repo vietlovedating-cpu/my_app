@@ -272,7 +272,7 @@ exports.testSendPush = onRequest(async (req, res) => {
 
 exports.checkMemberships = onSchedule(
   {
-    schedule: "every 24 hours",
+    schedule: "every 5 minutes",
     timeZone: "Australia/Sydney",
     region: "us-central1",
   },
@@ -299,7 +299,9 @@ exports.checkMemberships = onSchedule(
 
       const { fcmToken, languageCode } = await getUserMeta(userId);
       const isVi = languageCode === "vi";
-// 7 ngày
+      const userRef = admin.firestore().collection("users").doc(userId);
+/*
+      // 7 ngày
 if (diffDays === 7 && !data.vipReminder7dSent) {
   await sendPushNotification({
     token: fcmToken,
@@ -310,7 +312,7 @@ if (diffDays === 7 && !data.vipReminder7dSent) {
     data: { type: "vip_7d" },
   });
 
-  await userDoc.ref.update({ vipReminder7dSent: true });
+  await userRef.update({ vipReminder7dSent: true });
 }
 
 // 3 ngày
@@ -324,7 +326,7 @@ if (diffDays === 3 && !data.vipReminder3dSent) {
     data: { type: "vip_3d" },
   });
 
-  await userDoc.ref.update({ vipReminder3dSent: true });
+  await userRef.update({ vipReminder3dSent: true });
 }
 
 // 1 ngày
@@ -338,7 +340,7 @@ if (diffDays === 1 && !data.vipReminder1dSent) {
     data: { type: "vip_1d" },
   });
 
-  await userDoc.ref.update({ vipReminder1dSent: true });
+  await userRef.update({ vipReminder1dSent: true });
 }
 
 // hết hạn
@@ -352,7 +354,7 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
     data: { type: "vip_expired" },
   });
 
-  await userDoc.ref.update({
+  await userRef.update({
     isVip: false,
     vipUnlocked: false,
     vipStatus: "expired",
@@ -360,6 +362,7 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
     vipExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 }
+  */
       if (diffDays === 7 && !data.reminder7dSent) {
         if (email) {
           await sendEmail(
@@ -460,10 +463,49 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
         });
       }
     }
+    // VIP 7 ngày
+const vipSnap = await admin.firestore()
+  .collection("users")
+  .where("isVip", "==", true)
+  .get();
+
+for (const userDoc of vipSnap.docs) {
+  const userData = userDoc.data() || {};
+
+  if (!userData.vipExpiresAt) continue;
+  if (userData.vipReminder7dSent) continue;
+
+  const vipExpiresAt = userData.vipExpiresAt.toDate();
+
+  const vipDiffDays = Math.ceil(
+    (vipExpiresAt - now) / (1000 * 60 * 60 * 24)
+  );
+
+  if (vipDiffDays !== 7) continue;
+
+  const fcmToken = userData.fcmToken || "";
+  const isVi = userData.languageCode === "vi";
+
+  await sendPushNotification({
+    token: fcmToken,
+    title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
+    body: isVi
+      ? "VIP của bạn sẽ hết hạn sau 7 ngày."
+      : "Your VIP will expire in 7 days.",
+    data: {
+      type: "vip_7d",
+    },
+  });
+
+  await userDoc.ref.update({
+    vipReminder7dSent: true,
+  });
+}
    }
 );
 
 // 👉 DÁN FUNCTION MỚI Ở ĐÂY
+/*
 exports.checkMemberships = onSchedule(
   {
     schedule: "every 24 hours",
@@ -480,19 +522,11 @@ exports.checkMemberships = onSchedule(
     const now = new Date();
 
     for (const userDoc of usersSnap.docs) {
-      const data = userDoc.data();
-
-      if (!data.vipExpiresAt) continue;
-
-      const expiresAt = data.vipExpiresAt.toDate();
-      const diffDays = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
-
-      const userId = userDoc.id;
-      const { fcmToken, languageCode } = await getUserMeta(userId);
-      const isVi = languageCode === "vi";
+      ...
     }
   }
 );
+*/
 
 // 👉 GIỮ NGUYÊN CÁI NÀY
 exports.verifyAppleVipPurchase = onRequest(

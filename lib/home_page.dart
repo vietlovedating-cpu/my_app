@@ -400,11 +400,19 @@ print('state: ${data['state']}');
 print('stateLiving: ${data['stateLiving']}');
 
     if (uid.isEmpty) continue;
-    if (uid == currentUid) continue;
-    if (swipedUserIds.contains(uid)) continue;
-    if (hiddenUserIds.contains(uid)) continue;
-    if (blockedUserIds.contains(uid)) continue;
-    if (data['profileCompleted'] != true) {
+if (uid == currentUid) continue;
+if (swipedUserIds.contains(uid)) continue;
+if (hiddenUserIds.contains(uid)) continue;
+if (blockedUserIds.contains(uid)) continue;
+
+final mainPhotoUrl = (data['mainPhotoUrl'] ?? '').toString().trim();
+
+if (mainPhotoUrl.isEmpty) {
+  print('LOAI VI KHONG CO AVATAR: $uid');
+  continue;
+}
+
+if (data['profileCompleted'] != true) {
   print('LOAI VI profileCompleted FALSE: $uid');
   continue;
 }

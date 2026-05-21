@@ -44,7 +44,31 @@ class WhoLikesMePage extends StatelessWidget {
     final v = text.trim();
     if (v.isEmpty) return '';
     return v[0].toUpperCase() + v.substring(1).toLowerCase();
+
+  }Future<bool> _isUserDeleted(String uid) async {
+  if (uid.trim().isEmpty) return true;
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    if (!doc.exists) {
+      return true;
+    }
+
+    final data = doc.data() ?? {};
+
+    if (data['isDeleted'] == true) {
+      return true;
+    }
+
+    return false;
+  } catch (_) {
+    return true;
   }
+}
 
   Widget _buildEmptyState() {
     return Center(
@@ -97,7 +121,7 @@ class WhoLikesMePage extends StatelessWidget {
   }
 
   Widget _buildUserCard(Map<String, dynamic> data, BuildContext context) {
-    final userId = (data['uid'] ?? '').toString().trim();
+    final userId = (data['uid'] ?? data['docId'] ?? '').toString().trim();
 
     final name = _capitalize((data['firstName'] ?? '').toString());
     final age = (data['age'] ?? '').toString().trim();
@@ -325,22 +349,51 @@ class WhoLikesMePage extends StatelessWidget {
             children: [
               _buildHeader(),
               Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-                  itemCount: docs.length,
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 0.78,
-                  ),
-                  itemBuilder: (context, index) {
-                    final data = docs[index].data() as Map<String, dynamic>;
-                    return _buildUserCard(data, context);
-                  },
-                ),
-              ),
+  child: FutureBuilder<List<QueryDocumentSnapshot>>(
+    future: Future.wait(
+      docs.map((doc) async {
+        final data = doc.data() as Map<String, dynamic>;
+        final uid = (data['uid'] ?? doc.id).toString().trim();
+
+        final isDeleted = await _isUserDeleted(uid);
+        return isDeleted ? null : doc;
+      }),
+    ).then((list) => list.whereType<QueryDocumentSnapshot>().toList()),
+    builder: (context, filteredSnapshot) {
+      if (filteredSnapshot.connectionState == ConnectionState.waiting) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      final validDocs = filteredSnapshot.data ?? [];
+
+      if (validDocs.isEmpty) {
+        return _buildEmptyState();
+      }
+
+      return GridView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+        itemCount: validDocs.length,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 14,
+          crossAxisSpacing: 14,
+          childAspectRatio: 0.78,
+        ),
+        itemBuilder: (context, index) {
+          final rawData = validDocs[index].data() as Map<String, dynamic>;
+
+          final data = {
+            'docId': validDocs[index].id,
+            'uid': rawData['uid'] ?? validDocs[index].id,
+            ...rawData,
+          };
+
+          return _buildUserCard(data, context);
+        },
+      );
+    },
+  ),
+),
             ],
           );
         },

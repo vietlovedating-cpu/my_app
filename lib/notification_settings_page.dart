@@ -17,9 +17,11 @@ class NotificationSettingsPage extends StatefulWidget {
 
 class _NotificationSettingsPageState
     extends State<NotificationSettingsPage> {
-  bool messageNotifications = true;
-  bool matchNotifications = true;
-  bool supportNotifications = true;
+ bool messageNotifications = true;
+bool groupMessageNotifications = true;
+
+bool matchNotifications = true;
+bool supportNotifications = true;
 
   bool isLoading = true;
 
@@ -48,8 +50,10 @@ class _NotificationSettingsPageState
     if (doc.exists) {
       final data = doc.data()!;
       messageNotifications = data['message'] ?? true;
-      matchNotifications = data['match'] ?? true;
-      supportNotifications = data['support'] ?? true;
+groupMessageNotifications = data['groupMessage'] ?? true;
+
+matchNotifications = data['match'] ?? true;
+supportNotifications = data['support'] ?? true;
     }
 
     setState(() {
@@ -64,21 +68,23 @@ class _NotificationSettingsPageState
     // update UI ngay
     setState(() {
       if (key == 'message') messageNotifications = value;
-      if (key == 'match') matchNotifications = value;
-      if (key == 'support') supportNotifications = value;
+if (key == 'groupMessage') groupMessageNotifications = value;
+if (key == 'match') matchNotifications = value;
+if (key == 'support') supportNotifications = value;
     });
 
     // save Firebase
     await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('settings')
-        .doc('notifications')
-        .set({
-      'message': messageNotifications,
-      'match': matchNotifications,
-      'support': supportNotifications,
-    }, SetOptions(merge: true));
+    .collection('users')
+    .doc(user!.uid)
+    .collection('settings')
+    .doc('notifications')
+    .set({
+  'message': messageNotifications,
+  'groupMessage': groupMessageNotifications,
+  'match': matchNotifications,
+  'support': supportNotifications,
+}, SetOptions(merge: true));
   }
 
   @override
@@ -113,6 +119,16 @@ class _NotificationSettingsPageState
                   onChanged: (v) => _updateSetting('message', v),
                 ),
                 const SizedBox(height: 12),
+                _buildSwitchTile(
+  title: _tr('Thông báo tin nhắn nhóm', 'Group message notifications'),
+  subtitle: _tr(
+    'Bật/tắt thông báo khi có tin nhắn mới trong nhóm',
+    'Turn on/off new group message notifications',
+  ),
+  value: groupMessageNotifications,
+  onChanged: (v) => _updateSetting('groupMessage', v),
+),
+const SizedBox(height: 12),
                 _buildSwitchTile(
                   title: _tr('Thông báo ghép đôi', 'Match notifications'),
                   subtitle: _tr(

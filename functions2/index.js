@@ -60,18 +60,27 @@ async function sendPushNotification({ token, title, body, data = {} }) {
 
   try {
     const message = {
-      token,
-      notification: {
-        title,
-        body,
+  token,
+  notification: {
+    title,
+    body,
+  },
+  data: Object.fromEntries(
+    Object.entries(data).map(([k, v]) => [k, String(v ?? "")])
+  ),
+  apns: {
+    payload: {
+      aps: {
+        sound: "default",
       },
-      data: Object.fromEntries(
-        Object.entries(data).map(([k, v]) => [k, String(v ?? "")])
-      ),
-    };
+    },
+  },
+};
 
-    await admin.messaging().send(message);
-    console.log("Push sent");
+console.log("ABOUT TO SEND PUSH");
+console.log("TOKEN =", token);
+    const response = await admin.messaging().send(message);
+console.log("Push sent:", response);
   } catch (e) {
     console.error("Push error:", e);
   }
@@ -239,10 +248,101 @@ await sendPushNotification({
     }
   }
 );
+exports.sendGroupMessageNotification = onDocumentCreated(
+  {
+    document: "groups/{groupId}/messages/{messageId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    try {
+      const message = event.data.data();
+      const groupId = event.params.groupId;
 
+      const senderId = (message.senderId || "").toString();
+      const senderName = (message.senderName || "Someone").toString();
+      const text = (message.text || "").toString();
+      const messageType = (message.type || "text").toString();
+
+      if (!groupId || !senderId) return;
+
+      const groupTitles = {
+        weekend_coffee: "Weekend Coffee",
+        hiking_camping: "Hiking & Camping",
+        speed_dating: "Speed Dating",
+        gym_fitness: "Gym & Fitness",
+      };
+
+            const groupTitle = groupTitles[groupId] || "Group Chat";
+
+      const membersSnap = await admin
+        .firestore()
+        .collection("groups")
+        .doc(groupId)
+        .collection("members")
+        .where("membershipActive", "==", true)
+        .get();
+
+      for (const memberDoc of membersSnap.docs) {
+        const memberData = memberDoc.data() || {};
+        const receiverId = memberData.uid || memberData.userId || memberDoc.id;
+
+        if (!receiverId || receiverId === senderId) continue;
+
+        const expiresAt = memberData.expiresAt?.toDate?.();
+        if (!expiresAt || expiresAt < new Date()) continue;
+
+        const userSnap = await admin
+          .firestore()
+          .collection("users")
+          .doc(receiverId)
+          .get();
+
+        const userData = userSnap.data() || {};
+        const token = userData.fcmToken;
+
+        if (!token) continue;
+
+        const groupMessageEnabled = await isNotificationEnabled(
+  receiverId,
+  "groupMessage"
+);
+
+if (!groupMessageEnabled) {
+  continue;
+}
+
+        let body = `${senderName}: ${text}`;
+
+        if (messageType === "image") {
+          body = `${senderName} sent a photo.`;
+        }
+
+        if (!text && messageType !== "image") {
+          body = `${senderName} sent a message.`;
+        }
+
+        await sendPushNotification({
+          token,
+          title: `👥 ${groupTitle}`,
+          body,
+          data: {
+            route: "group_chat",
+            groupId,
+            type: "group_message",
+            senderId,
+          },
+        });
+      }
+
+      console.log("GROUP MESSAGE NOTIFICATIONS SENT:", groupId);
+    } catch (e) {
+      console.error("sendGroupMessageNotification error:", e);
+    }
+  }
+);
 exports.remindUnreadMessages = onSchedule(
   {
-    schedule: "every 3 hours",
+    schedule: "every 24 hours",
     region: "us-central1",
     timeZone: "Australia/Sydney",
   },
@@ -558,17 +658,17 @@ exports.sendIncompleteProfileReminderEmails = onSchedule(
               </p>
 
               <p>
-                <a href="${appLink}"
-                  style="
-                    background:#e91e63;
-                    color:white;
-                    padding:12px 20px;
-                    border-radius:8px;
-                    text-decoration:none;
-                    display:inline-block;
-                  ">
-                  Continue Registration
-                </a>
+                <span
+  style="
+    background:#e91e63;
+    color:white;
+    padding:12px 20px;
+    border-radius:8px;
+    display:inline-block;
+    font-weight:bold;
+  ">
+  Continue Registration
+</span>
               </p>
 
               <hr style="margin:30px 0;" />
@@ -584,17 +684,17 @@ exports.sendIncompleteProfileReminderEmails = onSchedule(
               </p>
 
               <p>
-                <a href="${appLink}"
-                  style="
-                    background:#e91e63;
-                    color:white;
-                    padding:12px 20px;
-                    border-radius:8px;
-                    text-decoration:none;
-                    display:inline-block;
-                  ">
-                  Tiếp tục đăng ký
-                </a>
+                <span
+  style="
+    background:#e91e63;
+    color:white;
+    padding:12px 20px;
+    border-radius:8px;
+    display:inline-block;
+    font-weight:bold;
+  ">
+  Tiếp tục đăng ký
+</span>
               </p>
 
             </div>
@@ -674,22 +774,10 @@ exports.sendSupportRequestEmail = onDocumentCreated(
 );
 
 
+/*
 const { onUserDeleted } = require("firebase-functions/v2/identity");
 
 exports.cleanupDeletedUser = onUserDeleted(async (event) => {
-  const user = event.data;
-
-  if (!user) return;
-
-  const uid = user.uid;
-
-  console.log("Cleaning deleted user:", uid);
-
-  try {
-    await admin.firestore().collection("users").doc(uid).delete();
-
-    console.log("Deleted Firestore user:", uid);
-  } catch (e) {
-    console.error("Cleanup error:", e);
-  }
+  ...
 });
+*/

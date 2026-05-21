@@ -146,13 +146,16 @@ fcmToken = await FirebaseMessaging.instance.getToken();
     }
 
     await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({
-      'fcmToken': fcmToken,
-      'fcmUpdatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
+    .collection('users')
+    .doc(user.uid)
+    .set({
+  'fcmToken': fcmToken,
+  'fcmPlatform':
+      defaultTargetPlatform == TargetPlatform.iOS
+          ? 'ios'
+          : 'android',
+  'fcmUpdatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
     print('FCM TOKEN SAVED');
   } catch (e) {
     print('SAVE FCM ERROR: $e');

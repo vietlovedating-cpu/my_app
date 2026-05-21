@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'group_data.dart';
 import 'group_detail_page.dart';
@@ -47,11 +49,46 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _membershipLoading = true;
   bool _hasActiveMembership = false;
   Map<String, dynamic>? _myMembershipData;
+  Set<String> _deletedUserIds = {};
 
   bool get isVi => widget.languageCode == 'vi';
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
   String _label(String vi, String en) => isVi ? vi : en;
+  Future<String> _translateGroupMessage({
+  required String text,
+  required String target,
+}) async {
+  try {
+    final uri = Uri.parse(
+      'https://us-central1-flutter-vietlove-dating.cloudfunctions.net/autoTranslatePrompts',
+    );
+
+    final response = await http.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'text': text,
+        'target': target,
+      }),
+    );
+
+    debugPrint('GROUP TRANSLATE STATUS: ${response.statusCode}');
+    debugPrint('GROUP TRANSLATE BODY: ${response.body}');
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data['translatedText'] ?? '').toString().trim();
+    }
+
+    return '';
+  } catch (e) {
+    debugPrint('GROUP TRANSLATE ERROR: $e');
+    return '';
+  }
+}
 
   CollectionReference<Map<String, dynamic>> get _membersRef =>
       FirebaseFirestore.instance
@@ -66,11 +103,11 @@ class _GroupChatPageState extends State<GroupChatPage> {
           .collection('messages');
 
   @override
-  void initState() {
-    super.initState();
-    _loadMembership();
-  }
-
+void initState() {
+  super.initState();
+  _loadMembership();
+  _loadDeletedUsers();
+}
   Future<void> _loadMembership() async {
     final user = currentUser;
     if (user == null) {
@@ -109,6 +146,54 @@ class _GroupChatPageState extends State<GroupChatPage> {
       _membershipLoading = false;
     });
   }
+Future<void> _loadDeletedUsers() async {
+  try {
+    final idsToCheck = <String>{};
+
+    final membersSnapshot = await _membersRef.get();
+    for (final doc in membersSnapshot.docs) {
+      idsToCheck.add(doc.id);
+
+      final data = doc.data();
+      final uid = (data['uid'] ?? data['userId'] ?? '').toString().trim();
+
+      if (uid.isNotEmpty) {
+        idsToCheck.add(uid);
+      }
+    }
+
+    final messagesSnapshot = await _messagesRef.limit(300).get();
+    for (final doc in messagesSnapshot.docs) {
+      final data = doc.data();
+      final senderId = (data['senderId'] ?? '').toString().trim();
+
+      if (senderId.isNotEmpty) {
+        idsToCheck.add(senderId);
+      }
+    }
+
+    final deletedIds = <String>{};
+
+    for (final uid in idsToCheck) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+
+      if (!userDoc.exists) {
+        deletedIds.add(uid);
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _deletedUserIds = deletedIds;
+    });
+  } catch (e) {
+    debugPrint('Load deleted users error: $e');
+  }
+}
 
   Future<bool> _checkMembershipBeforeAction() async {
     await _loadMembership();
@@ -154,19 +239,50 @@ class _GroupChatPageState extends State<GroupChatPage> {
     });
 
     try {
-      await _messagesRef.add({
-        'senderId': user.uid,
-        'senderName': firstName,
-        'senderPhotoUrl': mainPhotoUrl,
-        'text': text,
-        'imageUrl': '',
-        'type': 'text',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+  String textVi = '';
+  String textEn = '';
 
-      _messageController.clear();
-      _scrollToBottom();
-    } finally {
+  if (isVi) {
+    textVi = text;
+
+    textEn = await _translateGroupMessage(
+      text: text,
+      target: 'en',
+    );
+
+    if (textEn.isEmpty) {
+      textEn = text;
+    }
+  } else {
+    textEn = text;
+
+    textVi = await _translateGroupMessage(
+      text: text,
+      target: 'vi',
+    );
+
+    if (textVi.isEmpty) {
+      textVi = text;
+    }
+  }
+
+  await _messagesRef.add({
+    'senderId': user.uid,
+    'senderName': firstName,
+    'senderPhotoUrl': mainPhotoUrl,
+
+    'text': text,
+    'textVi': textVi,
+    'textEn': textEn,
+
+    'imageUrl': '',
+    'type': 'text',
+    'createdAt': FieldValue.serverTimestamp(),
+  });
+
+  _messageController.clear();
+  _scrollToBottom();
+} finally {
       if (mounted) {
         setState(() {
           _isSending = false;
@@ -334,7 +450,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
 
     final senderPhoto = (data['senderPhotoUrl'] ?? '').toString().trim();
     final senderName = (data['senderName'] ?? '').toString().trim();
-    final text = (data['text'] ?? '').toString().trim();
+    final rawText = (data['text'] ?? '').toString().trim();
+final textVi = (data['textVi'] ?? '').toString().trim();
+final textEn = (data['textEn'] ?? '').toString().trim();
+
+final text = isVi
+    ? (textVi.isNotEmpty ? textVi : rawText)
+    : (textEn.isNotEmpty ? textEn : rawText);
     final imageUrl = (data['imageUrl'] ?? '').toString().trim();
     final timestamp = data['createdAt'] as Timestamp?;
 
@@ -654,10 +776,13 @@ class _GroupChatPageState extends State<GroupChatPage> {
       data['accountDeleted'] == true ||
       data['status'] == 'deleted';
 
-  return !isDeleted &&
-      membershipActive &&
-      expiresAt != null &&
-      expiresAt.toDate().isAfter(now);
+  final userId = doc.id;
+
+return !_deletedUserIds.contains(userId) &&
+    !isDeleted &&
+    membershipActive &&
+    expiresAt != null &&
+    expiresAt.toDate().isAfter(now);
 }).toList();
 
     return Padding(
@@ -705,9 +830,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
                           .orderBy('createdAt', descending: false)
                           .snapshots(),
                       builder: (context, snapshot) {
-                        final docs = snapshot.data?.docs ?? [];
+                        final allMessageDocs = snapshot.data?.docs ?? [];
 
-                        if (docs.isEmpty) {
+final docs = allMessageDocs.where((doc) {
+  final data = doc.data();
+  final senderId = (data['senderId'] ?? '').toString().trim();
+
+  if (senderId.isEmpty) return true;
+
+  return !_deletedUserIds.contains(senderId);
+}).toList();
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  if (!_scrollController.hasClients) return;
+  _scrollController.jumpTo(
+    _scrollController.position.maxScrollExtent,
+  );
+});
+if (docs.isEmpty) {
                           return Center(
                             child: Text(
                               _label(
@@ -827,11 +966,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
                                 onPressed: (_isSending || !_hasActiveMembership)
                                     ? null
                                     : _sendTextMessage,
-                                icon: const Icon(
-                                  Icons.send_rounded,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
+                                icon: _isSending
+    ? const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+        ),
+      )
+    : const Icon(
+        Icons.send_rounded,
+        color: Colors.white,
+        size: 20,
+      ),
                               ),
                             ),
                           ],

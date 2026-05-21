@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'message_page.dart';
 import 'likes_and_views_hub_page.dart';
 
-class MatchPage extends StatelessWidget {
+class MatchPage extends StatefulWidget {
   final String languageCode;
 
   const MatchPage({
@@ -12,9 +14,96 @@ class MatchPage extends StatelessWidget {
     required this.languageCode,
   });
 
+  @override
+  State<MatchPage> createState() => _MatchPageState();
+}
+
+class _MatchPageState extends State<MatchPage> {
+  String get languageCode => widget.languageCode;
+
   bool get isVi => languageCode == 'vi';
 
   String _tr(String vi, String en) => isVi ? vi : en;
+
+  @override
+  void initState() {
+    super.initState();
+    _saveFcmToken();
+  }
+
+  Future<void> _saveFcmToken() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      print('MATCH FCM USER: ${user?.uid}');
+
+      if (user == null) return;
+
+      final permission =
+          await FirebaseMessaging.instance.requestPermission();
+
+      print('MATCH FCM PERMISSION: ${permission.authorizationStatus}');
+
+      String? fcmToken;
+
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        String? apnsToken;
+
+        for (int i = 0; i < 10; i++) {
+          await Future.delayed(const Duration(seconds: 2));
+
+          apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+
+          print('MATCH APNS RETRY $i = $apnsToken');
+
+          if (apnsToken != null && apnsToken.isNotEmpty) {
+            break;
+          }
+        }
+
+        if (apnsToken == null || apnsToken.isEmpty) {
+  print('MATCH APNS TOKEN STILL NULL - KEEP OLD FCM TOKEN');
+  return;
+}
+      }
+
+      fcmToken = await FirebaseMessaging.instance.getToken();
+
+print('MATCH FCM TOKEN: $fcmToken');
+
+if (fcmToken == null || fcmToken.isEmpty) {
+  print('MATCH FCM TOKEN IS NULL');
+  return;
+}
+
+final userDoc = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid)
+    .get();
+
+final oldToken = (userDoc.data()?['fcmToken'] ?? '').toString();
+
+if (oldToken == fcmToken) {
+  print('MATCH FCM TOKEN SAME - SKIP UPDATE');
+  return;
+}
+
+await FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid)
+    .set({
+  'fcmToken': fcmToken,
+  'fcmPlatform': defaultTargetPlatform == TargetPlatform.iOS
+      ? 'ios'
+      : 'android',
+  'fcmUpdatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
+
+print('MATCH FCM TOKEN UPDATED');
+    } catch (e) {
+      print('MATCH SAVE FCM ERROR: $e');
+    }
+  }
 
   String _capitalizeName(String text) {
     final value = text.trim();
@@ -45,10 +134,10 @@ class MatchPage extends StatelessWidget {
           IconButton(
             tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
             icon: const Icon(
-  Icons.people_alt_rounded,
-  color: Color(0xFFE76F51),
-  size: 42,
-),
+              Icons.people_alt_rounded,
+              color: Color(0xFFE76F51),
+              size: 42,
+            ),
             onPressed: () {
               Navigator.push(
                 context,
@@ -141,7 +230,8 @@ class MatchPage extends StatelessWidget {
                   _capitalizeName((participantNames[otherUid] ?? '').toString());
               final String otherPhoto =
                   (participantPhotos[otherUid] ?? '').toString().trim();
-              final String chatId = (data['chatId'] ?? docs[index].id).toString();
+              final String chatId =
+                  (data['chatId'] ?? docs[index].id).toString();
 
               return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                 future: FirebaseFirestore.instance

@@ -78,21 +78,46 @@ class LikesAndViewsHubPage extends StatelessWidget {
   }
 
   Future<int> _loadLikesCount() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return 0;
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (currentUser == null) return 0;
 
-    try {
-      final snapshot = await FirebaseFirestore.instance
+  try {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('likedBy')
+        .get();
+
+    int count = 0;
+
+    for (final doc in snapshot.docs) {
+      final likerUid = doc.id.trim();
+      if (likerUid.isEmpty) continue;
+
+      final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(currentUser.uid)
-          .collection('likedBy')
+          .doc(likerUid)
           .get();
 
-      return snapshot.docs.length;
-    } catch (_) {
-      return 0;
+      if (!userDoc.exists) continue;
+
+      final data = userDoc.data() ?? {};
+
+      if (data['profileCompleted'] != true) continue;
+      if (data['showMyProfile'] == false) continue;
+      if (data['showOnDiscover'] == false) continue;
+      if (data['accountPaused'] == true) continue;
+      if (data['isPaused'] == true) continue;
+      if (data['isDeleted'] == true) continue;
+
+      count++;
     }
+
+    return count;
+  } catch (_) {
+    return 0;
   }
+}
 
   Future<int> _loadViewsCount() async {
     final currentUser = FirebaseAuth.instance.currentUser;

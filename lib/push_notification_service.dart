@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'group_chat_page.dart';
+import 'group_data.dart';
 
 class PushNotificationService {
   final GlobalKey<NavigatorState> navigatorKey;
@@ -311,6 +313,36 @@ if (route == 'chat') {
         otherUserId: '', // tạm thời để trống
         otherUserName: '',
         otherUserPhotoUrl: '',
+      ),
+    ),
+  );
+
+  return;
+}
+if (route == 'group_chat') {
+  print('PUSH GROUP ROUTE = $route');
+print('PUSH GROUP ID = $groupId');
+  final nav = navigatorKey.currentState;
+  if (nav == null || groupId == null || groupId.isEmpty) return;
+
+  final matchingGroups =
+    kDatingGroups.where((g) => g.id == groupId).toList();
+
+  if (matchingGroups.isEmpty) {
+    print('GROUP NOT FOUND FROM PUSH: $groupId');
+    return;
+  }
+
+  final group = matchingGroups.first;
+
+  nav.push(
+    MaterialPageRoute(
+      builder: (_) => GroupChatPage(
+        languageCode: getLanguageCode(),
+        group: group,
+        currentUserGroupId: group.id,
+        currentUserHasJoined: true,
+        currentUserIsActive: true,
       ),
     ),
   );
