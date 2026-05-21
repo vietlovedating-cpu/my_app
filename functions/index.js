@@ -477,11 +477,11 @@ for (const userDoc of vipSnap.docs) {
 
   const vipExpiresAt = userData.vipExpiresAt.toDate();
 
-  const vipDiffDays = Math.ceil(
-    (vipExpiresAt - now) / (1000 * 60 * 60 * 24)
-  );
+  const vipMsLeft = vipExpiresAt - now;
+const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
-  if (vipDiffDays !== 7) continue;
+if (vipMsLeft <= 0) continue;
+if (vipMsLeft > sevenDaysMs) continue;
 
   const fcmToken = userData.fcmToken || "";
   const isVi = userData.languageCode === "vi";
