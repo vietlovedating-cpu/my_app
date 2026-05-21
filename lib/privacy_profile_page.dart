@@ -690,13 +690,26 @@ if (blockedUsers.isEmpty) {
                     padding: const EdgeInsets.all(18),
                     itemCount: blockedUsers.length,
                     itemBuilder: (context, index) {
-                      final item = blockedUsers[index].data();
+                      final uid = blockedUsers[index].id;
 
-final uid = blockedUsers[index].id;
-final name = (item['name'] ?? '').toString();
-final photoUrl = (item['photoUrl'] ?? '').toString();
+return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+  future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+  builder: (context, userSnapshot) {
+    final userData = userSnapshot.data?.data() ?? {};
 
-                      return Container(
+    final name = (userData['name'] ??
+            userData['displayName'] ??
+            userData['fullName'] ??
+            '')
+        .toString();
+
+    final photoUrl = (userData['mainPhotoUrl'] ??
+            userData['photoUrl'] ??
+            userData['profileImageUrl'] ??
+            '')
+        .toString();
+
+    return Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(22),
@@ -740,6 +753,8 @@ final photoUrl = (item['photoUrl'] ?? '').toString();
                           ),
                         ),
                       );
+  },
+);
                     },
                   );
                 },
