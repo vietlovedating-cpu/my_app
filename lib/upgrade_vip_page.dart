@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 
 class UpgradeVipPage extends StatefulWidget {
@@ -484,8 +485,22 @@ GestureDetector(
         final verified = await _verifyPurchase(purchaseDetails);
 
         if (verified) {
-          await _grantVip(purchaseDetails);
-          await widget.onPurchaseSuccess();
+          final granted = await _grantVip(purchaseDetails);
+
+if (!granted) {
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  if (!mounted) return;
+  setState(() {
+    _isBuying = false;
+    _isRestoring = false;
+  });
+  continue;
+}
+
+await widget.onPurchaseSuccess();
 
           if (!mounted) return;
 
@@ -552,11 +567,44 @@ GestureDetector(
     return true;
   }
 
-  Future<void> _grantVip(PurchaseDetails purchase) async {
+  Future<bool> _grantVip(PurchaseDetails purchase) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) return false;
 
     final productId = purchase.productID;
+    final transactionId =
+    purchase.purchaseID ?? purchase.verificationData.serverVerificationData;
+    if (Platform.isIOS) {
+  final callable = FirebaseFunctions.instance.httpsCallable(
+    'verifyAppleVipPurchase',
+  );
+
+  final result = await callable.call({
+    'userId': user.uid,
+    'productId': productId,
+    'transactionId': transactionId,
+  });
+
+  final data = Map<String, dynamic>.from(result.data);
+
+  if (data['success'] == true) {
+    return true;
+  }
+
+  return false;
+}
+
+final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+final processedRef =
+    userRef.collection('processedVipPurchases').doc(transactionId);
+
+final processedDoc = await processedRef.get();
+
+if (processedDoc.exists) {
+  print('VIP purchase already processed: $transactionId');
+  return false;
+}
 
     String planId = 'unknown';
 String titleVi = '';
@@ -614,31 +662,41 @@ if (monthsToAdd > 0) {
   );
 }
 final String platform = Platform.isIOS ? 'app_store' : 'google_play';
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-      'isVip': true,
-      'vipUnlocked': true,
-      'membership': 'vip',
-      'plan': 'vip',
-      'subscriptionType': planId,
-      'vipPlanId': planId,
-      'vipProductId': productId,
-      'vipPlatform': platform,
-      'vipStatus': 'active',
 
+await userRef.set({
+  'isVip': true,
+  'vipUnlocked': true,
+  'membership': 'vip',
+  'plan': 'vip',
+  'subscriptionType': planId,
+  'vipPlanId': planId,
+  'vipProductId': productId,
+  'vipPlatform': platform,
+  'vipStatus': 'active',
 
-       'vipExpiresAt': Timestamp.fromDate(expiresAt),
+  'vipExpiresAt': Timestamp.fromDate(expiresAt),
   'vipReminder7dSent': false,
   'vipReminder3dSent': false,
   'vipReminder1dSent': false,
   'vipExpiredHandled': false,
 
-      'vipPlanTitleVi': titleVi,
-      'vipPlanTitleEn': titleEn,
-      'vipPriceTextVi': priceVi,
-      'vipPriceTextEn': priceEn,
-      'vipPurchasedAt': FieldValue.serverTimestamp(),
-      'vipUpdatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+  'vipPlanTitleVi': titleVi,
+  'vipPlanTitleEn': titleEn,
+  'vipPriceTextVi': priceVi,
+  'vipPriceTextEn': priceEn,
+  'vipPurchasedAt': FieldValue.serverTimestamp(),
+  'vipUpdatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
+
+await processedRef.set({
+  'transactionId': transactionId,
+  'vipProductId': productId,
+  'vipPlanId': planId,
+  'purchaseStatus': purchase.status.name,
+  'vipExpiresAt': Timestamp.fromDate(expiresAt),
+  'createdAt': FieldValue.serverTimestamp(),
+});
+return true;
   }
 
   Widget _featureItem(String emoji, String text) {

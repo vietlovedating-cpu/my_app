@@ -1,8 +1,13 @@
 const admin = require("firebase-admin");
 const sgMail = require("@sendgrid/mail");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
-const { onRequest } = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const APPLE_KEY_ID = "5Y96FGHGP6";
+const APPLE_ISSUER_ID = "6cd61427-575e-490b-99c4-79302d8872f8";
+const APPLE_BUNDLE_ID = "com.vietlovedating.app";
 
 admin.initializeApp();
 
@@ -275,6 +280,8 @@ exports.checkMemberships = onSchedule(
     schedule: "every 5 minutes",
     timeZone: "Australia/Sydney",
     region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
   },
   async () => {
     const now = new Date();
@@ -501,6 +508,37 @@ if (vipMsLeft > sevenDaysMs) continue;
     vipReminder7dSent: true,
   });
 }
+// VIP hết hạn - khóa quyền VIP
+const expiredVipSnap = await admin.firestore()
+  .collection("users")
+  .where("isVip", "==", true)
+  .get();
+
+for (const userDoc of expiredVipSnap.docs) {
+  const userData = userDoc.data() || {};
+
+  if (!userData.vipExpiresAt) continue;
+
+  const vipExpiresAt = userData.vipExpiresAt.toDate();
+
+  if (vipExpiresAt > now) continue;
+
+  await userDoc.ref.set(
+  {
+    isVip: false,
+    vipUnlocked: false,
+    membership: "",
+    plan: "",
+    vipStatus: "expired",
+    vipExpiredHandled: true,
+    vipExpiredAt: admin.firestore.FieldValue.serverTimestamp(),
+    vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  },
+  { merge: true }
+);
+
+  console.log("VIP expired and disabled:", userDoc.id);
+}
    }
 );
 
@@ -528,9 +566,282 @@ exports.checkMemberships = onSchedule(
 );
 */
 
+function createAppleJwt() {
+  const privateKey = process.env.APPLE_IAP_PRIVATE_KEY;
+
+  if (!privateKey) {
+    throw new Error("Missing APPLE_IAP_PRIVATE_KEY secret");
+  }
+
+  return jwt.sign(
+    {
+      iss: APPLE_ISSUER_ID,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 20 * 60,
+      aud: "appstoreconnect-v1",
+      bid: APPLE_BUNDLE_ID,
+    },
+    privateKey,
+    {
+      algorithm: "ES256",
+      header: {
+        alg: "ES256",
+        kid: APPLE_KEY_ID,
+        typ: "JWT",
+      },
+    }
+  );
+}
+
+async function getAppleTransactionInfo(transactionId) {
+  const token = createAppleJwt();
+
+  const productionUrl =
+    `https://api.storekit.itunes.apple.com/inApps/v1/transactions/${transactionId}`;
+
+  try {
+    const response = await axios.get(productionUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    return response.data;
+  } catch (error) {
+    const status = error.response?.status;
+
+    if (status === 404) {
+      const sandboxUrl =
+        `https://api.storekit-sandbox.itunes.apple.com/inApps/v1/transactions/${transactionId}`;
+
+      const response = await axios.get(sandboxUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      return response.data;
+    }
+
+    throw error;
+  }
+}
+
+function decodeAppleSignedTransaction(signedTransactionInfo) {
+  const decoded = jwt.decode(signedTransactionInfo);
+
+  if (!decoded) {
+    throw new Error("Could not decode Apple signedTransactionInfo");
+  }
+
+  return decoded;
+}
+
+function getVipPlanFromProductId(productId) {
+  if (productId === "com.vietlove.vip.weekly") {
+    return {
+      vipPlanId: "1_week",
+      vipPlanTitleVi: "1 tuần",
+      vipPlanTitleEn: "1 week",
+      vipPriceTextVi: "$14.99/tuần",
+      vipPriceTextEn: "$14.99/week",
+    };
+  }
+
+  if (productId === "com.vietlove.vip.monthly") {
+    return {
+      vipPlanId: "1_month",
+      vipPlanTitleVi: "1 tháng",
+      vipPlanTitleEn: "1 month",
+      vipPriceTextVi: "$29.99/tháng",
+      vipPriceTextEn: "$29.99/month",
+    };
+  }
+
+  if (productId === "com.vietlove.vip.3months") {
+    return {
+      vipPlanId: "3_months",
+      vipPlanTitleVi: "3 tháng",
+      vipPlanTitleEn: "3 months",
+      vipPriceTextVi: "$26.66/tháng",
+      vipPriceTextEn: "$26.66/month",
+    };
+  }
+
+  if (productId === "com.vietlove.vip.6months") {
+    return {
+      vipPlanId: "6_months",
+      vipPlanTitleVi: "6 tháng",
+      vipPlanTitleEn: "6 months",
+      vipPriceTextVi: "$24.99/tháng",
+      vipPriceTextEn: "$24.99/month",
+    };
+  }
+
+  return null;
+}
 // 👉 GIỮ NGUYÊN CÁI NÀY
-exports.verifyAppleVipPurchase = onRequest(
-  { region: "us-central1" },
+exports.verifyAppleVipPurchase = onCall(
+  {
+    region: "us-central1",
+    secrets: ["APPLE_IAP_PRIVATE_KEY"],
+  },
+  async (request) => {
+    try {
+      const { userId, productId, transactionId } = request.data || {};
+
+      if (!userId || !productId || !transactionId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing userId, productId, or transactionId"
+        );
+      }
+
+      const plan = getVipPlanFromProductId(productId);
+
+      if (!plan) {
+        throw new HttpsError("invalid-argument", "Invalid productId");
+      }
+
+      const appleResponse = await getAppleTransactionInfo(transactionId);
+      const signedTransactionInfo = appleResponse.signedTransactionInfo;
+
+      if (!signedTransactionInfo) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Missing signedTransactionInfo from Apple"
+        );
+      }
+
+      const transactionInfo =
+        decodeAppleSignedTransaction(signedTransactionInfo);
+
+      console.log("Apple transactionInfo:", transactionInfo);
+
+      const appleProductId = transactionInfo.productId || "";
+      const appleTransactionId = transactionInfo.transactionId || transactionId;
+      const appleOriginalTransactionId =
+        transactionInfo.originalTransactionId || "";
+      const expiresDateMs = Number(transactionInfo.expiresDate || 0);
+
+      if (appleProductId !== productId) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Apple productId does not match app productId"
+        );
+      }
+
+      if (!expiresDateMs) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Missing expiresDate from Apple"
+        );
+      }
+
+      const expiresAt = new Date(expiresDateMs);
+      const now = new Date();
+      const isActive = expiresAt > now;
+      const userRef = admin.firestore().collection("users").doc(userId);
+
+const userSnap = await userRef.get();
+const oldData = userSnap.data() || {};
+
+const oldTransactionId = oldData.vipTransactionId || "";
+const oldOriginalTransactionId =
+  oldData.vipOriginalTransactionId || "";
+
+const isRenew =
+  oldOriginalTransactionId &&
+  oldOriginalTransactionId === appleOriginalTransactionId &&
+  oldTransactionId &&
+  oldTransactionId !== appleTransactionId;
+
+const oldRenewCount = Number(oldData.renewCount || 0);
+
+      await userRef.set(
+        {
+          isVip: isActive,
+          vipUnlocked: isActive,
+          membership: isActive ? "vip" : "",
+          vipTransactionId: appleTransactionId,
+vipOriginalTransactionId: appleOriginalTransactionId,
+
+renewCount: isRenew
+  ? oldRenewCount + 1
+  : oldRenewCount,
+
+lastRenewAt: isRenew
+  ? admin.firestore.FieldValue.serverTimestamp()
+  : oldData.lastRenewAt || null,
+
+lastAppleTransactionId: appleTransactionId,
+          plan: isActive ? "vip" : "",
+          subscriptionType: plan.vipPlanId,
+          vipPlanId: plan.vipPlanId,
+          vipProductId: productId,
+          vipPlatform: "app_store",
+          vipStatus: isActive ? "active" : "expired",
+          vipExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+          vipPlanTitleVi: plan.vipPlanTitleVi,
+          vipPlanTitleEn: plan.vipPlanTitleEn,
+          vipPriceTextVi: plan.vipPriceTextVi,
+          vipPriceTextEn: plan.vipPriceTextEn,
+          vipAppleVerified: true,
+          vipAppleVerifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+          vipPurchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+          vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          vipReminder7dSent: false,
+          vipReminder3dSent: false,
+          vipReminder1dSent: false,
+          vipExpiredHandled: !isActive,
+        },
+        { merge: true }
+      );
+
+      await admin
+        .firestore()
+        .collection("users")
+        .doc(userId)
+        .collection("processedVipPurchases")
+        .doc(appleTransactionId)
+        .set(
+          {
+            transactionId: appleTransactionId,
+            originalTransactionId: appleOriginalTransactionId,
+            vipProductId: productId,
+            vipPlanId: plan.vipPlanId,
+            vipExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+            appleVerified: true,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+      return {
+        success: true,
+        vipPlanId: plan.vipPlanId,
+        vipStatus: isActive ? "active" : "expired",
+        vipExpiresAt: expiresAt.toISOString(),
+        originalTransactionId: appleOriginalTransactionId,
+      };
+    } catch (error) {
+      console.error(
+        "verifyAppleVipPurchase error:",
+        error.response?.data || error
+      );
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError("internal", "Server error");
+    }
+  }
+);
+exports.appleVipNotification = onRequest(
+  {
+    region: "us-central1",
+  },
   async (req, res) => {
     try {
       if (req.method !== "POST") {
@@ -538,97 +849,158 @@ exports.verifyAppleVipPurchase = onRequest(
         return;
       }
 
-      const { userId, productId, transactionId, originalTransactionId } =
-        req.body || {};
+      const signedPayload = req.body?.signedPayload;
 
-      if (!userId || !productId) {
-        res.status(400).json({
-          success: false,
-          message: "Missing userId or productId",
-        });
+      if (!signedPayload) {
+        res.status(400).send("Missing signedPayload");
         return;
       }
 
-      const allowedProductIds = new Set([
-        "com.vietlove.vip.weekly",
-        "com.vietlove.vip.monthly",
-        "com.vietlove.vip.3months",
-        "com.vietlove.vip.6months",
-      ]);
+      const notification = jwt.decode(signedPayload);
 
-      if (!allowedProductIds.has(productId)) {
-        res.status(400).json({
-          success: false,
-          message: "Invalid productId",
-        });
+      if (!notification) {
+        res.status(400).send("Invalid signedPayload");
         return;
       }
 
-      let vipPlanId = "unknown";
-      let vipPlanTitleVi = "";
-      let vipPlanTitleEn = "";
-      let vipPriceTextVi = "";
-      let vipPriceTextEn = "";
+      console.log("Apple notification:", notification);
 
-      if (productId === "com.vietlove.vip.weekly") {
-        vipPlanId = "1_week";
-        vipPlanTitleVi = "1 tuần";
-        vipPlanTitleEn = "1 week";
-        vipPriceTextVi = "\$14.99/tuần";
-        vipPriceTextEn = "\$14.99/week";
-      } else if (productId === "com.vietlove.vip.monthly") {
-        vipPlanId = "1_month";
-        vipPlanTitleVi = "1 tháng";
-        vipPlanTitleEn = "1 month";
-        vipPriceTextVi = "\$29.99/tháng";
-        vipPriceTextEn = "\$29.99/month";
-      } else if (productId === "com.vietlove.vip.3months") {
-        vipPlanId = "3_months";
-        vipPlanTitleVi = "3 tháng";
-        vipPlanTitleEn = "3 mths";
-        vipPriceTextVi = "\$26.66/tháng";
-        vipPriceTextEn = "\$26.66/month";
-      } else if (productId === "com.vietlove.vip.6months") {
-        vipPlanId = "6_months";
-        vipPlanTitleVi = "6 tháng";
-        vipPlanTitleEn = "6 months";
-        vipPriceTextVi = "\$24.99/tháng";
-        vipPriceTextEn = "\$24.99/month";
+      const notificationType = notification.notificationType || "";
+      const subtype = notification.subtype || "";
+
+      const signedTransactionInfo =
+        notification.data?.signedTransactionInfo || "";
+
+      if (!signedTransactionInfo) {
+        res.status(200).send("No transaction info");
+        return;
       }
 
-      await admin.firestore().collection("users").doc(userId).set(
+      const transactionInfo = jwt.decode(signedTransactionInfo);
+
+      if (!transactionInfo) {
+        res.status(400).send("Invalid transaction info");
+        return;
+      }
+
+      console.log("Apple transaction from notification:", transactionInfo);
+
+      const productId = transactionInfo.productId || "";
+      const transactionId = transactionInfo.transactionId || "";
+      const originalTransactionId =
+        transactionInfo.originalTransactionId || "";
+      const expiresDateMs = Number(transactionInfo.expiresDate || 0);
+
+      if (!productId || !originalTransactionId || !expiresDateMs) {
+        res.status(200).send("Missing required transaction fields");
+        return;
+      }
+
+      const plan = getVipPlanFromProductId(productId);
+
+      if (!plan) {
+        res.status(200).send("Not a VIP product");
+        return;
+      }
+
+      const usersSnap = await admin.firestore()
+        .collection("users")
+        .where("vipOriginalTransactionId", "==", originalTransactionId)
+        .limit(1)
+        .get();
+
+      if (usersSnap.empty) {
+        console.log(
+          "No user found for originalTransactionId:",
+          originalTransactionId
+        );
+        res.status(200).send("No matching user");
+        return;
+      }
+
+      const userDoc = usersSnap.docs[0];
+      const userData = userDoc.data() || {};
+      const userRef = userDoc.ref;
+
+      const expiresAt = new Date(expiresDateMs);
+      const now = new Date();
+
+      let isActive = expiresAt > now;
+
+      if (
+        notificationType === "EXPIRED" ||
+        notificationType === "REFUND" ||
+        notificationType === "REVOKE" ||
+        notificationType === "DID_FAIL_TO_RENEW"
+      ) {
+        isActive = false;
+      }
+
+      const oldTransactionId = userData.vipTransactionId || "";
+      const oldRenewCount = Number(userData.renewCount || 0);
+
+      const isRenew =
+        oldTransactionId &&
+        transactionId &&
+        oldTransactionId !== transactionId &&
+        isActive;
+
+      await userRef.set(
         {
-          isVip: true,
-          vipUnlocked: true,
-          membership: "vip",
-          plan: "vip",
-          subscriptionType: vipPlanId,
-          vipPlanId,
+          isVip: isActive,
+          vipUnlocked: isActive,
+          membership: isActive ? "vip" : "",
+          plan: isActive ? "vip" : "",
+          subscriptionType: plan.vipPlanId,
+          vipPlanId: plan.vipPlanId,
           vipProductId: productId,
           vipPlatform: "app_store",
-          vipStatus: "active",
-          vipPlanTitleVi,
-          vipPlanTitleEn,
-          vipPriceTextVi,
-          vipPriceTextEn,
-          vipTransactionId: transactionId || "",
-          vipOriginalTransactionId: originalTransactionId || "",
-          vipPurchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+          vipStatus: isActive ? "active" : "expired",
+          vipExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+          vipTransactionId: transactionId,
+          vipOriginalTransactionId: originalTransactionId,
+          lastAppleNotificationType: notificationType,
+          lastAppleNotificationSubtype: subtype,
+          lastAppleTransactionId: transactionId,
+
+          renewCount: isRenew ? oldRenewCount + 1 : oldRenewCount,
+          lastRenewAt: isRenew
+            ? admin.firestore.FieldValue.serverTimestamp()
+            : userData.lastRenewAt || null,
+
+          vipAppleWebhookReceivedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
           vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+          vipExpiredHandled: !isActive,
         },
         { merge: true }
       );
 
-      res.status(200).json({
-        success: true,
-        vipPlanId,
-      });
+      await userRef
+        .collection("appleVipNotifications")
+        .doc(transactionId || `${Date.now()}`)
+        .set(
+          {
+            notificationType,
+            subtype,
+            productId,
+            transactionId,
+            originalTransactionId,
+            expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+            isActive,
+            rawNotification: notification,
+            rawTransactionInfo: transactionInfo,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+      res.status(200).send("OK");
     } catch (error) {
-      console.error("verifyAppleVipPurchase error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Server error",
-      });
+      console.error("appleVipNotification error:", error);
+      res.status(500).send("Server error");
     }
   }
 );

@@ -32,7 +32,13 @@ class LikesAndViewsHubPage extends StatelessWidget {
         .get();
 
     final data = doc.data() ?? {};
-    return data['isVip'] == true || data['vipUnlocked'] == true;
+    final vipExpiresAt = data['vipExpiresAt'];
+
+if (vipExpiresAt is! Timestamp) {
+  return false;
+}
+
+return vipExpiresAt.toDate().isAfter(DateTime.now());
   }
 
   Future<String?> _resolveImageUrl(String raw) async {
