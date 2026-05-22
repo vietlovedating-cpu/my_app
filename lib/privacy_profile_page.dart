@@ -690,18 +690,18 @@ if (blockedUsers.isEmpty) {
                     padding: const EdgeInsets.all(18),
                     itemCount: blockedUsers.length,
                     itemBuilder: (context, index) {
-                      final uid = blockedUsers[index].id;
+                      final blockedData = blockedUsers[index].data();
+final uid = (blockedData['uid'] ?? '').toString().trim();
 
 return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
   future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
   builder: (context, userSnapshot) {
     final userData = userSnapshot.data?.data() ?? {};
 
-    final name = (userData['name'] ??
-            userData['displayName'] ??
-            userData['fullName'] ??
-            '')
-        .toString();
+    final firstName = (userData['firstName'] ?? '').toString();
+final surname = (userData['surname'] ?? '').toString();
+
+final name = ('$firstName $surname').trim();
 
     final photoUrl = (userData['mainPhotoUrl'] ??
             userData['photoUrl'] ??
@@ -735,22 +735,22 @@ return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
                             ),
                           ),
                           trailing: TextButton(
-                            onPressed: () async {
-                              await FirebaseFirestore.instance
-    .collection('users')
-    .doc(currentUser.uid)
-    .collection('blocked_users')
-    .doc(uid)
-    .delete();
-                            },
-                            child: Text(
-                              _tr('Bỏ chặn', 'Unblock'),
-                              style: const TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
+  onPressed: () async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('blocked_users')
+        .doc(blockedUsers[index].id)
+        .delete();
+  },
+  child: Text(
+    _tr('Bỏ chặn', 'Unblock'),
+    style: const TextStyle(
+      color: Colors.red,
+      fontWeight: FontWeight.w800,
+    ),
+  ),
+),
                         ),
                       );
   },

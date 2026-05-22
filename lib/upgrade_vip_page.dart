@@ -65,7 +65,7 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
           titleVi: '3 tháng',
           titleEn: '3 months',
           priceTextVi: '\$26.66/tháng',
-          priceTextEn: '\$26.66/months',
+          priceTextEn: '\$26.66/month',
           monthsToAdd: 3,
           daysToAdd: 0,
         ),
@@ -153,6 +153,9 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
   }
 
   String _displayPrice(_VipPlan plan) {
+      if (plan.id == '3_months' || plan.id == '6_months') {
+    return isVi ? plan.priceTextVi : plan.priceTextEn;
+  }
     final storeProduct = _storeProducts[plan.productId];
     if (storeProduct != null) {
       return storeProduct.price;

@@ -180,6 +180,17 @@ await FirebaseFirestore.instance
               color: Colors.pink,
             ),
           ),
+          const SizedBox(height: 8),
+
+Text(
+  FirebaseAuth.instance.currentUser?.email ?? '',
+  textAlign: TextAlign.center,
+  style: const TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: Colors.black87,
+  ),
+),
           const SizedBox(height: 14),
           Text(
             isVi
