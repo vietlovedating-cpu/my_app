@@ -27,6 +27,8 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
   bool _isLoading = true;
   bool _isProcessing = false;
   bool _purchasePending = false;
+  String? _buyingProductId;
+String? _buyingGroupId;
   final Set<String> _handledPurchaseIds = {};
   Map<String, dynamic>? _membershipData;
 
@@ -261,18 +263,20 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
       );
       return;
     }
-
-    setState(() {
-      _purchasePending = true;
-    });
+setState(() {
+  _buyingProductId = productId;
+  _buyingGroupId = widget.group.id;
+});
 
     final response = await _inAppPurchase.queryProductDetails({productId});
 
     if (response.error != null || response.productDetails.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _purchasePending = false;
-      });
+  if (!mounted) return;
+  setState(() {
+    _purchasePending = false;
+    _buyingProductId = null;
+    _buyingGroupId = null;
+  });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -295,13 +299,19 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
     final productDetails = response.productDetails.first;
     final purchaseParam = PurchaseParam(productDetails: productDetails);
 
-    final started = await _inAppPurchase.buyNonConsumable(
+    setState(() {
+  _purchasePending = true;
+});
+
+final started = await _inAppPurchase.buyNonConsumable(
   purchaseParam: purchaseParam,
 );
 
 if (!started && mounted) {
   setState(() {
     _purchasePending = false;
+    _buyingProductId = null;
+    _buyingGroupId = null;
   });
 }
 }
@@ -352,16 +362,19 @@ Future<void> _onPurchaseUpdated(
     }
 
     if (purchaseDetails.status == PurchaseStatus.pending) {
-      print('Group purchase pending...');
+  print(
+    'Group purchase pending: '
+    '${purchaseDetails.productID}',
+  );
 
-      if (mounted) {
-        setState(() {
-          _purchasePending = true;
-        });
-      }
+  if (mounted) {
+    setState(() {
+      _purchasePending = true;
+    });
+  }
 
-      continue;
-    }
+  continue;
+}
 
     if (purchaseDetails.status == PurchaseStatus.restored) {
       print('Ignored automatic restored group purchase.');
@@ -380,14 +393,21 @@ Future<void> _onPurchaseUpdated(
     }
 
     if (mounted) {
-      setState(() {
-        _purchasePending = false;
-      });
-    }
+  setState(() {
+    _purchasePending = false;
+  });
+}
 
     if (purchaseDetails.status == PurchaseStatus.error ||
         purchaseDetails.status == PurchaseStatus.canceled) {
       _handledPurchaseIds.add(purchaseId);
+      if (mounted) {
+  setState(() {
+    _purchasePending = false;
+    _buyingProductId = null;
+    _buyingGroupId = null;
+  });
+}
 
       if (purchaseDetails.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(purchaseDetails);
@@ -410,23 +430,40 @@ Future<void> _onPurchaseUpdated(
     }
 
     if (purchaseDetails.status == PurchaseStatus.purchased) {
-  final expectedProductId = _productId();
+  final expectedProductId = _buyingProductId;
 
+if (expectedProductId == null) {
+  print(
+    'Ignored group purchase because user did not start purchase on this page. '
+    'purchaseProductId=${purchaseDetails.productID}, '
+    'purchaseId=$purchaseId',
+  );
+
+
+  continue;
+}
   if (purchaseDetails.productID != expectedProductId) {
-    print(
-      'Ignored purchase for another group. '
-      'currentGroup=${widget.group.id}, '
-      'expectedProductId=$expectedProductId, '
-      'purchaseProductId=${purchaseDetails.productID}',
-    );
+  print(
+    'Ignored purchase for another group. '
+    'currentGroup=${widget.group.id}, '
+    'expectedProductId=$expectedProductId, '
+    'purchaseProductId=${purchaseDetails.productID}, '
+    'purchaseId=$purchaseId',
+  );
 
-    continue;
-  }
+  continue;
+}
 
   _handledPurchaseIds.add(purchaseId);
 
   final shouldShowPopup =
       await _verifyAndActivateGroupMembership(purchaseDetails);
+      if (mounted) {
+  setState(() {
+    _buyingProductId = null;
+    _buyingGroupId = null;
+  });
+}
 
       if (purchaseDetails.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(purchaseDetails);
