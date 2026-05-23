@@ -396,7 +396,15 @@ GestureDetector(
 
     try {
       final purchaseParam = PurchaseParam(productDetails: product);
-      await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+      final started = await _inAppPurchase.buyNonConsumable(
+  purchaseParam: purchaseParam,
+);
+
+if (!started && mounted) {
+  setState(() {
+    _isBuying = false;
+  });
+}
     } catch (e) {
       if (!mounted) return;
 
@@ -404,13 +412,20 @@ GestureDetector(
         _isBuying = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isVi ? 'Mua VIP thất bại: $e' : 'VIP purchase failed: $e',
-          ),
-        ),
-      );
+      final errorText = e.toString();
+
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text(
+      errorText.contains('storekit_duplicate_product_object')
+          ? _label(
+              'Giao dịch trước đó vẫn đang được App Store xử lý. Vui lòng chờ một chút rồi thử lại.',
+              'Your previous transaction is still being processed by the App Store. Please wait a moment and try again.',
+            )
+          : (isVi ? 'Mua VIP thất bại: $e' : 'VIP purchase failed: $e'),
+    ),
+  ),
+);
     }
   }
 
@@ -423,25 +438,31 @@ GestureDetector(
 
     try {
       await _inAppPurchase.restorePurchases();
+Future.delayed(const Duration(seconds: 5), () {
+  if (!mounted) return;
 
+  setState(() {
+    _isRestoring = false;
+  });
+});
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _label(
-              'Đang kiểm tra các giao dịch đã mua trước đó...',
-              'Checking your previous purchases...',
-            ),
-          ),
-        ),
-      );
+      
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _isRestoring = false;
       });
-
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text(
+      _label(
+        'Đang kiểm tra các giao dịch đã mua trước đó...',
+        'Checking your previous purchases...',
+      ),
+    ),
+  ),
+);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -455,54 +476,117 @@ GestureDetector(
   }
 
   Future<void> _listenToPurchaseUpdated(
-    List<PurchaseDetails> purchaseDetailsList,
-  ) async {
-    for (final purchaseDetails in purchaseDetailsList) {
+  List<PurchaseDetails> purchaseDetailsList,
+) async {
+  for (final purchaseDetails in purchaseDetailsList) {
+    print('PURCHASE STATUS: ${purchaseDetails.status}');
+    print('PRODUCT ID: ${purchaseDetails.productID}');
+    print('PENDING COMPLETE: ${purchaseDetails.pendingCompletePurchase}');
+    print('PURCHASE ERROR: ${purchaseDetails.error}');
+
+    try {
       if (purchaseDetails.status == PurchaseStatus.pending) {
-        if (!mounted) return;
-        setState(() {
-          _isBuying = true;
-        });
-      } else if (purchaseDetails.status == PurchaseStatus.error) {
-        if (!mounted) return;
-        setState(() {
-          _isBuying = false;
-          _isRestoring = false;
-        });
+  print('VIP purchase is pending...');
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _label(
-                'Thanh toán thất bại. Vui lòng thử lại.',
-                'Purchase failed. Please try again.',
-              ),
-            ),
-          ),
-        );
-      } else if (purchaseDetails.status == PurchaseStatus.purchased ||
-          purchaseDetails.status == PurchaseStatus.restored) {
-        final verified = await _verifyPurchase(purchaseDetails);
-
-        if (verified) {
-          final granted = await _grantVip(purchaseDetails);
-
-if (!granted) {
-  if (purchaseDetails.pendingCompletePurchase) {
-    await _inAppPurchase.completePurchase(purchaseDetails);
+  if (mounted) {
+    setState(() {
+      _isBuying = false;
+      _isRestoring = false;
+    });
   }
 
-  if (!mounted) return;
-  setState(() {
-    _isBuying = false;
-    _isRestoring = false;
-  });
   continue;
 }
 
-await widget.onPurchaseSuccess();
+      if (purchaseDetails.status == PurchaseStatus.error ||
+          purchaseDetails.status == PurchaseStatus.canceled) {
+        if (purchaseDetails.pendingCompletePurchase) {
+          await _inAppPurchase.completePurchase(purchaseDetails);
+        }
 
-          if (!mounted) return;
+        if (mounted) {
+          setState(() {
+            _isBuying = false;
+            _isRestoring = false;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                _label(
+                  'Thanh toán thất bại hoặc đã bị hủy. Vui lòng thử lại.',
+                  'Purchase failed or was canceled. Please try again.',
+                ),
+              ),
+            ),
+          );
+        }
+        continue;
+      }
+
+      if (purchaseDetails.status == PurchaseStatus.purchased ||
+          purchaseDetails.status == PurchaseStatus.restored) {
+        final verified = await _verifyPurchase(purchaseDetails);
+
+        if (!verified) {
+          if (purchaseDetails.pendingCompletePurchase) {
+            await _inAppPurchase.completePurchase(purchaseDetails);
+          }
+
+          if (mounted) {
+            setState(() {
+              _isBuying = false;
+              _isRestoring = false;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _label(
+                    'Không thể xác minh giao dịch.',
+                    'Could not verify this purchase.',
+                  ),
+                ),
+              ),
+            );
+          }
+          continue;
+        }
+
+        final granted = await _grantVip(purchaseDetails);
+
+        if (purchaseDetails.pendingCompletePurchase) {
+          await _inAppPurchase.completePurchase(purchaseDetails);
+        }
+
+        if (!granted) {
+          if (mounted) {
+            setState(() {
+              _isBuying = false;
+              _isRestoring = false;
+            });
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  _label(
+                    'Không thể kích hoạt VIP. Vui lòng thử lại.',
+                    'Could not activate VIP. Please try again.',
+                  ),
+                ),
+              ),
+            );
+          }
+          continue;
+        }
+
+        await widget.onPurchaseSuccess();
+
+        if (mounted) {
+          setState(() {
+            _isBuying = false;
+            _isRestoring = false;
+          });
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -519,33 +603,34 @@ await widget.onPurchaseSuccess();
               ),
             ),
           );
-        } else {
-          if (!mounted) return;
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _label(
-                  'Không thể xác minh giao dịch.',
-                  'Could not verify this purchase.',
-                ),
-              ),
-            ),
-          );
         }
-
-        if (!mounted) return;
-        setState(() {
-          _isBuying = false;
-          _isRestoring = false;
-        });
       }
+    } catch (e) {
+      print('VIP PURCHASE HANDLE ERROR: $e');
 
       if (purchaseDetails.pendingCompletePurchase) {
         await _inAppPurchase.completePurchase(purchaseDetails);
       }
+
+      if (mounted) {
+        setState(() {
+          _isBuying = false;
+          _isRestoring = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              isVi
+                  ? 'Có lỗi khi xử lý giao dịch VIP: $e'
+                  : 'Error handling VIP purchase: $e',
+            ),
+          ),
+        );
+      }
     }
   }
+}
 
   Future<bool> _verifyPurchase(PurchaseDetails purchase) async {
     // Bước 6:
@@ -958,7 +1043,7 @@ return true;
                               ),
                       ),
                     ),
-                                        /*
+                                        
 const SizedBox(height: 10),
 
 Center(
@@ -985,7 +1070,7 @@ Center(
           ),
   ),
 ),
-*/
+
 
                     const SizedBox(height: 12),
 
