@@ -759,14 +759,15 @@ if (processedSnap.exists) {
   console.log("Apple VIP transaction already processed:", appleTransactionId);
 
   return {
-    success: true,
-    alreadyProcessed: true,
-    shouldShowPopup: false,
-    vipPlanId: plan.vipPlanId,
-    vipStatus: isActive ? "active" : "expired",
-    vipExpiresAt: expiresAt.toISOString(),
-    originalTransactionId: appleOriginalTransactionId,
-  };
+  success: isActive,
+  alreadyProcessed: false,
+  shouldShowPopup: isActive && shouldShowPopup,
+  transactionReason,
+  vipPlanId: plan.vipPlanId,
+  vipStatus: isActive ? "active" : "expired",
+  vipExpiresAt: expiresAt.toISOString(),
+  originalTransactionId: appleOriginalTransactionId,
+};
 }
 
 const userSnap = await userRef.get();
@@ -844,9 +845,9 @@ lastAppleTransactionId: appleTransactionId,
         );
 
       return {
-  success: true,
-  alreadyProcessed: false,
-  shouldShowPopup,
+  success: isActive,
+  alreadyProcessed: true,
+  shouldShowPopup: false,
   transactionReason,
   vipPlanId: plan.vipPlanId,
   vipStatus: isActive ? "active" : "expired",

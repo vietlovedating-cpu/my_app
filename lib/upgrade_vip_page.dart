@@ -488,6 +488,10 @@ ScaffoldMessenger.of(context).showSnackBar(
       if (purchaseDetails.status == PurchaseStatus.pending) {
   print('VIP purchase is pending...');
 
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
   if (mounted) {
     setState(() {
       _isBuying = false;
