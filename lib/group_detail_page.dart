@@ -456,17 +456,6 @@ if (purchaseDetails.status == PurchaseStatus.restored) {
 
   await _joinOrRenewMembership();
 
-  if (!mounted) continue;
-  ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _label(
-                  'Gia hạn thành công 🎉',
-                  'Renewal successful 🎉',
-                ),
-              ),
-            ),
-          );
         }
 
         if (purchaseDetails.pendingCompletePurchase) {
