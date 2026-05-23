@@ -26,6 +26,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
   bool _isLoading = true;
   bool _isProcessing = false;
   bool _purchasePending = false;
+  final Set<String> _handledPurchaseIds = {};
   Map<String, dynamic>? _membershipData;
 
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
@@ -179,6 +180,7 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
   Future<void> _joinOrRenewMembership() async {
     final user = currentUser;
     if (user == null) return;
+    if (_isProcessing) return;
 
     setState(() {
       _isProcessing = true;
@@ -374,20 +376,63 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
     final productDetails = response.productDetails.first;
     final purchaseParam = PurchaseParam(productDetails: productDetails);
 
-    _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
+    final started = await _inAppPurchase.buyNonConsumable(
+  purchaseParam: purchaseParam,
+);
+
+if (!started && mounted) {
+  setState(() {
+    _purchasePending = false;
+  });
+}
   }
 
   Future<void> _onPurchaseUpdated(
     List<PurchaseDetails> purchaseDetailsList,
   ) async {
     for (final purchaseDetails in purchaseDetailsList) {
+      final purchaseId =
+    purchaseDetails.purchaseID ??
+    purchaseDetails.verificationData.serverVerificationData;
+
+if (_handledPurchaseIds.contains(purchaseId)) {
+  print('Group purchase already handled in this session: $purchaseId');
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  continue;
+}
       if (purchaseDetails.status == PurchaseStatus.pending) {
-        if (mounted) {
-          setState(() {
-            _purchasePending = true;
-          });
-        }
-      } else {
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  if (mounted) {
+    setState(() {
+      _purchasePending = false;
+    });
+  }
+
+  continue;
+}
+
+if (purchaseDetails.status == PurchaseStatus.restored) {
+  print('Ignored group restored purchase.');
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  if (mounted) {
+    setState(() {
+      _purchasePending = false;
+    });
+  }
+
+  continue;
+} else {
         if (mounted) {
           setState(() {
             _purchasePending = false;
@@ -406,12 +451,13 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
               ),
             ),
           );
-        } else if (purchaseDetails.status == PurchaseStatus.purchased ||
-            purchaseDetails.status == PurchaseStatus.restored) {
-          await _joinOrRenewMembership();
+        } else if (purchaseDetails.status == PurchaseStatus.purchased) {
+  _handledPurchaseIds.add(purchaseId);
 
-          if (!mounted) continue;
-          ScaffoldMessenger.of(context).showSnackBar(
+  await _joinOrRenewMembership();
+
+  if (!mounted) continue;
+  ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 _label(
