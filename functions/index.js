@@ -277,7 +277,7 @@ exports.testSendPush = onRequest(async (req, res) => {
 
 exports.checkMemberships = onSchedule(
   {
-    schedule: "every 5 minutes",
+    schedule: "every 24 hours",
     timeZone: "Australia/Sydney",
     region: "us-central1",
     timeoutSeconds: 540,
@@ -493,20 +493,27 @@ if (vipMsLeft > sevenDaysMs) continue;
   const fcmToken = userData.fcmToken || "";
   const isVi = userData.languageCode === "vi";
 
-  await sendPushNotification({
-    token: fcmToken,
-    title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
-    body: isVi
-      ? "VIP của bạn sẽ hết hạn sau 7 ngày."
-      : "Your VIP will expire in 7 days.",
-    data: {
-      type: "vip_7d",
-    },
-  });
+  const freshSnap = await userDoc.ref.get();
+const freshData = freshSnap.data() || {};
 
-  await userDoc.ref.update({
-    vipReminder7dSent: true,
-  });
+if (freshData.vipReminder7dSent) {
+  continue;
+}
+
+await sendPushNotification({
+  token: fcmToken,
+  title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
+  body: isVi
+    ? "VIP của bạn sẽ hết hạn sau 7 ngày."
+    : "Your VIP will expire in 7 days.",
+  data: {
+    type: "vip_7d",
+  },
+});
+
+await userDoc.ref.update({
+  vipReminder7dSent: true,
+});
 }
 // VIP hết hạn - khóa quyền VIP
 const expiredVipSnap = await admin.firestore()
@@ -680,6 +687,242 @@ function getVipPlanFromProductId(productId) {
 
   return null;
 }
+
+function getGroupPlanFromProductId(productId) {
+  if (productId === "group.weekend_coffee.monthly.v2") {
+    return {
+      groupId: "weekend_coffee",
+      planType: "1_month",
+      price: 24.99,
+      currency: "AUD",
+      groupTitleEn: "Weekend Coffee",
+      groupTitleVi: "Cà phê cuối tuần",
+    };
+  }
+
+  if (productId === "group.hiking_camping.monthly") {
+    return {
+      groupId: "hiking_camping",
+      planType: "1_month",
+      price: 24.99,
+      currency: "AUD",
+      groupTitleEn: "Hiking & Camping",
+      groupTitleVi: "Leo núi & Cắm trại",
+    };
+  }
+
+  if (productId === "group.speed_dating.monthly") {
+    return {
+      groupId: "speed_dating",
+      planType: "1_month",
+      price: 49.99,
+      currency: "AUD",
+      groupTitleEn: "Speed Dating",
+      groupTitleVi: "Hẹn hò nhanh",
+    };
+  }
+
+  if (productId === "group.gym_fitness.monthly") {
+    return {
+      groupId: "gym_fitness",
+      planType: "1_month",
+      price: 24.99,
+      currency: "AUD",
+      groupTitleEn: "Gym & Fitness",
+      groupTitleVi: "Gym & Fitness",
+    };
+  }
+
+  return null;
+}
+exports.verifyAppleGroupPurchase = onCall(
+  {
+    region: "us-central1",
+    secrets: ["APPLE_IAP_PRIVATE_KEY"],
+  },
+  async (request) => {
+    try {
+      const { userId, groupId, productId, transactionId } = request.data || {};
+
+      if (!userId || !groupId || !productId || !transactionId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing userId, groupId, productId, or transactionId"
+        );
+      }
+
+      const plan = getGroupPlanFromProductId(productId);
+      const transactionResponse =
+  await getAppleTransactionInfo(transactionId);
+
+const signedTransactionInfo =
+  transactionResponse.signedTransactionInfo;
+
+if (!signedTransactionInfo) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Missing signedTransactionInfo"
+  );
+}
+
+const transactionInfo =
+  decodeAppleSignedTransaction(
+    signedTransactionInfo
+  );
+
+const appleProductId =
+  transactionInfo.productId || "";
+
+const appleTransactionId =
+  transactionInfo.transactionId || transactionId;
+
+const appleOriginalTransactionId =
+  transactionInfo.originalTransactionId || "";
+
+const expiresDateMs =
+  Number(transactionInfo.expiresDate || 0);
+  if (appleProductId !== productId) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Apple productId does not match app productId"
+  );
+}
+
+if (!appleOriginalTransactionId) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Missing originalTransactionId from Apple"
+  );
+}
+
+if (!expiresDateMs) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Missing expiresDate from Apple"
+  );
+}
+
+const expiresAt = new Date(expiresDateMs);
+const now = new Date();
+const isActive = expiresAt > now;
+
+const transactionReason =
+  transactionInfo.transactionReason || "";
+
+const shouldShowPopup =
+  transactionReason !== "RENEWAL" &&
+  transactionReason !== "AUTO_RENEWAL";
+
+      if (!plan || plan.groupId !== groupId) {
+        throw new HttpsError("invalid-argument", "Invalid group productId");
+      }
+
+      const memberRef = admin
+  .firestore()
+  .collection("groups")
+  .doc(groupId)
+  .collection("members")
+  .doc(userId);
+
+const processedRef = memberRef
+  .collection("processedGroupPurchases")
+  .doc(appleTransactionId);
+
+const processedSnap = await processedRef.get();
+
+if (processedSnap.exists) {
+  return {
+    success: isActive,
+    alreadyProcessed: true,
+    shouldShowPopup: false,
+    groupId,
+    groupStatus: isActive ? "active" : "expired",
+    expiresAt: expiresAt.toISOString(),
+    originalTransactionId: appleOriginalTransactionId,
+  };
+}
+await memberRef.set(
+  {
+    uid: userId,
+    userId: userId,
+    groupId: groupId,
+    email: "",
+
+    membershipActive: isActive,
+
+    expiresAt:
+      admin.firestore.Timestamp.fromDate(expiresAt),
+
+    groupProductId: productId,
+
+    groupTransactionId: appleTransactionId,
+
+    groupOriginalTransactionId:
+      appleOriginalTransactionId,
+
+    groupStatus:
+      isActive ? "active" : "expired",
+
+    appleVerified: true,
+
+    appleVerifiedAt:
+      admin.firestore.FieldValue.serverTimestamp(),
+
+      joinedAt:
+  admin.firestore.FieldValue.serverTimestamp(),
+
+expiredHandled: !isActive,
+reminder7dSent: false,
+reminder3dSent: false,
+reminder1dSent: false,
+
+planType: plan.planType,
+price: plan.price,
+currency: plan.currency,
+groupTitleEn: plan.groupTitleEn,
+groupTitleVi: plan.groupTitleVi,
+    updatedAt:
+      admin.firestore.FieldValue.serverTimestamp(),
+  },
+  { merge: true }
+);
+await processedRef.set(
+  {
+    transactionId: appleTransactionId,
+    originalTransactionId: appleOriginalTransactionId,
+    productId,
+    groupId,
+    planType: plan.planType,
+    expiresAt:
+      admin.firestore.Timestamp.fromDate(expiresAt),
+    appleVerified: true,
+    transactionReason,
+    createdAt:
+      admin.firestore.FieldValue.serverTimestamp(),
+  },
+  { merge: true }
+);
+
+return {
+  success: isActive,
+  alreadyProcessed: false,
+  shouldShowPopup: isActive && shouldShowPopup,
+  groupId,
+  groupStatus: isActive ? "active" : "expired",
+  expiresAt: expiresAt.toISOString(),
+  originalTransactionId: appleOriginalTransactionId,
+};
+    } catch (error) {
+      console.error("verifyAppleGroupPurchase error:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError("internal", "Server error");
+    }
+  }
+);
 // 👉 GIỮ NGUYÊN CÁI NÀY
 exports.verifyAppleVipPurchase = onCall(
   {
@@ -756,18 +999,16 @@ const processedRef = userRef
 const processedSnap = await processedRef.get();
 
 if (processedSnap.exists) {
-  console.log("Apple VIP transaction already processed:", appleTransactionId);
-
   return {
-  success: isActive,
-  alreadyProcessed: false,
-  shouldShowPopup: isActive && shouldShowPopup,
-  transactionReason,
-  vipPlanId: plan.vipPlanId,
-  vipStatus: isActive ? "active" : "expired",
-  vipExpiresAt: expiresAt.toISOString(),
-  originalTransactionId: appleOriginalTransactionId,
-};
+    success: isActive,
+    alreadyProcessed: true,
+    shouldShowPopup: false,
+    transactionReason,
+    vipPlanId: plan.vipPlanId,
+    vipStatus: isActive ? "active" : "expired",
+    vipExpiresAt: expiresAt.toISOString(),
+    originalTransactionId: appleOriginalTransactionId,
+  };
 }
 
 const userSnap = await userRef.get();
@@ -846,8 +1087,8 @@ lastAppleTransactionId: appleTransactionId,
 
       return {
   success: isActive,
-  alreadyProcessed: true,
-  shouldShowPopup: false,
+  alreadyProcessed: false,
+shouldShowPopup: isActive && shouldShowPopup,
   transactionReason,
   vipPlanId: plan.vipPlanId,
   vipStatus: isActive ? "active" : "expired",
@@ -865,6 +1106,165 @@ lastAppleTransactionId: appleTransactionId,
       }
 
       throw new HttpsError("internal", "Server error");
+    }
+  }
+);
+exports.appleGroupNotification = onRequest(
+  {
+    region: "us-central1",
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+      }
+
+      const signedPayload = req.body?.signedPayload;
+
+      if (!signedPayload) {
+        res.status(400).send("Missing signedPayload");
+        return;
+      }
+
+      const notification = jwt.decode(signedPayload);
+
+      if (!notification) {
+        res.status(400).send("Invalid signedPayload");
+        return;
+      }
+
+      const notificationType = notification.notificationType || "";
+      const subtype = notification.subtype || "";
+
+      const signedTransactionInfo =
+        notification.data?.signedTransactionInfo || "";
+
+      if (!signedTransactionInfo) {
+        res.status(200).send("No transaction info");
+        return;
+      }
+
+      const transactionInfo = jwt.decode(signedTransactionInfo);
+
+      if (!transactionInfo) {
+        res.status(400).send("Invalid transaction info");
+        return;
+      }
+
+      const productId = transactionInfo.productId || "";
+      const transactionId = transactionInfo.transactionId || "";
+      const originalTransactionId =
+        transactionInfo.originalTransactionId || "";
+      const expiresDateMs = Number(transactionInfo.expiresDate || 0);
+
+      if (!productId || !originalTransactionId || !expiresDateMs) {
+        res.status(200).send("Missing required transaction fields");
+        return;
+      }
+
+      const plan = getGroupPlanFromProductId(productId);
+
+      if (!plan) {
+        res.status(200).send("Not a group product");
+        return;
+      }
+
+      const membersSnap = await admin
+        .firestore()
+        .collectionGroup("members")
+        .where("groupOriginalTransactionId", "==", originalTransactionId)
+        .limit(1)
+        .get();
+
+      if (membersSnap.empty) {
+        res.status(200).send("No matching group member");
+        return;
+      }
+
+      const memberDoc = membersSnap.docs[0];
+      const memberData = memberDoc.data() || {};
+      const memberRef = memberDoc.ref;
+
+      const expiresAt = new Date(expiresDateMs);
+      const now = new Date();
+
+      let isActive = expiresAt > now;
+
+      if (
+        notificationType === "EXPIRED" ||
+        notificationType === "REFUND" ||
+        notificationType === "REVOKE" ||
+        notificationType === "DID_FAIL_TO_RENEW"
+      ) {
+        isActive = false;
+      }
+
+      const oldTransactionId = memberData.groupTransactionId || "";
+      const oldRenewCount = Number(memberData.groupRenewCount || 0);
+
+      const isRenew =
+        oldTransactionId &&
+        transactionId &&
+        oldTransactionId !== transactionId &&
+        isActive;
+
+      await memberRef.set(
+        {
+          membershipActive: isActive,
+          expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+          groupProductId: productId,
+          groupTransactionId: transactionId,
+          groupOriginalTransactionId: originalTransactionId,
+          groupStatus: isActive ? "active" : "expired",
+
+          lastAppleNotificationType: notificationType,
+          lastAppleNotificationSubtype: subtype,
+          lastAppleTransactionId: transactionId,
+
+          groupRenewCount: isRenew
+            ? oldRenewCount + 1
+            : oldRenewCount,
+
+          groupLastRenewAt: isRenew
+            ? admin.firestore.FieldValue.serverTimestamp()
+            : memberData.groupLastRenewAt || null,
+
+          appleWebhookReceivedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          updatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          expiredHandled: !isActive,
+        },
+        { merge: true }
+      );
+
+      await memberRef
+        .collection("appleGroupNotifications")
+        .doc(transactionId || `${Date.now()}`)
+        .set(
+          {
+            notificationType,
+            subtype,
+            productId,
+            transactionId,
+            originalTransactionId,
+            expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+            isActive,
+            rawNotification: notification,
+            rawTransactionInfo: transactionInfo,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+      res.status(200).send("OK");
+    } catch (error) {
+      console.error("appleGroupNotification error:", error);
+      res.status(500).send("Server error");
     }
   }
 );

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import 'group_chat_page.dart';
 import 'group_data.dart';
@@ -177,88 +178,6 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
     }
   }
 
-  Future<void> _joinOrRenewMembership() async {
-    final user = currentUser;
-    if (user == null) return;
-    if (_isProcessing) return;
-
-    setState(() {
-      _isProcessing = true;
-    });
-
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-
-      final userData = userDoc.data() ?? {};
-      final firstName = (userData['firstName'] ?? '').toString().trim();
-      final mainPhotoUrl = (userData['mainPhotoUrl'] ?? '').toString().trim();
-
-      final now = DateTime.now();
-      final existingExpiresAt = _membershipData?['expiresAt'] as Timestamp?;
-      final existingDate = existingExpiresAt?.toDate();
-
-      final baseDate = (existingDate != null && existingDate.isAfter(now))
-          ? existingDate
-          : now;
-
-      final newExpiresAt = baseDate.add(const Duration(days: 30));
-
-      await _memberDocRef.set({
-        'userId': user.uid,
-        'email': user.email,
-        'uid': user.uid,
-        'firstName': firstName,
-        'mainPhotoUrl': mainPhotoUrl,
-        'joinedAt': _membershipData?['joinedAt'] ?? Timestamp.fromDate(now),
-        'expiresAt': Timestamp.fromDate(newExpiresAt),
-        'expiredHandled': false,
-        'reminder7dSent': false,
-        'reminder3dSent': false,
-        'membershipActive': true,
-        'planType': '1_month',
-        'price': _groupPrice(),
-        'currency': 'AUD',
-        'groupId': widget.group.id,
-        'groupTitle': widget.group.title(isVi),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      await _loadMembership();
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _label(
-              'Đã cập nhật gói nhóm thành công',
-              'Group plan updated successfully',
-            ),
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _label(
-              'Không thể xử lý gói nhóm. Vui lòng thử lại.',
-              'Could not process the group plan. Please try again.',
-            ),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
-  }
 
   void _openChat() {
     Navigator.push(
@@ -385,18 +304,49 @@ if (!started && mounted) {
     _purchasePending = false;
   });
 }
+}
+
+Future<bool> _verifyAndActivateGroupMembership(
+  PurchaseDetails purchaseDetails,
+) async {
+  final user = currentUser;
+  if (user == null) return false;
+
+  final productId = purchaseDetails.productID;
+
+  final transactionId =
+      purchaseDetails.purchaseID ??
+      purchaseDetails.verificationData.serverVerificationData;
+
+  final callable = FirebaseFunctions.instance.httpsCallable(
+    'verifyAppleGroupPurchase',
+  );
+
+  final result = await callable.call({
+    'userId': user.uid,
+    'groupId': widget.group.id,
+    'productId': productId,
+    'transactionId': transactionId,
+  });
+
+  final data = Map<String, dynamic>.from(result.data);
+
+  if (data['success'] == true) {
+    await _loadMembership();
+    return data['shouldShowPopup'] == true;
   }
 
-  Future<void> _onPurchaseUpdated(
+  return false;
+}
+
+Future<void> _onPurchaseUpdated(
     List<PurchaseDetails> purchaseDetailsList,
   ) async {
     for (final purchaseDetails in purchaseDetailsList) {
       final purchaseId =
     purchaseDetails.purchaseID ??
     purchaseDetails.verificationData.serverVerificationData;
-
 if (_handledPurchaseIds.contains(purchaseId)) {
-  print('Group purchase already handled in this session: $purchaseId');
 
   if (purchaseDetails.pendingCompletePurchase) {
     await _inAppPurchase.completePurchase(purchaseDetails);
@@ -419,7 +369,6 @@ if (_handledPurchaseIds.contains(purchaseId)) {
 }
 
 if (purchaseDetails.status == PurchaseStatus.restored) {
-  print('Ignored group restored purchase.');
 
   if (purchaseDetails.pendingCompletePurchase) {
     await _inAppPurchase.completePurchase(purchaseDetails);
@@ -452,12 +401,30 @@ if (purchaseDetails.status == PurchaseStatus.restored) {
             ),
           );
         } else if (purchaseDetails.status == PurchaseStatus.purchased) {
+  if (_handledPurchaseIds.contains(purchaseId)) {
+    continue;
+  }
+
   _handledPurchaseIds.add(purchaseId);
 
-  await _joinOrRenewMembership();
+  final shouldShowPopup =
+      await _verifyAndActivateGroupMembership(
+    purchaseDetails,
+  );
 
-        }
-
+  if (shouldShowPopup && mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _label(
+            'Đã gia hạn gói nhóm thành công',
+            'Group membership renewed successfully',
+          ),
+        ),
+      ),
+    );
+  }
+}
         if (purchaseDetails.pendingCompletePurchase) {
           await _inAppPurchase.completePurchase(purchaseDetails);
         }

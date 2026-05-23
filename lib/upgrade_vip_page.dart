@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'home_page.dart';
 
 
 class UpgradeVipPage extends StatefulWidget {
@@ -30,6 +31,8 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
   bool _isLoadingStore = true;
   bool _storeAvailable = false;
   bool _isRestoring = false;
+
+  final Set<String> _handledFailedPurchaseIds = {};
 
   String selectedPlanId = '1_week';
 
@@ -504,6 +507,15 @@ ScaffoldMessenger.of(context).showSnackBar(
 
       if (purchaseDetails.status == PurchaseStatus.error ||
           purchaseDetails.status == PurchaseStatus.canceled) {
+            final failedId =
+    purchaseDetails.purchaseID ??
+    purchaseDetails.verificationData.serverVerificationData;
+
+if (_handledFailedPurchaseIds.contains(failedId)) {
+  continue;
+}
+
+_handledFailedPurchaseIds.add(failedId);
         if (purchaseDetails.pendingCompletePurchase) {
           await _inAppPurchase.completePurchase(purchaseDetails);
         }
@@ -550,6 +562,15 @@ if (purchaseDetails.status == PurchaseStatus.purchased ||
         final verified = await _verifyPurchase(purchaseDetails);
 
         if (!verified) {
+          final failedId =
+    purchaseDetails.purchaseID ??
+    purchaseDetails.verificationData.serverVerificationData;
+
+if (_handledFailedPurchaseIds.contains(failedId)) {
+  continue;
+}
+
+_handledFailedPurchaseIds.add(failedId);
           if (purchaseDetails.pendingCompletePurchase) {
             await _inAppPurchase.completePurchase(purchaseDetails);
           }
@@ -581,25 +602,26 @@ if (purchaseDetails.status == PurchaseStatus.purchased ||
         }
 
         if (!granted) {
-          if (mounted) {
-            setState(() {
-              _isBuying = false;
-              _isRestoring = false;
-            });
+          final failedId =
+    purchaseDetails.purchaseID ??
+    purchaseDetails.verificationData.serverVerificationData;
 
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  _label(
-                    'Không thể kích hoạt VIP. Vui lòng thử lại.',
-                    'Could not activate VIP. Please try again.',
-                  ),
-                ),
-              ),
-            );
-          }
-          continue;
-        }
+if (_handledFailedPurchaseIds.contains(failedId)) {
+  continue;
+}
+
+_handledFailedPurchaseIds.add(failedId);
+  print('VIP transaction skipped: expired, already processed, or no popup needed.');
+
+  if (mounted) {
+    setState(() {
+      _isBuying = false;
+      _isRestoring = false;
+    });
+  }
+
+  continue;
+}
 
         if (!mounted) return;
 
@@ -632,7 +654,7 @@ if (mounted) {
       print('VIP PURCHASE HANDLE ERROR: $e');
 
       if (purchaseDetails.pendingCompletePurchase) {
-        await _inAppPurchase.completePurchase(purchaseDetails);
+      
       }
 
       if (mounted) {
@@ -845,8 +867,27 @@ return true;
     final plan = selectedPlan;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFFF8FB),
-      body: SafeArea(
+  backgroundColor: const Color(0xFFFFF8FB),
+
+  appBar: AppBar(
+    backgroundColor: const Color(0xFFFFF8FB),
+    elevation: 0,
+    leading: IconButton(
+      icon: const Icon(Icons.arrow_back_ios_new),
+      onPressed: () {
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(
+      builder: (_) => HomePage(
+        languageCode: widget.languageCode,
+      ),
+    ),
+    (route) => false,
+  );
+},
+    ),
+  ),
+
+  body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(14, 20, 14, 24),
           child: Column(
