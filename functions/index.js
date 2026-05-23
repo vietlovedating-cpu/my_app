@@ -742,7 +742,13 @@ exports.verifyAppleGroupPurchase = onCall(
   },
   async (request) => {
     try {
-      const { userId, groupId, productId, transactionId } = request.data || {};
+      const {
+  userId,
+  groupId,
+  productId,
+  transactionId,
+  mode = "purchase",
+} = request.data || {};
 
       if (!userId || !groupId || !productId || !transactionId) {
         throw new HttpsError(
@@ -791,7 +797,6 @@ if (!appleOriginalTransactionId) {
     "Missing originalTransactionId from Apple"
   );
 }
-
 const existingGroupSnap = await admin.firestore()
   .collectionGroup("members")
   .where(
@@ -809,7 +814,7 @@ if (!existingGroupSnap.empty) {
   if (existingData.userId !== userId) {
     throw new HttpsError(
       "already-exists",
-      "This group subscription is already linked to another account."
+      "This Apple subscription is already linked to another account."
     );
   }
 }
@@ -966,7 +971,12 @@ exports.verifyAppleVipPurchase = onCall(
   },
   async (request) => {
     try {
-      const { userId, productId, transactionId } = request.data || {};
+      const {
+  userId,
+  productId,
+  transactionId,
+  mode = "purchase",
+} = request.data || {};
 
       if (!userId || !productId || !transactionId) {
         throw new HttpsError(
@@ -1033,10 +1043,20 @@ if (!existingVipSnap.empty) {
   }
 }
 
+
+
 const expiresDateMs =
   Number(transactionInfo.expiresDate || 0);
 
 if (appleProductId !== productId) {
+  console.log("VIP VERIFY PRODUCT CHECK:", {
+  appProductId: productId,
+  appleProductId,
+  transactionId,
+  appleTransactionId,
+  originalTransactionId: appleOriginalTransactionId,
+});
+
   throw new HttpsError(
     "failed-precondition",
     "Apple productId does not match app productId"

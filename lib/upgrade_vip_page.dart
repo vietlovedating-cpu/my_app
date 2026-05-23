@@ -399,6 +399,8 @@ GestureDetector(
 
     try {
       final purchaseParam = PurchaseParam(productDetails: product);
+      print('VIP BUY BUTTON PRODUCT: ${product.id}');
+print('VIP BUY PLAN PRODUCT: ${plan.productId}');
       final started = await _inAppPurchase.buyNonConsumable(
   purchaseParam: purchaseParam,
 );
@@ -748,12 +750,14 @@ if (purchase.status != PurchaseStatus.purchased &&
   );
 
   final result = await callable.call({
-    'userId': user.uid,
-    'productId': productId,
-    'transactionId': transactionId,
-  });
+  'userId': user.uid,
+  'productId': productId,
+  'transactionId': transactionId,
+  'mode': 'purchase',
+});
 
   final data = Map<String, dynamic>.from(result.data);
+
 
   if (data['success'] == true) {
   if (data['alreadyProcessed'] == true) {

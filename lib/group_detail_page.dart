@@ -333,11 +333,12 @@ Future<bool> _verifyAndActivateGroupMembership(
   );
 
   final result = await callable.call({
-    'userId': user.uid,
-    'groupId': widget.group.id,
-    'productId': productId,
-    'transactionId': transactionId,
-  });
+  'userId': user.uid,
+  'groupId': widget.group.id,
+  'productId': productId,
+  'transactionId': transactionId,
+  'mode': 'purchase',
+});
 
   final data = Map<String, dynamic>.from(result.data);
 
