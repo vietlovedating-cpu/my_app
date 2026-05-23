@@ -524,8 +524,25 @@ ScaffoldMessenger.of(context).showSnackBar(
         continue;
       }
 
-      if (purchaseDetails.status == PurchaseStatus.purchased ||
-          purchaseDetails.status == PurchaseStatus.restored) {
+      if (purchaseDetails.status == PurchaseStatus.restored && !_isRestoring) {
+  print('Ignored automatic restored purchase because user did not tap Restore.');
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  if (mounted) {
+    setState(() {
+      _isBuying = false;
+      _isRestoring = false;
+    });
+  }
+
+  continue;
+}
+
+if (purchaseDetails.status == PurchaseStatus.purchased ||
+    purchaseDetails.status == PurchaseStatus.restored) {
         final verified = await _verifyPurchase(purchaseDetails);
 
         if (!verified) {
@@ -580,9 +597,11 @@ ScaffoldMessenger.of(context).showSnackBar(
           continue;
         }
 
-        await widget.onPurchaseSuccess();
+        if (!mounted) return;
 
-        if (mounted) {
+await widget.onPurchaseSuccess();
+
+if (mounted) {
           setState(() {
             _isBuying = false;
             _isRestoring = false;
@@ -644,10 +663,14 @@ ScaffoldMessenger.of(context).showSnackBar(
       return false;
     }
 
-    if (purchase.status != PurchaseStatus.purchased &&
-        purchase.status != PurchaseStatus.restored) {
-      return false;
-    }
+    if (purchase.status == PurchaseStatus.restored && !_isRestoring) {
+  return false;
+}
+
+if (purchase.status != PurchaseStatus.purchased &&
+    purchase.status != PurchaseStatus.restored) {
+  return false;
+}
 
     return true;
   }
@@ -673,8 +696,13 @@ ScaffoldMessenger.of(context).showSnackBar(
   final data = Map<String, dynamic>.from(result.data);
 
   if (data['success'] == true) {
-    return true;
+  if (data['alreadyProcessed'] == true) {
+    print('VIP iOS purchase already processed, skip popup.');
+    return false;
   }
+
+  return true;
+}
 
   return false;
 }
@@ -1044,6 +1072,7 @@ return true;
                       ),
                     ),
                                         
+/*
 const SizedBox(height: 10),
 
 Center(
@@ -1070,6 +1099,7 @@ Center(
           ),
   ),
 ),
+*/
 
 
                     const SizedBox(height: 12),

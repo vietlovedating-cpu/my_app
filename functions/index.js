@@ -739,9 +739,35 @@ exports.verifyAppleVipPurchase = onCall(
       }
 
       const expiresAt = new Date(expiresDateMs);
-      const now = new Date();
-      const isActive = expiresAt > now;
-      const userRef = admin.firestore().collection("users").doc(userId);
+const now = new Date();
+const isActive = expiresAt > now;
+
+const transactionReason = transactionInfo.transactionReason || "";
+const shouldShowPopup =
+  transactionReason !== "RENEWAL" &&
+  transactionReason !== "AUTO_RENEWAL";
+
+const userRef = admin.firestore().collection("users").doc(userId);
+
+const processedRef = userRef
+  .collection("processedVipPurchases")
+  .doc(appleTransactionId);
+
+const processedSnap = await processedRef.get();
+
+if (processedSnap.exists) {
+  console.log("Apple VIP transaction already processed:", appleTransactionId);
+
+  return {
+    success: true,
+    alreadyProcessed: true,
+    shouldShowPopup: false,
+    vipPlanId: plan.vipPlanId,
+    vipStatus: isActive ? "active" : "expired",
+    vipExpiresAt: expiresAt.toISOString(),
+    originalTransactionId: appleOriginalTransactionId,
+  };
+}
 
 const userSnap = await userRef.get();
 const oldData = userSnap.data() || {};
@@ -818,12 +844,15 @@ lastAppleTransactionId: appleTransactionId,
         );
 
       return {
-        success: true,
-        vipPlanId: plan.vipPlanId,
-        vipStatus: isActive ? "active" : "expired",
-        vipExpiresAt: expiresAt.toISOString(),
-        originalTransactionId: appleOriginalTransactionId,
-      };
+  success: true,
+  alreadyProcessed: false,
+  shouldShowPopup,
+  transactionReason,
+  vipPlanId: plan.vipPlanId,
+  vipStatus: isActive ? "active" : "expired",
+  vipExpiresAt: expiresAt.toISOString(),
+  originalTransactionId: appleOriginalTransactionId,
+};
     } catch (error) {
       console.error(
         "verifyAppleVipPurchase error:",
