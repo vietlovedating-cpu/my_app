@@ -340,97 +340,115 @@ Future<bool> _verifyAndActivateGroupMembership(
 }
 
 Future<void> _onPurchaseUpdated(
-    List<PurchaseDetails> purchaseDetailsList,
-  ) async {
-    for (final purchaseDetails in purchaseDetailsList) {
-      final purchaseId =
-    purchaseDetails.purchaseID ??
-    purchaseDetails.verificationData.serverVerificationData;
-if (_handledPurchaseIds.contains(purchaseId)) {
+  List<PurchaseDetails> purchaseDetailsList,
+) async {
+  for (final purchaseDetails in purchaseDetailsList) {
+    final purchaseId =
+        purchaseDetails.purchaseID ??
+        purchaseDetails.verificationData.serverVerificationData;
 
-  if (purchaseDetails.pendingCompletePurchase) {
-    await _inAppPurchase.completePurchase(purchaseDetails);
-  }
+    if (_handledPurchaseIds.contains(purchaseId)) {
+      continue;
+    }
 
-  continue;
-}
-      if (purchaseDetails.status == PurchaseStatus.pending) {
-  if (purchaseDetails.pendingCompletePurchase) {
-    await _inAppPurchase.completePurchase(purchaseDetails);
-  }
+    if (purchaseDetails.status == PurchaseStatus.pending) {
+      print('Group purchase pending...');
 
-  if (mounted) {
-    setState(() {
-      _purchasePending = false;
-    });
-  }
+      if (mounted) {
+        setState(() {
+          _purchasePending = true;
+        });
+      }
 
-  continue;
-}
+      continue;
+    }
 
-if (purchaseDetails.status == PurchaseStatus.restored) {
+    if (purchaseDetails.status == PurchaseStatus.restored) {
+      print('Ignored automatic restored group purchase.');
 
-  if (purchaseDetails.pendingCompletePurchase) {
-    await _inAppPurchase.completePurchase(purchaseDetails);
-  }
+      if (purchaseDetails.pendingCompletePurchase) {
+        await _inAppPurchase.completePurchase(purchaseDetails);
+      }
 
-  if (mounted) {
-    setState(() {
-      _purchasePending = false;
-    });
-  }
+      if (mounted) {
+        setState(() {
+          _purchasePending = false;
+        });
+      }
 
-  continue;
-} else {
-        if (mounted) {
-          setState(() {
-            _purchasePending = false;
-          });
-        }
+      continue;
+    }
 
-        if (purchaseDetails.status == PurchaseStatus.error) {
-          if (!mounted) continue;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                _label(
-                  'Thanh toán chưa thành công. Vui lòng thử lại.',
-                  'Payment was not successful. Please try again.',
-                ),
-              ),
+    if (mounted) {
+      setState(() {
+        _purchasePending = false;
+      });
+    }
+
+    if (purchaseDetails.status == PurchaseStatus.error ||
+        purchaseDetails.status == PurchaseStatus.canceled) {
+      _handledPurchaseIds.add(purchaseId);
+
+      if (purchaseDetails.pendingCompletePurchase) {
+        await _inAppPurchase.completePurchase(purchaseDetails);
+      }
+
+      if (!mounted) continue;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _label(
+              'Thanh toán thất bại hoặc đã bị hủy. Vui lòng thử lại.',
+              'Purchase failed or was canceled. Please try again.',
             ),
-          );
-        } else if (purchaseDetails.status == PurchaseStatus.purchased) {
-  if (_handledPurchaseIds.contains(purchaseId)) {
+          ),
+        ),
+      );
+
+      continue;
+    }
+
+    if (purchaseDetails.status == PurchaseStatus.purchased) {
+  final expectedProductId = _productId();
+
+  if (purchaseDetails.productID != expectedProductId) {
+    print(
+      'Ignored purchase for another group. '
+      'currentGroup=${widget.group.id}, '
+      'expectedProductId=$expectedProductId, '
+      'purchaseProductId=${purchaseDetails.productID}',
+    );
+
     continue;
   }
 
   _handledPurchaseIds.add(purchaseId);
 
   final shouldShowPopup =
-      await _verifyAndActivateGroupMembership(
-    purchaseDetails,
-  );
+      await _verifyAndActivateGroupMembership(purchaseDetails);
 
-  if (shouldShowPopup && mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          _label(
-            'Đã gia hạn gói nhóm thành công',
-            'Group membership renewed successfully',
-          ),
-        ),
-      ),
-    );
-  }
-}
-        if (purchaseDetails.pendingCompletePurchase) {
-          await _inAppPurchase.completePurchase(purchaseDetails);
-        }
+      if (purchaseDetails.pendingCompletePurchase) {
+        await _inAppPurchase.completePurchase(purchaseDetails);
       }
+
+      if (shouldShowPopup && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _label(
+                'Đã gia hạn gói nhóm thành công',
+                'Group membership renewed successfully',
+              ),
+            ),
+          ),
+        );
+      }
+
+      continue;
     }
   }
+}
 
   String _expiryText() {
     final data = _membershipData;

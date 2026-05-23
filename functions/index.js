@@ -422,7 +422,9 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
         await doc.ref.update({
           reminder3dSent: true,
         });
-        if (diffDays === 1 && !data.reminder1dSent) {
+        
+      }
+if (diffDays === 1 && !data.reminder1dSent) {
   await sendPushNotification({
     token: fcmToken,
     title: isVi ? "Gói nhóm sắp hết hạn" : "Your group plan is expiring soon",
@@ -440,8 +442,6 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
     reminder1dSent: true,
   });
 }
-      }
-
       if (diffDays <= 0 && !data.expiredHandled) {
         if (email) {
           await sendEmail(
@@ -772,12 +772,47 @@ const transactionInfo =
 
 const appleProductId =
   transactionInfo.productId || "";
+  console.log("GROUP VERIFY PRODUCT CHECK:", {
+  appProductId: productId,
+  appleProductId,
+  groupId,
+  transactionId,
+});
 
 const appleTransactionId =
   transactionInfo.transactionId || transactionId;
 
 const appleOriginalTransactionId =
   transactionInfo.originalTransactionId || "";
+
+if (!appleOriginalTransactionId) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Missing originalTransactionId from Apple"
+  );
+}
+
+const existingGroupSnap = await admin.firestore()
+  .collectionGroup("members")
+  .where(
+    "groupOriginalTransactionId",
+    "==",
+    appleOriginalTransactionId
+  )
+  .limit(1)
+  .get();
+
+if (!existingGroupSnap.empty) {
+  const existingMember = existingGroupSnap.docs[0];
+  const existingData = existingMember.data() || {};
+
+  if (existingData.userId !== userId) {
+    throw new HttpsError(
+      "already-exists",
+      "This group subscription is already linked to another account."
+    );
+  }
+}
 
 const expiresDateMs =
   Number(transactionInfo.expiresDate || 0);
@@ -956,30 +991,64 @@ exports.verifyAppleVipPurchase = onCall(
         );
       }
 
-      const transactionInfo =
-        decodeAppleSignedTransaction(signedTransactionInfo);
+     const transactionInfo =
+  decodeAppleSignedTransaction(signedTransactionInfo);
 
-      console.log("Apple transactionInfo:", transactionInfo);
+console.log("Apple transactionInfo:", transactionInfo);
 
-      const appleProductId = transactionInfo.productId || "";
-      const appleTransactionId = transactionInfo.transactionId || transactionId;
-      const appleOriginalTransactionId =
-        transactionInfo.originalTransactionId || "";
-      const expiresDateMs = Number(transactionInfo.expiresDate || 0);
+const appleProductId =
+  transactionInfo.productId || "";
 
-      if (appleProductId !== productId) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Apple productId does not match app productId"
-        );
-      }
+const appleTransactionId =
+  transactionInfo.transactionId || transactionId;
 
-      if (!expiresDateMs) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Missing expiresDate from Apple"
-        );
-      }
+const appleOriginalTransactionId =
+  transactionInfo.originalTransactionId || "";
+
+if (!appleOriginalTransactionId) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Missing originalTransactionId from Apple"
+  );
+}
+
+const existingVipSnap = await admin.firestore()
+  .collection("users")
+  .where(
+    "vipOriginalTransactionId",
+    "==",
+    appleOriginalTransactionId
+  )
+  .limit(1)
+  .get();
+
+if (!existingVipSnap.empty) {
+  const existingUser = existingVipSnap.docs[0];
+
+  if (existingUser.id !== userId) {
+    throw new HttpsError(
+      "already-exists",
+      "This Apple subscription is already linked to another account."
+    );
+  }
+}
+
+const expiresDateMs =
+  Number(transactionInfo.expiresDate || 0);
+
+if (appleProductId !== productId) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Apple productId does not match app productId"
+  );
+}
+
+if (!expiresDateMs) {
+  throw new HttpsError(
+    "failed-precondition",
+    "Missing expiresDate from Apple"
+  );
+}
 
       const expiresAt = new Date(expiresDateMs);
 const now = new Date();

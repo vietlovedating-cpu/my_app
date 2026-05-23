@@ -26,7 +26,7 @@ class UpgradeVipPage extends StatefulWidget {
 class _UpgradeVipPageState extends State<UpgradeVipPage> {
   final InAppPurchase _inAppPurchase = InAppPurchase.instance;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSubscription;
-
+  bool _shownDuplicateTransactionMessage = false;
   bool _isBuying = false;
   bool _isLoadingStore = true;
   bool _storeAvailable = false;
@@ -409,27 +409,44 @@ if (!started && mounted) {
   });
 }
     } catch (e) {
-      if (!mounted) return;
+  if (!mounted) return;
 
-      setState(() {
-        _isBuying = false;
-      });
+  setState(() {
+    _isBuying = false;
+    _isRestoring = false;
+  });
 
-      final errorText = e.toString();
+  final errorText = e.toString();
 
-ScaffoldMessenger.of(context).showSnackBar(
-  SnackBar(
-    content: Text(
-      errorText.contains('storekit_duplicate_product_object')
-          ? _label(
-              'Giao dịch trước đó vẫn đang được App Store xử lý. Vui lòng chờ một chút rồi thử lại.',
-              'Your previous transaction is still being processed by the App Store. Please wait a moment and try again.',
-            )
-          : (isVi ? 'Mua VIP thất bại: $e' : 'VIP purchase failed: $e'),
-    ),
-  ),
-);
+  if (errorText.contains('storekit_duplicate_product_object')) {
+    if (_shownDuplicateTransactionMessage) {
+      return;
     }
+
+    _shownDuplicateTransactionMessage = true;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _label(
+            'Giao dịch trước đó vẫn đang được App Store xử lý. Vui lòng đóng trang này rồi mở lại sau vài giây.',
+            'Your previous transaction is still being processed by the App Store. Please close this page and reopen it after a few seconds.',
+          ),
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isVi ? 'Mua VIP thất bại: $e' : 'VIP purchase failed: $e',
+      ),
+    ),
+  );
+}
   }
 
   Future<void> _restorePurchases() async {
@@ -441,7 +458,7 @@ ScaffoldMessenger.of(context).showSnackBar(
 
     try {
       await _inAppPurchase.restorePurchases();
-Future.delayed(const Duration(seconds: 5), () {
+Future.delayed(const Duration(seconds: 1), () {
   if (!mounted) return;
 
   setState(() {
@@ -491,14 +508,9 @@ ScaffoldMessenger.of(context).showSnackBar(
       if (purchaseDetails.status == PurchaseStatus.pending) {
   print('VIP purchase is pending...');
 
-  if (purchaseDetails.pendingCompletePurchase) {
-    await _inAppPurchase.completePurchase(purchaseDetails);
-  }
-
   if (mounted) {
     setState(() {
-      _isBuying = false;
-      _isRestoring = false;
+      _isBuying = true;
     });
   }
 
@@ -651,29 +663,51 @@ if (mounted) {
         }
       }
     } catch (e) {
-      print('VIP PURCHASE HANDLE ERROR: $e');
+  print('VIP PURCHASE HANDLE ERROR: $e');
 
-      if (purchaseDetails.pendingCompletePurchase) {
-      
-      }
+  final failedId =
+      purchaseDetails.purchaseID ??
+      purchaseDetails.verificationData.serverVerificationData;
 
-      if (mounted) {
-        setState(() {
-          _isBuying = false;
-          _isRestoring = false;
-        });
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isVi
-                  ? 'Có lỗi khi xử lý giao dịch VIP: $e'
-                  : 'Error handling VIP purchase: $e',
-            ),
-          ),
-        );
-      }
+  if (_handledFailedPurchaseIds.contains(failedId)) {
+    if (mounted) {
+      setState(() {
+        _isBuying = false;
+        _isRestoring = false;
+      });
     }
+    continue;
+  }
+
+  _handledFailedPurchaseIds.add(failedId);
+
+  if (mounted) {
+    setState(() {
+      _isBuying = false;
+      _isRestoring = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          e.toString().contains('already-exists')
+              ? _label(
+                  'Gói VIP này đã được dùng cho tài khoản khác. Vui lòng đăng nhập đúng tài khoản đã mua VIP hoặc dùng Apple ID khác.',
+                  'This VIP subscription is already linked to another account. Please sign in to the original account or use a different Apple ID.',
+                )
+              : _label(
+                  'Không thể thực hiện giao dịch này. Vui lòng thử lại.',
+                  'This transaction cannot be completed. Please try again.',
+                ),
+        ),
+      ),
+    );
+  }
+}
   }
 }
 
@@ -724,6 +758,11 @@ if (purchase.status != PurchaseStatus.purchased &&
   if (data['success'] == true) {
   if (data['alreadyProcessed'] == true) {
     print('VIP iOS purchase already processed, skip popup.');
+    return false;
+  }
+
+  if (data['shouldShowPopup'] == false) {
+    print('VIP iOS purchase verified but popup skipped.');
     return false;
   }
 
