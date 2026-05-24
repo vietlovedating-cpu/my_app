@@ -27,6 +27,10 @@ class _GroupDetailPageState extends State<GroupDetailPage> {
   bool _isLoading = true;
   bool _isProcessing = false;
   bool _purchasePending = false;
+
+  
+
+  bool _shownAppleLinkedPopup = false;
   String? _buyingProductId;
 String? _buyingGroupId;
   final Set<String> _handledPurchaseIds = {};
@@ -385,19 +389,16 @@ Future<void> _onPurchaseUpdated(
       }
 
       if (mounted) {
-        setState(() {
-          _purchasePending = false;
-        });
-      }
+  setState(() {
+    _purchasePending = false;
+    _buyingProductId = null;
+    _buyingGroupId = null;
+  });
+}
 
       continue;
     }
 
-    if (mounted) {
-  setState(() {
-    _purchasePending = false;
-  });
-}
 
     if (purchaseDetails.status == PurchaseStatus.error ||
         purchaseDetails.status == PurchaseStatus.canceled) {
@@ -457,10 +458,65 @@ if (expectedProductId == null) {
 
   _handledPurchaseIds.add(purchaseId);
 
-  final shouldShowPopup =
-      await _verifyAndActivateGroupMembership(purchaseDetails);
+  bool shouldShowPopup = false;
+
+try {
+  shouldShowPopup =
+      await _verifyAndActivateGroupMembership(
+        purchaseDetails,
+      );
+} on FirebaseFunctionsException catch (e) {
+  if (
+      e.code == 'already-exists' &&
+      !_shownAppleLinkedPopup &&
+      mounted) {
+
+    _shownAppleLinkedPopup = true;
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          isVi
+              ? 'Apple ID đã liên kết tài khoản khác'
+              : 'Apple ID already linked',
+        ),
+        content: Text(
+          isVi
+              ? 'Gói nhóm Apple này đã được liên kết với một tài khoản khác.'
+              : 'This Apple group subscription is already linked to another account.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              isVi ? 'Đóng' : 'Close',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  if (mounted) {
+    setState(() {
+      _purchasePending = false;
+      _buyingProductId = null;
+      _buyingGroupId = null;
+    });
+  }
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(
+      purchaseDetails,
+    );
+  }
+
+  continue;
+}
       if (mounted) {
   setState(() {
+    _purchasePending = false;
     _buyingProductId = null;
     _buyingGroupId = null;
   });
