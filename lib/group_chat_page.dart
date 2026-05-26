@@ -379,69 +379,98 @@ Future<void> _loadDeletedUsers() async {
   }
 
   Widget _buildMemberAvatar(Map<String, dynamic> data) {
-    final photo = (data['mainPhotoUrl'] ?? '').toString().trim();
-    final name = (data['firstName'] ?? '').toString().trim();
-    final userId = (data['userId'] ?? data['uid'] ?? '').toString().trim();
+  final userId = (data['userId'] ?? data['uid'] ?? '').toString().trim();
 
-    return GestureDetector(
-      onTap: () {
-        if (userId.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                isVi ? 'Không tìm thấy hồ sơ người dùng' : 'User profile not found',
+  if (userId.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+    stream: FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .snapshots(),
+    builder: (context, snapshot) {
+      if (!snapshot.hasData || !snapshot.data!.exists) {
+        return const SizedBox.shrink();
+      }
+
+      final userData = snapshot.data!.data() ?? {};
+
+      final isDeleted =
+          userData['isDeleted'] == true ||
+          userData['deleted'] == true ||
+          userData['accountDeleted'] == true ||
+          userData['status'] == 'deleted';
+
+      final profileComplete =
+          userData['profileComplete'] == true ||
+          userData['isProfileComplete'] == true ||
+          userData['profileCompleted'] == true;
+
+      if (isDeleted || !profileComplete) {
+        return const SizedBox.shrink();
+      }
+
+      final photo =
+          (userData['mainPhotoUrl'] ?? '').toString().trim();
+
+      final name =
+          (userData['firstName'] ?? '').toString().trim();
+
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ViewOtherProfilePage(
+                userId: userId,
+                languageCode: widget.languageCode,
               ),
             ),
           );
-          return;
-        }
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ViewOtherProfilePage(
-              userId: userId,
-              languageCode: widget.languageCode,
-            ),
-          ),
-        );
-      },
-      child: SizedBox(
-        width: 72,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: Colors.grey.shade300,
-              backgroundImage: photo.isNotEmpty ? NetworkImage(photo) : null,
-              child: photo.isEmpty
-                  ? Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              name.isEmpty ? 'User' : name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF555555),
+        },
+        child: SizedBox(
+          width: 72,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                radius: 26,
+                backgroundColor: Colors.grey.shade300,
+                backgroundImage:
+                    photo.isNotEmpty ? NetworkImage(photo) : null,
+                child: photo.isEmpty
+                    ? Text(
+                        name.isNotEmpty
+                            ? name[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      )
+                    : null,
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                name.isEmpty ? 'User' : name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF555555),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
+    },
+  );
+}
 
   Widget _buildMessageCard(Map<String, dynamic> data) {
     final user = currentUser;

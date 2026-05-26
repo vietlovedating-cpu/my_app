@@ -37,85 +37,83 @@ class DatingGroupItem {
 
 const List<DatingGroupItem> kDatingGroups = [
   DatingGroupItem(
-    id: 'weekend_coffee',
+    id: 'sydney_vietnamese',
     imageAsset: 'assets/groups/coffee_weekend.jpg',
-    monthlyPrice: 30,
-    titleVi: '☕ Cà phê cùng nhau',
-    titleEn: '☕ Coffee together',
+    monthlyPrice: 10,
+    titleVi: '🇦🇺 Nhóm Người Việt Sydney',
+    titleEn: '🇦🇺 Sydney Vietnamese Group',
     subtitleVi: '',
     subtitleEn: '',
-    detailTitleVi: 'Tham gia Nhóm Cafe Cuối Tuần ☕',
-    detailTitleEn: 'Join Weekend Coffee Group ☕',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Sydney 🇦🇺',
+    detailTitleEn: 'Join Sydney Vietnamese Group 🇦🇺',
     detailBodyVi:
-        'Chỉ với \$30/tháng, bạn có thể trở thành thành viên của nhóm.\n\n'
-        'Sau khi tham gia, bạn sẽ được chat cùng các thành viên khác, chia sẻ những câu chuyện đời thường, làm quen một cách tự nhiên, thoải mái, và cùng nhau hẹn những buổi cafe cuối tuần nếu hợp nhau.\n\n'
-        'Đây là một không gian nhẹ nhàng, thân thiện, phù hợp cho những người muốn kết nối chậm rãi, chân thành và thực tế hơn.',
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Sydney.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện với các thành viên khác, kết bạn, hẹn hò, chia sẻ kinh nghiệm cuộc sống, công việc và các hoạt động cuối tuần.\n\n'
+        'Đây là nơi phù hợp để kết nối với những người Việt đang sống tại Sydney một cách thân thiện, tự nhiên và chân thành.',
     detailBodyEn:
-        'For only \$30/month, you can become a member of the group.\n\n'
-        'After joining, you can chat with other members, share everyday stories, get to know each other naturally and comfortably, and arrange weekend coffee meetups if you connect well.\n\n'
-        'This is a gentle and friendly space for people who want a slower, more genuine, and more real connection.',
-    icon: Icons.local_cafe_rounded,
+        'For only \$9.99/month, you can join the Vietnamese community in Sydney.\n\n'
+        'After joining, you can chat with other members, make new friends, date, share life and work experiences, and join local weekend activities.\n\n'
+        'This is a friendly space to connect naturally and meaningfully with Vietnamese people living in Sydney.',
+    icon: Icons.location_city_rounded,
   ),
   DatingGroupItem(
-    id: 'hiking_camping',
+    id: 'melbourne_vietnamese',
     imageAsset: 'assets/groups/hiking_camping.jpg',
-    monthlyPrice: 20,
-    titleVi: 'Nhóm cắm trại,\n\n hiking',
-    titleEn: 'Camping,\n\n hiking group',
+    monthlyPrice: 10,
+    titleVi: '☕ Nhóm Người Việt Melbourne',
+    titleEn: '☕ Melbourne Vietnamese Group',
     subtitleVi: '',
     subtitleEn: '',
-    detailTitleVi: 'Tham gia Nhóm Hiking & Camping ⛰️',
-    detailTitleEn: 'Join Hiking & Camping Group ⛰️',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Melbourne ☕',
+    detailTitleEn: 'Join Melbourne Vietnamese Group ☕',
     detailBodyVi:
-        'Chỉ với \$20/tháng, bạn có thể trở thành thành viên của nhóm.\n\n'
-        'Sau khi tham gia, bạn sẽ được trò chuyện với những người cùng yêu thích đi bộ, leo núi, dã ngoại và cắm trại, cùng chia sẻ kế hoạch cuối tuần và những trải nghiệm ngoài trời.\n\n'
-        'Đây là nơi phù hợp để kết nối qua hoạt động thực tế, năng động và thoải mái hơn trước khi gặp mặt trực tiếp.',
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Melbourne.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện, làm quen bạn mới, mở rộng các mối quan hệ và tham gia những buổi gặp mặt hoặc hoạt động xã hội phù hợp.\n\n'
+        'Đây là không gian dành cho những ai muốn kết nối với cộng đồng người Việt tại Melbourne một cách nhẹ nhàng và thực tế hơn.',
     detailBodyEn:
-        'For only \$20/month, you can become a member of the group.\n\n'
-        'After joining, you can chat with people who enjoy hiking, outdoor trips, and camping, share weekend plans, and connect through real activities.\n\n'
-        'It is a great place to meet others through active and relaxed outdoor experiences before seeing each other in person.',
-    icon: Icons.hiking_rounded,
+        'For only \$9.99/month, you can join the Vietnamese community in Melbourne.\n\n'
+        'After joining, you can chat, meet new people, build connections, and join local gatherings or social activities when suitable.\n\n'
+        'This is a space for people who want to connect with the Vietnamese community in Melbourne in a natural and real way.',
+    icon: Icons.people_alt_rounded,
   ),
   DatingGroupItem(
-    id: 'speed_dating',
+    id: 'queensland_vietnamese',
     imageAsset: 'assets/groups/speed_dating.jpg',
-    monthlyPrice: 50,
-    titleVi: 'Hẹn hò xoay vòng',
-    titleEn: 'Speed dating event',
+    monthlyPrice: 10,
+    titleVi: '🌴 Nhóm Người Việt Queensland',
+    titleEn: '🌴 Queensland Vietnamese Group',
     subtitleVi: '',
     subtitleEn: '',
-    detailTitleVi: 'Tham gia Nhóm Hẹn Hò Xoay Vòng 💫',
-    detailTitleEn: 'Join Speed Dating Group 💫',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Queensland 🌴',
+    detailTitleEn: 'Join Queensland Vietnamese Group 🌴',
     detailBodyVi:
-        'Chỉ với \$50/tháng, bạn sẽ trở thành thành viên của cộng đồng Hẹn hò xoay vòng.\n\n'
-        'Sự kiện hẹn hò xoay vòng diễn ra mỗi tháng một lần, nơi bạn có thể trò chuyện ngắn với nhiều thành viên khác nhau trong một không khí vui vẻ, thoải mái và không áp lực.\n\n'
-        'Mỗi lượt trò chuyện chỉ kéo dài vài phút, sau đó bạn sẽ đổi sang người tiếp theo, giúp bạn dễ dàng cảm nhận sự phù hợp và tìm ra người bạn muốn kết nối nhiều hơn.\n\n'
-        'Trước mỗi buổi gặp mặt, các thành viên vẫn có thể nhắn tin, làm quen và kết nối với nhau trước trong group chat, để khi gặp trực tiếp sẽ tự nhiên và dễ nói chuyện hơn.',
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Queensland.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện với các thành viên khác, kết bạn, giao lưu, hẹn hò và chia sẻ các hoạt động trong khu vực.\n\n'
+        'Đây là nơi giúp người Việt tại Queensland dễ dàng tìm thấy những kết nối phù hợp, thân thiện và gần gũi hơn.',
     detailBodyEn:
-        'For only \$50/month, you will become a member of the Speed Dating community.\n\n'
-        'The speed dating event takes place once a month, where you can have short conversations with different members in a fun, relaxed, and low-pressure atmosphere.\n\n'
-        'Each chat lasts only a few minutes before rotating to the next person, making it easier to feel chemistry and decide who you would like to see again.\n\n'
-        'Before each event, members can chat and get to know each other in the group chat first, so meeting in person feels more natural and comfortable.',
-    icon: Icons.favorite_rounded,
+        'For only \$9.99/month, you can join the Vietnamese community in Queensland.\n\n'
+        'After joining, you can chat with other members, make friends, socialize, date, and share local activities in the area.\n\n'
+        'This group helps Vietnamese people in Queensland find friendly, suitable, and meaningful connections.',
+    icon: Icons.beach_access_rounded,
   ),
   DatingGroupItem(
-    id: 'gym_fitness',
+    id: 'perth_vietnamese',
     imageAsset: 'assets/groups/gym_fitness.jpg',
-    monthlyPrice: 20,
-    titleVi: '🏋️ Gym & Fitness',
-    titleEn: '🏋️ Gym & Fitness',
+    monthlyPrice: 10,
+    titleVi: '🌅 Nhóm Người Việt Perth',
+    titleEn: '🌅 Perth Vietnamese Group',
     subtitleVi: '',
     subtitleEn: '',
-    detailTitleVi: 'Tham gia Nhóm Gym & Fitness 🏋️',
-    detailTitleEn: 'Join Gym & Fitness Group 🏋️',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Perth 🌅',
+    detailTitleEn: 'Join Perth Vietnamese Group 🌅',
     detailBodyVi:
-        'Chỉ với \$20/tháng, bạn có thể trở thành thành viên của nhóm.\n\n'
-        'Sau khi tham gia, bạn có thể trò chuyện với những người cùng sở thích tập luyện, chia sẻ lịch tập, mục tiêu, động lực và lối sống lành mạnh.\n\n'
-        'Đây là nơi phù hợp để làm quen với những người năng động, tích cực và có thể cùng nhau hẹn tập hoặc tham gia các hoạt động vận động nếu hợp nhau.',
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Perth.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện, tìm bạn mới, giao lưu, hẹn hò và xây dựng những mối quan hệ lâu dài trong cộng đồng.\n\n'
+        'Đây là không gian thân thiện cho người Việt tại Perth muốn kết nối, chia sẻ và gặp gỡ những người phù hợp.',
     detailBodyEn:
-        'For only \$20/month, you can become a member of the group.\n\n'
-        'After joining, you can chat with people who share your fitness interests, exchange workout routines, goals, motivation, and healthy lifestyle habits.\n\n'
-        'It is a great place to meet active and positive people, and possibly arrange workouts or fitness activities together if you connect well.',
-    icon: Icons.fitness_center_rounded,
+        'For only \$9.99/month, you can join the Vietnamese community in Perth.\n\n'
+        'After joining, you can chat, meet new friends, socialize, date, and build lasting relationships within the community.\n\n'
+        'This is a friendly space for Vietnamese people in Perth to connect, share, and meet suitable people.',
+    icon: Icons.wb_sunny_rounded,
   ),
 ];

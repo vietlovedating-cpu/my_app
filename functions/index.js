@@ -548,7 +548,144 @@ for (const userDoc of expiredVipSnap.docs) {
 }
    }
 );
+exports.addPromoForNewCityGroups = onRequest(
+  {
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (req, res) => {
+    try {
+      const db = admin.firestore();
 
+      const promoGroupIds = [
+        "sydney_vietnamese",
+        "melbourne_vietnamese",
+        "queensland_vietnamese",
+        "perth_vietnamese",
+      ];
+
+      const now = new Date();
+      const promoExpiresAt = new Date(now);
+      promoExpiresAt.setMonth(promoExpiresAt.getMonth() + 3);
+
+      // tạo group doc cha để Firebase Console thấy rõ
+      for (const groupId of promoGroupIds) {
+        await db.collection("groups").doc(groupId).set(
+          {
+            active: true,
+            groupId,
+            source: "city_group",
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      const usersSnap = await db.collection("users").get();
+
+      let added = 0;
+      let skippedDeleted = 0;
+      let skippedIncomplete = 0;
+
+      let batch = db.batch();
+      let batchCount = 0;
+
+      for (const userDoc of usersSnap.docs) {
+        const userId = userDoc.id;
+        const userData = userDoc.data() || {};
+
+        const isDeleted =
+          userData.deleted === true ||
+          userData.isDeleted === true ||
+          userData.accountDeleted === true ||
+          userData.status === "deleted";
+
+        if (isDeleted) {
+          skippedDeleted++;
+          continue;
+        }
+
+        const profileComplete =
+          userData.profileComplete === true ||
+          userData.isProfileComplete === true ||
+          userData.profileCompleted === true;
+
+        if (!profileComplete) {
+          skippedIncomplete++;
+          continue;
+        }
+
+        for (const groupId of promoGroupIds) {
+          const memberRef = db
+            .collection("groups")
+            .doc(groupId)
+            .collection("members")
+            .doc(userId);
+
+          batch.set(
+            memberRef,
+            {
+              uid: userId,
+              userId,
+              groupId,
+              email: userData.email || "",
+
+              membershipActive: true,
+              groupStatus: "active",
+              source: "promo_3_months",
+
+              appleVerified: false,
+              groupProductId: "",
+              groupTransactionId: "",
+              groupOriginalTransactionId: "",
+              groupRenewCount: 0,
+
+              expiresAt:
+                admin.firestore.Timestamp.fromDate(promoExpiresAt),
+
+              joinedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+
+              expiredHandled: false,
+              reminder7dSent: false,
+              reminder3dSent: false,
+              reminder1dSent: false,
+
+              updatedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+          added++;
+          batchCount++;
+
+          if (batchCount >= 400) {
+            await batch.commit();
+            batch = db.batch();
+            batchCount = 0;
+          }
+        }
+      }
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+
+      res.status(200).json({
+        success: true,
+        added,
+        skippedDeleted,
+        skippedIncomplete,
+        groups: promoGroupIds,
+      });
+    } catch (error) {
+      console.error("addPromoForNewCityGroups error:", error);
+      res.status(500).send(error.message || "Server error");
+    }
+  }
+);
 // 👉 DÁN FUNCTION MỚI Ở ĐÂY
 /*
 exports.checkMemberships = onSchedule(
@@ -733,6 +870,50 @@ function getGroupPlanFromProductId(productId) {
     };
   }
 
+  if (productId === "group.sydney_vietnamese.monthlyv3") {
+    return {
+      groupId: "sydney_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Sydney Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Sydney",
+    };
+  }
+
+  if (productId === "group.melbourne_vietnamese.monthly") {
+    return {
+      groupId: "melbourne_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Melbourne Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Melbourne",
+    };
+  }
+
+  if (productId === "group.queensland_vietnamese.monthly") {
+    return {
+      groupId: "queensland_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Queensland Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Queensland",
+    };
+  }
+
+  if (productId === "group.perth_vietnamese.monthly") {
+    return {
+      groupId: "perth_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Perth Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Perth",
+    };
+  }
+
   return null;
 }
 exports.verifyAppleGroupPurchase = onCall(
@@ -864,6 +1045,21 @@ const shouldShowPopup =
   .collection("members")
   .doc(userId);
 
+const memberSnapBefore = await memberRef.get();
+const oldData = memberSnapBefore.data() || {};
+
+const oldTransactionId = oldData.groupTransactionId || "";
+const oldOriginalTransactionId =
+  oldData.groupOriginalTransactionId || "";
+
+const isRenew =
+  oldOriginalTransactionId &&
+  oldOriginalTransactionId === appleOriginalTransactionId &&
+  oldTransactionId &&
+  oldTransactionId !== appleTransactionId;
+
+const oldRenewCount = Number(oldData.groupRenewCount || 0);
+
 const processedRef = memberRef
   .collection("processedGroupPurchases")
   .doc(appleTransactionId);
@@ -881,17 +1077,37 @@ if (processedSnap.exists) {
     originalTransactionId: appleOriginalTransactionId,
   };
 }
+const userSnap = await admin
+  .firestore()
+  .collection("users")
+  .doc(userId)
+  .get();
+
+const userData = userSnap.data() || {};
+
+const userEmail = userData.email || "";
 await memberRef.set(
+  
   {
     uid: userId,
-    userId: userId,
-    groupId: groupId,
-    email: "",
+userId: userId,
+groupId: groupId,
+email: userEmail,
 
-    membershipActive: isActive,
+membershipActive: isActive,
 
-    expiresAt:
-      admin.firestore.Timestamp.fromDate(expiresAt),
+source: "app_store",
+
+groupRenewCount: isRenew
+  ? oldRenewCount + 1
+  : oldRenewCount,
+
+groupLastRenewAt: isRenew
+  ? admin.firestore.FieldValue.serverTimestamp()
+  : oldData.groupLastRenewAt || null,
+
+expiresAt:
+  admin.firestore.Timestamp.fromDate(expiresAt),
 
     groupProductId: productId,
 
@@ -909,7 +1125,7 @@ await memberRef.set(
       admin.firestore.FieldValue.serverTimestamp(),
 
       joinedAt:
-  admin.firestore.FieldValue.serverTimestamp(),
+  oldData.joinedAt || admin.firestore.FieldValue.serverTimestamp(),
 
 expiredHandled: !isActive,
 reminder7dSent: false,

@@ -130,59 +130,52 @@ String? _buyingGroupId;
   }
 
   String _priceText() {
-    final productId = _productId();
-    if (productId != null) {
-      final matchingProducts =
-          _availableProducts.where((p) => p.id == productId).toList();
+  final productId = _productId();
 
-      if (matchingProducts.isNotEmpty) {
-        return matchingProducts.first.price;
-      }
-    }
+  if (productId != null) {
+    final matchingProducts =
+        _availableProducts.where((p) => p.id == productId).toList();
 
-    switch (widget.group.id) {
-      case 'weekend_coffee':
-        return '\$24.99 / 1 month';
-      case 'hiking_camping':
-        return '\$24.99 / 1 month';
-      case 'speed_dating':
-        return '\$49.99 / 1 month';
-      case 'gym_fitness':
-        return '\$24.99 / 1 month';
-      default:
-        return '\$24.99 / 1 month';
+    if (matchingProducts.isNotEmpty) {
+      return matchingProducts.first.price;
     }
   }
 
+  return '\$9.99 / 1 month';
+}
   double _groupPrice() {
-    switch (widget.group.id) {
-      case 'weekend_coffee':
-        return 24.99;
-      case 'hiking_camping':
-        return 24.99;
-      case 'speed_dating':
-        return 49.99;
-      case 'gym_fitness':
-        return 24.99;
-      default:
-        return 24.99;
-    }
+  switch (widget.group.id) {
+    case 'sydney_vietnamese':
+      return 9.99;
+    case 'melbourne_vietnamese':
+      return 9.99;
+    case 'queensland_vietnamese':
+      return 9.99;
+    case 'perth_vietnamese':
+      return 9.99;
+    default:
+      return 9.99;
   }
+}
 
   String? _productId() {
-    switch (widget.group.id) {
-      case 'weekend_coffee':
-        return 'group.weekend_coffee.monthly.v2';
-      case 'hiking_camping':
-        return 'group.hiking_camping.monthly';
-      case 'speed_dating':
-        return 'group.speed_dating.monthly';
-      case 'gym_fitness':
-        return 'group.gym_fitness.monthly';
-      default:
-        return null;
-    }
+  switch (widget.group.id) {
+    case 'sydney_vietnamese':
+      return 'group.sydney_vietnamese.monthlyv3';
+
+    case 'melbourne_vietnamese':
+      return 'group.melbourne_vietnamese.monthly';
+
+    case 'queensland_vietnamese':
+      return 'group.queensland_vietnamese.monthly';
+
+    case 'perth_vietnamese':
+      return 'group.perth_vietnamese.monthly';
+
+    default:
+      return null;
   }
+}
 
 
   void _openChat() {
@@ -207,10 +200,8 @@ String? _buyingGroupId;
   }
 
   void _handleGroupImageTap() {
-    if (_isActive) {
-      _openActiveGroupPage();
-    }
-  }
+  _openActiveGroupPage();
+}
 
   void _openActiveGroupPage() {
     Navigator.push(
@@ -313,9 +304,8 @@ if (response.error != null || response.productDetails.isEmpty) {
   _purchasePending = true;
 });
 
-final started = await _inAppPurchase.buyConsumable(
+final started = await _inAppPurchase.buyNonConsumable(
   purchaseParam: purchaseParam,
-  autoConsume: false,
 );
 
 if (!started && mounted) {
@@ -623,80 +613,80 @@ try {
   }
 
   List<String> _groupIntroParagraphs() {
-    switch (widget.group.id) {
-      case 'weekend_coffee':
-        return [
-          _label(
-            'Đây là không gian dành cho những ai thích cà phê, trò chuyện nhẹ nhàng và gặp gỡ cuối tuần trong không khí thoải mái.',
-            'This is a space for people who enjoy coffee, relaxed conversations, and casual weekend meetups in a comfortable atmosphere.',
-          ),
-          _label(
-            'Bạn có thể cùng mọi người khám phá quán mới, tâm sự những điều đời thường và tạo nên những kết nối tự nhiên.',
-            'You can explore new cafes together, share everyday moments, and build natural connections.',
-          ),
-          _label(
-            'Sau khi tham gia, bạn sẽ được chat cùng các thành viên khác, làm quen một cách nhẹ nhàng, thoải mái và cùng nhau hẹn những buổi cà phê hoặc gặp gỡ cuối tuần nếu phù hợp.',
-            'After joining, you can chat with other members, get to know each other naturally, and arrange coffee catch-ups or weekend meetups when it feels right.',
-          ),
-        ];
+  switch (widget.group.id) {
+    case 'sydney_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt đang sinh sống, học tập và làm việc tại Sydney.',
+          'This community is for Vietnamese people living, studying and working in Sydney.',
+        ),
+        _label(
+          'Bạn có thể kết bạn, trò chuyện, hẹn hò, chia sẻ kinh nghiệm cuộc sống và tham gia các hoạt động cuối tuần cùng những người Việt khác.',
+          'You can make friends, chat, date, share life experiences and join weekend activities with other Vietnamese members.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn sẽ được trò chuyện với các thành viên khác trong khu vực Sydney và mở rộng các mối quan hệ một cách tự nhiên.',
+          'After joining, you can chat with members in the Sydney area and build meaningful connections naturally.',
+        ),
+      ];
 
-      case 'hiking_camping':
-        return [
-          _label(
-            'Đây là nhóm dành cho những ai yêu thiên nhiên, thích vận động và muốn cùng nhau tham gia các chuyến hiking hoặc camping cuối tuần.',
-            'This group is for people who love nature, enjoy being active, and want to join hiking or camping trips on weekends.',
-          ),
-          _label(
-            'Bạn sẽ có cơ hội gặp gỡ những người cùng sở thích, lên kế hoạch cho các chuyến đi vui vẻ và năng động.',
-            'You will have the chance to meet others with similar interests and plan fun, energetic outdoor adventures together.',
-          ),
-          _label(
-            'Sau khi tham gia, bạn có thể trò chuyện với các thành viên khác, chia sẻ kinh nghiệm đi bộ đường dài, cắm trại và cùng nhau lên lịch cho những chuyến đi sắp tới.',
-            'After joining, you can chat with other members, share hiking or camping experiences, and plan upcoming outdoor trips together.',
-          ),
-        ];
+    case 'melbourne_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt tại Melbourne muốn giao lưu, kết bạn và mở rộng các mối quan hệ.',
+          'This community is for Vietnamese people in Melbourne who want to meet new friends and build connections.',
+        ),
+        _label(
+          'Bạn có thể chia sẻ kinh nghiệm cuộc sống, công việc, học tập và tham gia các buổi gặp mặt cùng cộng đồng.',
+          'You can share experiences about life, work, study and join local gatherings with the community.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn có thể trò chuyện với những người Việt khác trong khu vực Melbourne và kết nối dễ dàng hơn.',
+          'After joining, you can chat with other Vietnamese members in Melbourne and connect more easily.',
+        ),
+      ];
 
-      case 'speed_dating':
-        return [
-          _label(
-            'Đây là nhóm phù hợp cho những ai muốn mở rộng cơ hội gặp gỡ, trò chuyện và kết nối trong các buổi speed dating hoặc sự kiện giao lưu.',
-            'This group is ideal for those who want to expand their opportunities to meet, chat, and connect through speed dating sessions or social events.',
-          ),
-          _label(
-            'Môi trường ở đây thân thiện, cởi mở và phù hợp để làm quen một cách nhanh chóng nhưng vẫn tự nhiên.',
-            'The atmosphere is friendly, open, and great for getting to know new people in a natural way.',
-          ),
-          _label(
-            'Sau khi tham gia, bạn có thể cập nhật thông tin event, trò chuyện với các thành viên khác trước khi gặp mặt và cảm thấy thoải mái hơn khi tham gia các buổi giao lưu.',
-            'After joining, you can stay updated on events, chat with other members before meeting in person, and feel more comfortable joining social sessions.',
-          ),
-        ];
+    case 'queensland_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng người Việt tại Queensland dành cho những ai muốn kết bạn, giao lưu và tìm kiếm các mối quan hệ phù hợp.',
+          'This Vietnamese community in Queensland is for people who want to make friends, socialize and build meaningful relationships.',
+        ),
+        _label(
+          'Bạn có thể tham gia các cuộc trò chuyện, chia sẻ hoạt động địa phương và kết nối với những người sống gần bạn.',
+          'You can join discussions, share local activities and connect with people living near you.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn sẽ có cơ hội gặp gỡ và trò chuyện với cộng đồng người Việt tại Queensland.',
+          'After joining, you will have the opportunity to meet and chat with Vietnamese members across Queensland.',
+        ),
+      ];
 
-      case 'gym_fitness':
-        return [
-          _label(
-            'Đây là nhóm dành cho những ai yêu thích gym, fitness và lối sống lành mạnh.',
-            'This group is for people who enjoy gym, fitness, and a healthy lifestyle.',
-          ),
-          _label(
-            'Bạn có thể cùng mọi người chia sẻ mục tiêu tập luyện, động viên nhau và hẹn các buổi tập hoặc hoạt động thể thao cuối tuần.',
-            'You can share your workout goals, motivate each other, and arrange gym sessions or weekend fitness activities together.',
-          ),
-          _label(
-            'Sau khi tham gia, bạn sẽ được chat cùng các thành viên khác, trao đổi kinh nghiệm tập luyện, chế độ ăn uống và tìm bạn đồng hành để duy trì động lực lâu dài.',
-            'After joining, you can chat with other members, exchange workout and nutrition tips, and find a fitness buddy to stay motivated long term.',
-          ),
-        ];
+    case 'perth_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt tại Perth muốn giao lưu, kết bạn và xây dựng các mối quan hệ lâu dài.',
+          'This community is for Vietnamese people in Perth who want to socialize, make friends and build long-term relationships.',
+        ),
+        _label(
+          'Bạn có thể trò chuyện, chia sẻ kinh nghiệm cuộc sống và tham gia các hoạt động cộng đồng cùng những thành viên khác.',
+          'You can chat, share life experiences and take part in community activities with other members.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn sẽ được kết nối với cộng đồng người Việt tại Perth trong môi trường thân thiện và tích cực.',
+          'After joining, you will connect with the Vietnamese community in Perth in a friendly and welcoming environment.',
+        ),
+      ];
 
-      default:
-        return [
-          _label(
-            'Sau khi tham gia, bạn có thể trò chuyện với các thành viên khác và cùng tham gia các hoạt động phù hợp với chủ đề của nhóm.',
-            'After joining, you can chat with other members and take part in activities related to the group theme.',
-          ),
-        ];
-    }
+    default:
+      return [
+        _label(
+          'Sau khi tham gia, bạn có thể trò chuyện với các thành viên khác và cùng tham gia các hoạt động phù hợp với chủ đề của nhóm.',
+          'After joining, you can chat with other members and take part in activities related to the group theme.',
+        ),
+      ];
   }
+}
 
   Widget _buildGroupDescription() {
     final paragraphs = _groupIntroParagraphs();
@@ -860,19 +850,21 @@ try {
     return Scaffold(
       backgroundColor: const Color(0xFFFFF8FB),
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        foregroundColor: const Color(0xFF6D6D6D),
-        centerTitle: true,
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-            color: Color(0xFF555555),
-          ),
-        ),
-      ),
+  backgroundColor: Colors.white,
+  elevation: 0,
+  foregroundColor: const Color(0xFF6D6D6D),
+  centerTitle: true,
+  title: Text(
+    title,
+    textAlign: TextAlign.center,
+    maxLines: 2,
+    style: const TextStyle(
+      fontWeight: FontWeight.w700,
+      fontSize: 16,
+      color: Color(0xFF555555),
+    ),
+  ),
+),
       body: Container(
         width: double.infinity,
         decoration: const BoxDecoration(
@@ -962,13 +954,15 @@ try {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            title,
-                            style: const TextStyle(
-                              fontSize: 21,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF333333),
-                            ),
-                          ),
+  title,
+  textAlign: TextAlign.center,
+  maxLines: 2,
+  style: const TextStyle(
+    fontSize: 19,
+    fontWeight: FontWeight.w700,
+    color: Color(0xFF333333),
+  ),
+),
                           const SizedBox(height: 8),
                           Text(
                             widget.group.subtitle(isVi),
@@ -1208,13 +1202,15 @@ class _ActiveGroupOverviewPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF333333),
-                      ),
-                    ),
+  title,
+  textAlign: TextAlign.center,
+  maxLines: 2,
+  style: const TextStyle(
+    fontSize: 19,
+    fontWeight: FontWeight.w700,
+    color: Color(0xFF333333),
+  ),
+),
                     const SizedBox(height: 8),
                     Text(
                       group.subtitle(isVi),
