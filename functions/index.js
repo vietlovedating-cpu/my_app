@@ -1523,6 +1523,253 @@ exports.appleVipNotification = onRequest(
     }
   }
 );
+exports.appleStoreNotification = onRequest(
+  {
+    region: "us-central1",
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        res.status(405).send("Method Not Allowed");
+        return;
+      }
+
+      const signedPayload = req.body?.signedPayload;
+
+      if (!signedPayload) {
+        res.status(400).send("Missing signedPayload");
+        return;
+      }
+
+      const notification = jwt.decode(signedPayload);
+
+      if (!notification) {
+        res.status(400).send("Invalid signedPayload");
+        return;
+      }
+
+      console.log("Apple STORE notification:", notification);
+
+      const notificationType = notification.notificationType || "";
+      const subtype = notification.subtype || "";
+
+      const signedTransactionInfo =
+        notification.data?.signedTransactionInfo || "";
+
+      if (!signedTransactionInfo) {
+        res.status(200).send("No transaction info");
+        return;
+      }
+
+      const transactionInfo = jwt.decode(signedTransactionInfo);
+
+      if (!transactionInfo) {
+        res.status(400).send("Invalid transaction info");
+        return;
+      }
+
+      console.log("Apple STORE transaction:", transactionInfo);
+
+      const productId = transactionInfo.productId || "";
+      const transactionId = transactionInfo.transactionId || "";
+      const originalTransactionId =
+        transactionInfo.originalTransactionId || "";
+      const expiresDateMs = Number(transactionInfo.expiresDate || 0);
+
+      if (!productId || !originalTransactionId || !expiresDateMs) {
+        res.status(200).send("Missing required transaction fields");
+        return;
+      }
+
+      const expiresAt = new Date(expiresDateMs);
+      const now = new Date();
+
+      let isActive = expiresAt > now;
+
+      if (
+        notificationType === "EXPIRED" ||
+        notificationType === "REFUND" ||
+        notificationType === "REVOKE" ||
+        notificationType === "DID_FAIL_TO_RENEW"
+      ) {
+        isActive = false;
+      }
+
+      const vipPlan = getVipPlanFromProductId(productId);
+
+      if (vipPlan) {
+        const usersSnap = await admin.firestore()
+          .collection("users")
+          .where("vipOriginalTransactionId", "==", originalTransactionId)
+          .limit(1)
+          .get();
+
+        if (usersSnap.empty) {
+          console.log("No VIP user found:", originalTransactionId);
+          res.status(200).send("No matching VIP user");
+          return;
+        }
+
+        const userDoc = usersSnap.docs[0];
+        const userData = userDoc.data() || {};
+        const userRef = userDoc.ref;
+
+        const oldTransactionId = userData.vipTransactionId || "";
+        const oldRenewCount = Number(userData.renewCount || 0);
+
+        const isRenew =
+          oldTransactionId &&
+          transactionId &&
+          oldTransactionId !== transactionId &&
+          isActive;
+
+        await userRef.set(
+          {
+            isVip: isActive,
+            vipUnlocked: isActive,
+            membership: isActive ? "vip" : "",
+            plan: isActive ? "vip" : "",
+            subscriptionType: vipPlan.vipPlanId,
+            vipPlanId: vipPlan.vipPlanId,
+            vipProductId: productId,
+            vipPlatform: "app_store",
+            vipStatus: isActive ? "active" : "expired",
+            vipExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+            vipTransactionId: transactionId,
+            vipOriginalTransactionId: originalTransactionId,
+            lastAppleNotificationType: notificationType,
+            lastAppleNotificationSubtype: subtype,
+            lastAppleTransactionId: transactionId,
+
+            renewCount: isRenew ? oldRenewCount + 1 : oldRenewCount,
+            lastRenewAt: isRenew
+              ? admin.firestore.FieldValue.serverTimestamp()
+              : userData.lastRenewAt || null,
+
+            vipAppleWebhookReceivedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+            vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+            vipExpiredHandled: !isActive,
+          },
+          { merge: true }
+        );
+
+        await userRef
+          .collection("appleVipNotifications")
+          .doc(transactionId || `${Date.now()}`)
+          .set(
+            {
+              notificationType,
+              subtype,
+              productId,
+              transactionId,
+              originalTransactionId,
+              expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+              isActive,
+              rawNotification: notification,
+              rawTransactionInfo: transactionInfo,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+        res.status(200).send("VIP OK");
+        return;
+      }
+
+      const groupPlan = getGroupPlanFromProductId(productId);
+
+      if (groupPlan) {
+        const membersSnap = await admin.firestore()
+          .collectionGroup("members")
+          .where("groupOriginalTransactionId", "==", originalTransactionId)
+          .limit(1)
+          .get();
+
+        if (membersSnap.empty) {
+          console.log("No group member found:", originalTransactionId);
+          res.status(200).send("No matching group member");
+          return;
+        }
+
+        const memberDoc = membersSnap.docs[0];
+        const memberData = memberDoc.data() || {};
+        const memberRef = memberDoc.ref;
+
+        const oldTransactionId = memberData.groupTransactionId || "";
+        const oldRenewCount = Number(memberData.groupRenewCount || 0);
+
+        const isRenew =
+          oldTransactionId &&
+          transactionId &&
+          oldTransactionId !== transactionId &&
+          isActive;
+
+        await memberRef.set(
+          {
+            membershipActive: isActive,
+            expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+            groupProductId: productId,
+            groupTransactionId: transactionId,
+            groupOriginalTransactionId: originalTransactionId,
+            groupStatus: isActive ? "active" : "expired",
+
+            lastAppleNotificationType: notificationType,
+            lastAppleNotificationSubtype: subtype,
+            lastAppleTransactionId: transactionId,
+
+            groupRenewCount: isRenew
+              ? oldRenewCount + 1
+              : oldRenewCount,
+
+            groupLastRenewAt: isRenew
+              ? admin.firestore.FieldValue.serverTimestamp()
+              : memberData.groupLastRenewAt || null,
+
+            appleWebhookReceivedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+
+            updatedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+
+            expiredHandled: !isActive,
+          },
+          { merge: true }
+        );
+
+        await memberRef
+          .collection("appleGroupNotifications")
+          .doc(transactionId || `${Date.now()}`)
+          .set(
+            {
+              notificationType,
+              subtype,
+              productId,
+              transactionId,
+              originalTransactionId,
+              expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+              isActive,
+              rawNotification: notification,
+              rawTransactionInfo: transactionInfo,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+
+        res.status(200).send("GROUP OK");
+        return;
+      }
+
+      res.status(200).send("Not VIP or group product");
+    } catch (error) {
+      console.error("appleStoreNotification error:", error);
+      res.status(500).send("Server error");
+    }
+  }
+);
 const { Translate } = require("@google-cloud/translate").v2;
 
 const translate = new Translate();

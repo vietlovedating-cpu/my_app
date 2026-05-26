@@ -272,9 +272,15 @@ setState(() {
   _buyingGroupId = widget.group.id;
 });
 
-    final response = await _inAppPurchase.queryProductDetails({productId});
+    print('GROUP RENEW CLICKED: groupId=${widget.group.id}, productId=$productId');
 
-    if (response.error != null || response.productDetails.isEmpty) {
+final response = await _inAppPurchase.queryProductDetails({productId});
+
+print('GROUP PRODUCT QUERY ERROR: ${response.error}');
+print('GROUP PRODUCTS FOUND: ${response.productDetails.map((p) => p.id).toList()}');
+print('GROUP PRODUCTS NOT FOUND: ${response.notFoundIDs}');
+
+if (response.error != null || response.productDetails.isEmpty) {
   if (!mounted) return;
   setState(() {
     _purchasePending = false;
@@ -307,8 +313,9 @@ setState(() {
   _purchasePending = true;
 });
 
-final started = await _inAppPurchase.buyNonConsumable(
+final started = await _inAppPurchase.buyConsumable(
   purchaseParam: purchaseParam,
+  autoConsume: false,
 );
 
 if (!started && mounted) {
@@ -382,23 +389,45 @@ Future<void> _onPurchaseUpdated(
 }
 
     if (purchaseDetails.status == PurchaseStatus.restored) {
-      print('Ignored automatic restored group purchase.');
+  final expectedProductId = _buyingProductId;
 
-      if (purchaseDetails.pendingCompletePurchase) {
-        await _inAppPurchase.completePurchase(purchaseDetails);
-      }
+  if (expectedProductId == null ||
+      purchaseDetails.productID != expectedProductId) {
+    print(
+      'Ignored old restored group purchase. '
+      'expectedProductId=$expectedProductId, '
+      'purchaseProductId=${purchaseDetails.productID}',
+    );
 
-      if (mounted) {
-  setState(() {
-    _purchasePending = false;
-    _buyingProductId = null;
-    _buyingGroupId = null;
-  });
-}
-
-      continue;
+    if (purchaseDetails.pendingCompletePurchase) {
+      await _inAppPurchase.completePurchase(purchaseDetails);
     }
 
+    continue;
+  }
+
+  _handledPurchaseIds.add(purchaseId);
+
+  try {
+    await _verifyAndActivateGroupMembership(purchaseDetails);
+  } catch (e) {
+    print('Restore group verify error: $e');
+  }
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  if (mounted) {
+    setState(() {
+      _purchasePending = false;
+      _buyingProductId = null;
+      _buyingGroupId = null;
+    });
+  }
+
+  continue;
+}
 
     if (purchaseDetails.status == PurchaseStatus.error ||
         purchaseDetails.status == PurchaseStatus.canceled) {
@@ -446,12 +475,18 @@ if (expectedProductId == null) {
 }
   if (purchaseDetails.productID != expectedProductId) {
   print(
-    'Ignored purchase for another group. '
+    'Ignored and completed old group transaction. '
     'currentGroup=${widget.group.id}, '
     'expectedProductId=$expectedProductId, '
     'purchaseProductId=${purchaseDetails.productID}, '
     'purchaseId=$purchaseId',
   );
+
+  _handledPurchaseIds.add(purchaseId);
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
 
   continue;
 }
@@ -1340,9 +1375,7 @@ class _ActiveGroupOverviewPage extends StatelessWidget {
                           child: SizedBox(
                             height: 52,
                             child: ElevatedButton(
-                              onPressed: (isProcessing || purchasePending)
-                                  ? null
-                                  : onRenew,
+                              onPressed: isProcessing ? null : onRenew,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFE86E8D),
                                 shape: RoundedRectangleBorder(

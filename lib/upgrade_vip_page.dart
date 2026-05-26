@@ -33,6 +33,8 @@ class _UpgradeVipPageState extends State<UpgradeVipPage> {
   bool _isRestoring = false;
 
   final Set<String> _handledFailedPurchaseIds = {};
+  String? _pendingVipProductId;
+String? _pendingVipPlanId;
 
   String selectedPlanId = '1_week';
 
@@ -394,8 +396,14 @@ GestureDetector(
     }
 
     setState(() {
-      _isBuying = true;
-    });
+  _isBuying = true;
+  _pendingVipProductId = plan.productId;
+  _pendingVipPlanId = plan.id;
+});
+
+print(
+  'VIP START BUY planId=${plan.id} productId=${plan.productId}',
+);
 
     try {
       final purchaseParam = PurchaseParam(productDetails: product);
@@ -573,6 +581,19 @@ _handledFailedPurchaseIds.add(failedId);
 
 if (purchaseDetails.status == PurchaseStatus.purchased ||
     purchaseDetails.status == PurchaseStatus.restored) {
+      if (!_isRestoring &&
+    _pendingVipProductId != null &&
+    purchaseDetails.productID != _pendingVipProductId) {
+  print(
+    'VIP SKIP OLD TRANSACTION: purchaseProduct=${purchaseDetails.productID}, pendingProduct=$_pendingVipProductId',
+  );
+
+  if (purchaseDetails.pendingCompletePurchase) {
+    await _inAppPurchase.completePurchase(purchaseDetails);
+  }
+
+  continue;
+}
         final verified = await _verifyPurchase(purchaseDetails);
 
         if (!verified) {
@@ -638,6 +659,9 @@ _handledFailedPurchaseIds.add(failedId);
 }
 
         if (!mounted) return;
+
+_pendingVipProductId = null;
+_pendingVipPlanId = null;
 
 await widget.onPurchaseSuccess();
 
