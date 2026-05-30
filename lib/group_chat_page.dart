@@ -426,6 +426,7 @@ Future<void> _loadDeletedUsers() async {
               builder: (_) => ViewOtherProfilePage(
                 userId: userId,
                 languageCode: widget.languageCode,
+                hideLikeButton: true,
               ),
             ),
           );
@@ -498,6 +499,7 @@ final text = isVi
             builder: (_) => ViewOtherProfilePage(
               userId: senderId,
               languageCode: widget.languageCode,
+              hideLikeButton: true,
             ),
           ),
         );
@@ -750,13 +752,17 @@ final text = isVi
         foregroundColor: const Color(0xFF6D6D6D),
         centerTitle: true,
         title: Text(
-          groupTitle,
-          style: const TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-            color: Color(0xFF555555),
-          ),
-        ),
+  groupTitle,
+  textAlign: TextAlign.center,
+  maxLines: 2,
+  softWrap: true,
+  overflow: TextOverflow.visible,
+  style: const TextStyle(
+    fontWeight: FontWeight.w700,
+    fontSize: 16,
+    color: Color(0xFF555555),
+  ),
+),
       ),
       body: Container(
         decoration: const BoxDecoration(

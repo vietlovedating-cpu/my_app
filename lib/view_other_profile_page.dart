@@ -8,6 +8,7 @@ class ViewOtherProfilePage extends StatefulWidget {
   final String languageCode;
   final String? fallbackName;
   final String? fallbackPhotoUrl;
+  final bool hideLikeButton;
 
   const ViewOtherProfilePage({
     super.key,
@@ -15,6 +16,7 @@ class ViewOtherProfilePage extends StatefulWidget {
     required this.languageCode,
     this.fallbackName,
     this.fallbackPhotoUrl,
+    this.hideLikeButton = false,
   });
 
   @override
@@ -1581,6 +1583,7 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
             size: 72,
             backgroundColor: const Color(0xFFFFD54F),
           ),
+          if (!widget.hideLikeButton)
           _buildActionCircleButton(
             onTap: _isProcessingAction ? null : () => _handleLike(profile),
             icon: Icons.favorite_rounded,

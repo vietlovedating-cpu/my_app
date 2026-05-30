@@ -178,7 +178,7 @@ class GroupPage extends StatelessWidget {
                   crossAxisCount: 2,
                   crossAxisSpacing: 18,
                   mainAxisSpacing: 20,
-                  childAspectRatio: 0.58,
+                  childAspectRatio: 0.54,
                 ),
                 itemBuilder: (context, index) {
                   final group = kDatingGroups[index];
@@ -247,10 +247,11 @@ class GroupPage extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               group.title(isVi),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 16.5,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w600,
                                 color: Color.fromARGB(221, 76, 83, 209),
                               ),

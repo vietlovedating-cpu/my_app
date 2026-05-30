@@ -7,6 +7,7 @@ import 'terms_page.dart';
 import 'privacy_page.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'verify_email_page.dart';
+import 'phone_verification_page.dart';
 
 class SignUpPage extends StatefulWidget {
   final String languageCode;
@@ -107,10 +108,10 @@ await credential.user?.sendEmailVerification();
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => VerifyEmailPage(
-                      languageCode: languageCode,
-                      firstName: firstNameController.text.trim(),
-                    ),
+                    builder: (_) => PhoneVerificationPage(
+  languageCode: languageCode,
+  firstName: firstNameController.text.trim(),
+),
                   ),
                 );
               } catch (_) {
@@ -162,7 +163,6 @@ await credential.user?.sendEmailVerification();
 final user = userCredential.user;
 
 if (user != null) {
-  await user.sendEmailVerification();
 
   await FirebaseFirestore.instance
       .collection('users')
@@ -174,7 +174,7 @@ if (user != null) {
     'surname': surnameController.text.trim(),
     'emailVerified': false,
     'profileCompleted': false,
-    'onboardingStep': 'email_verification',
+    'onboardingStep': 'phone_verification',
     'createdAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 }
@@ -185,8 +185,8 @@ if (user != null) {
         SnackBar(
           content: Text(
             isVi
-                ? 'Đăng ký thành công. Vui lòng kiểm tra email để xác minh tài khoản. Hãy kiểm tra cả Spam.'
-                : 'Sign up successful. Please check your email to verify your account. Please also check Spam.',
+    ? 'Đăng ký thành công. Vui lòng xác minh số điện thoại để tiếp tục.'
+    : 'Sign up successful. Please verify your phone number to continue.'
           ),
         ),
       );
@@ -196,7 +196,7 @@ if (user != null) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => VerifyEmailPage(
+          builder: (_) => PhoneVerificationPage(
             languageCode: languageCode,
             firstName: firstNameController.text.trim(),
           ),

@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const APPLE_KEY_ID = "5Y96FGHGP6";
 const APPLE_ISSUER_ID = "6cd61427-575e-490b-99c4-79302d8872f8";
@@ -683,6 +684,100 @@ exports.addPromoForNewCityGroups = onRequest(
     } catch (error) {
       console.error("addPromoForNewCityGroups error:", error);
       res.status(500).send(error.message || "Server error");
+    }
+  }
+);
+exports.addPromoWhenProfileCompleted = onDocumentUpdated(
+  {
+    document: "users/{userId}",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (event) => {
+    try {
+      const userId = event.params.userId;
+
+      const before = event.data.before.data() || {};
+      const after = event.data.after.data() || {};
+
+      if (
+        before.profileCompleted === true ||
+        after.profileCompleted !== true
+      ) {
+        return;
+      }
+
+      const isDeleted =
+        after.deleted === true ||
+        after.isDeleted === true ||
+        after.accountDeleted === true ||
+        after.status === "deleted";
+
+      if (isDeleted) {
+        return;
+      }
+
+      const db = admin.firestore();
+
+      const promoGroupIds = [
+        "sydney_vietnamese",
+        "melbourne_vietnamese",
+        "queensland_vietnamese",
+        "perth_vietnamese",
+      ];
+
+      const expiresAt = new Date();
+      expiresAt.setMonth(expiresAt.getMonth() + 3);
+
+      for (const groupId of promoGroupIds) {
+        const memberRef = db
+          .collection("groups")
+          .doc(groupId)
+          .collection("members")
+          .doc(userId);
+
+        const memberSnap = await memberRef.get();
+
+        if (memberSnap.exists) {
+          continue;
+        }
+
+        await memberRef.set(
+          {
+            uid: userId,
+            userId: userId,
+            groupId: groupId,
+            email: after.email || "",
+
+            membershipActive: true,
+            groupStatus: "active",
+            source: "promo_3_months",
+
+            appleVerified: false,
+            groupProductId: "",
+            groupTransactionId: "",
+            groupOriginalTransactionId: "",
+            groupRenewCount: 0,
+
+            expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+            joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+            expiredHandled: false,
+            reminder7dSent: false,
+            reminder3dSent: false,
+            reminder1dSent: false,
+
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      console.log("Promo added after profileCompleted:", userId);
+    } catch (error) {
+      console.error("addPromoWhenProfileCompleted error:", error);
     }
   }
 );
