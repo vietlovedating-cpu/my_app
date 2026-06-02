@@ -3,7 +3,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.5+512
+version: 1.0.5+513
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -33,7 +33,7 @@ dependencies:
   url_launcher: ^6.3.0
   app_links: ^3.4.1
   flutter_local_notifications: ^17.0.0
-  in_app_purchase: 3.1.13
+  in_app_purchase: 3.2.3
   http: ^1.2.2
   cloud_functions: ^5.5.0
 
