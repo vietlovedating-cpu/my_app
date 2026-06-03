@@ -2,6 +2,7 @@ const admin = require("firebase-admin");
 const sgMail = require("@sendgrid/mail");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
+const { google } = require("googleapis");
 
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
@@ -9,6 +10,7 @@ const { onSchedule } = require("firebase-functions/v2/scheduler");
 const APPLE_KEY_ID = "5Y96FGHGP6";
 const APPLE_ISSUER_ID = "6cd61427-575e-490b-99c4-79302d8872f8";
 const APPLE_BUNDLE_ID = "com.vietlovedating.app";
+const GOOGLE_PACKAGE_NAME = "com.vietlovedating.app";
 
 admin.initializeApp();
 
@@ -804,7 +806,41 @@ exports.checkMemberships = onSchedule(
   }
 );
 */
+async function getGoogleAccessToken() {
+  const serviceAccountJson = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON;
 
+  if (!serviceAccountJson) {
+    throw new Error("Missing GOOGLE_PLAY_SERVICE_ACCOUNT_JSON secret");
+  }
+
+  const credentials = JSON.parse(serviceAccountJson);
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: [
+      "https://www.googleapis.com/auth/androidpublisher",
+    ],
+  });
+
+  const client = await auth.getClient();
+  const token = await client.getAccessToken();
+
+  return token.token;
+}
+async function getGoogleSubscriptionInfo(productId, purchaseToken) {
+  const accessToken = await getGoogleAccessToken();
+
+  const url =
+    `https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${GOOGLE_PACKAGE_NAME}/purchases/subscriptions/${productId}/tokens/${purchaseToken}`;
+
+  const response = await axios.get(url, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  return response.data;
+}
 function createAppleJwt() {
   const privateKey = process.env.APPLE_IAP_PRIVATE_KEY;
 
@@ -1265,6 +1301,193 @@ return {
 };
     } catch (error) {
       console.error("verifyAppleGroupPurchase error:", error);
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError("internal", "Server error");
+    }
+  }
+);
+exports.verifyGoogleVipPurchase = onCall(
+  {
+  region: "us-central1",
+  secrets: ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"],
+},
+  async (request) => {
+    try {
+      const {
+        userId,
+        productId,
+        purchaseToken,
+        mode = "purchase",
+      } = request.data || {};
+
+      if (!userId || !productId || !purchaseToken) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing userId, productId, or purchaseToken"
+        );
+      }
+
+      const plan = getVipPlanFromProductId(productId);
+
+      if (!plan) {
+        throw new HttpsError("invalid-argument", "Invalid productId");
+      }
+
+      const googleInfo = await getGoogleSubscriptionInfo(
+        productId,
+        purchaseToken
+      );
+
+      console.log("Google subscription info:", googleInfo);
+
+      const googleOrderId = googleInfo.orderId || "";
+      const expiryTimeMillis = Number(googleInfo.expiryTimeMillis || 0);
+
+      if (!expiryTimeMillis) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Missing expiryTimeMillis from Google"
+        );
+      }
+
+      const expiresAt = new Date(expiryTimeMillis);
+      const now = new Date();
+      const isActive = expiresAt > now;
+
+      const userRef = admin.firestore().collection("users").doc(userId);
+
+      const processedRef = userRef
+        .collection("processedVipPurchases")
+        .doc(googleOrderId || purchaseToken);
+
+      const processedSnap = await processedRef.get();
+
+      if (processedSnap.exists) {
+        return {
+          success: isActive,
+          alreadyProcessed: true,
+          shouldShowPopup: false,
+          vipPlanId: plan.vipPlanId,
+          vipStatus: isActive ? "active" : "expired",
+          vipExpiresAt: expiresAt.toISOString(),
+          googleOrderId,
+        };
+      }
+
+      const existingVipSnap = await admin.firestore()
+        .collection("users")
+        .where("googlePurchaseToken", "==", purchaseToken)
+        .limit(1)
+        .get();
+
+      if (!existingVipSnap.empty) {
+        const existingUser = existingVipSnap.docs[0];
+
+        if (existingUser.id !== userId) {
+          throw new HttpsError(
+            "already-exists",
+            "This Google subscription is already linked to another account."
+          );
+        }
+      }
+
+      const userSnap = await userRef.get();
+      const oldData = userSnap.data() || {};
+
+      const oldOrderId = oldData.googleOrderId || "";
+      const oldRenewCount = Number(oldData.renewCount || 0);
+
+      const isRenew =
+        oldOrderId &&
+        googleOrderId &&
+        oldOrderId !== googleOrderId &&
+        isActive;
+
+      await userRef.set(
+        {
+          isVip: isActive,
+          vipUnlocked: isActive,
+          membership: isActive ? "vip" : "",
+          plan: isActive ? "vip" : "",
+          subscriptionType: plan.vipPlanId,
+          vipPlanId: plan.vipPlanId,
+          vipProductId: productId,
+          vipPlatform: "google_play",
+          vipStatus: isActive ? "active" : "expired",
+          vipExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+          googleOrderId,
+          googlePurchaseToken: purchaseToken,
+          googleAutoRenewing: googleInfo.autoRenewing === true,
+          googlePaymentState: googleInfo.paymentState ?? null,
+          googleAcknowledgementState:
+            googleInfo.acknowledgementState ?? null,
+
+          renewCount: isRenew
+            ? oldRenewCount + 1
+            : oldRenewCount,
+
+          lastRenewAt: isRenew
+            ? admin.firestore.FieldValue.serverTimestamp()
+            : oldData.lastRenewAt || null,
+
+          vipPlanTitleVi: plan.vipPlanTitleVi,
+          vipPlanTitleEn: plan.vipPlanTitleEn,
+          vipPriceTextVi: plan.vipPriceTextVi,
+          vipPriceTextEn: plan.vipPriceTextEn,
+
+          vipGoogleVerified: true,
+          vipGoogleVerifiedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          vipPurchasedAt:
+            oldData.vipPurchasedAt ||
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          vipUpdatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          vipReminder7dSent: false,
+          vipReminder3dSent: false,
+          vipReminder1dSent: false,
+          vipExpiredHandled: !isActive,
+        },
+        { merge: true }
+      );
+
+      await processedRef.set(
+        {
+          transactionId: googleOrderId || purchaseToken,
+          googleOrderId,
+          googlePurchaseToken: purchaseToken,
+          vipProductId: productId,
+          vipPlanId: plan.vipPlanId,
+          vipExpiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+          googleVerified: true,
+          rawGoogleInfo: googleInfo,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return {
+        success: isActive,
+        alreadyProcessed: false,
+        shouldShowPopup: isActive,
+        vipPlanId: plan.vipPlanId,
+        vipStatus: isActive ? "active" : "expired",
+        vipExpiresAt: expiresAt.toISOString(),
+        googleOrderId,
+      };
+    } catch (error) {
+      console.error(
+        "verifyGoogleVipPurchase error:",
+        error.response?.data || error
+      );
 
       if (error instanceof HttpsError) {
         throw error;
