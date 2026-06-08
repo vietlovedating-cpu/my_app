@@ -116,4 +116,86 @@ const List<DatingGroupItem> kDatingGroups = [
         'This is a friendly space for Vietnamese people in Perth to connect, share, and meet suitable people.',
     icon: Icons.wb_sunny_rounded,
   ),
+
+
+  DatingGroupItem(
+    id: 'adelaide_vietnamese',
+    imageAsset: 'assets/groups/adelaide.jpg',
+    monthlyPrice: 10,
+    titleVi: '🌿 Nhóm Người Việt Adelaide',
+    titleEn: '🌿 Adelaide Vietnamese Group',
+    subtitleVi: '',
+    subtitleEn: '',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Adelaide 🌿',
+    detailTitleEn: 'Join Adelaide Vietnamese Group 🌿',
+    detailBodyVi:
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Adelaide.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện, kết bạn, giao lưu, hẹn hò và chia sẻ kinh nghiệm cuộc sống tại South Australia.\n\n'
+        'Đây là không gian thân thiện để người Việt tại Adelaide kết nối tự nhiên và xây dựng những mối quan hệ ý nghĩa.',
+    detailBodyEn:
+        'For only \$9.99/month, you can join the Vietnamese community in Adelaide.\n\n'
+        'After joining, you can chat, make friends, socialize, date, and share life experiences in South Australia.\n\n'
+        'This is a friendly space for Vietnamese people in Adelaide to connect naturally and build meaningful relationships.',
+    icon: Icons.park_rounded,
+  ),
+  DatingGroupItem(
+    id: 'tasmania_vietnamese',
+    imageAsset: 'assets/groups/tasmania.jpg',
+    monthlyPrice: 10,
+    titleVi: '🏞️ Nhóm Người Việt Tasmania',
+    titleEn: '🏞️ Tasmania Vietnamese Group',
+    subtitleVi: '',
+    subtitleEn: '',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Tasmania 🏞️',
+    detailTitleEn: 'Join Tasmania Vietnamese Group 🏞️',
+    detailBodyVi:
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Tasmania.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện, làm quen bạn mới, giao lưu, hẹn hò và chia sẻ cuộc sống tại Tasmania.\n\n'
+        'Đây là nơi giúp người Việt tại Tasmania dễ dàng kết nối với nhau trong một cộng đồng gần gũi và thân thiện.',
+    detailBodyEn:
+        'For only \$9.99/month, you can join the Vietnamese community in Tasmania.\n\n'
+        'After joining, you can chat, meet new friends, socialize, date, and share life in Tasmania.\n\n'
+        'This group helps Vietnamese people in Tasmania connect more easily in a friendly and welcoming community.',
+    icon: Icons.landscape_rounded,
+  ),
+  DatingGroupItem(
+    id: 'canberra_vietnamese',
+    imageAsset: 'assets/groups/canberra.jpg',
+    monthlyPrice: 10,
+    titleVi: '🏛️ Nhóm Người Việt Canberra',
+    titleEn: '🏛️ Canberra Vietnamese Group',
+    subtitleVi: '',
+    subtitleEn: '',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Canberra 🏛️',
+    detailTitleEn: 'Join Canberra Vietnamese Group 🏛️',
+    detailBodyVi:
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Canberra và ACT.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện, kết bạn, giao lưu, hẹn hò và chia sẻ kinh nghiệm học tập, làm việc, sinh sống tại ACT.\n\n'
+        'Đây là không gian giúp người Việt tại Canberra kết nối với nhau một cách nhẹ nhàng, thực tế và chân thành.',
+    detailBodyEn:
+        'For only \$9.99/month, you can join the Vietnamese community in Canberra and ACT.\n\n'
+        'After joining, you can chat, make friends, socialize, date, and share experiences about studying, working, and living in ACT.\n\n'
+        'This is a space for Vietnamese people in Canberra to connect in a natural, real, and meaningful way.',
+    icon: Icons.account_balance_rounded,
+  ),
+  DatingGroupItem(
+    id: 'darwin_vietnamese',
+    imageAsset: 'assets/groups/darwin.jpg',
+    monthlyPrice: 10,
+    titleVi: '🌴 Nhóm Người Việt Darwin',
+    titleEn: '🌴 Darwin Vietnamese Group',
+    subtitleVi: '',
+    subtitleEn: '',
+    detailTitleVi: 'Tham gia Nhóm Người Việt Darwin 🌴',
+    detailTitleEn: 'Join Darwin Vietnamese Group 🌴',
+    detailBodyVi:
+        'Chỉ với \$9.99/tháng, bạn có thể tham gia cộng đồng người Việt tại Darwin và Northern Territory.\n\n'
+        'Sau khi tham gia, bạn có thể trò chuyện, kết bạn, giao lưu, hẹn hò và chia sẻ cuộc sống tại Northern Territory.\n\n'
+        'Đây là không gian thân thiện cho người Việt tại Darwin muốn kết nối, gặp gỡ và xây dựng các mối quan hệ phù hợp.',
+    detailBodyEn:
+        'For only \$9.99/month, you can join the Vietnamese community in Darwin and Northern Territory.\n\n'
+        'After joining, you can chat, make friends, socialize, date, and share life in the Northern Territory.\n\n'
+        'This is a friendly space for Vietnamese people in Darwin to connect, meet others, and build suitable relationships.',
+    icon: Icons.waves_rounded,
+  ),
 ];

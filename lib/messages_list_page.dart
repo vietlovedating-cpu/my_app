@@ -189,7 +189,7 @@ class MessagesListPage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('users')
             .doc(currentUser.uid)
-            .collection('blockedUsers')
+            .collection('blocked_users')
             .snapshots(),
         builder: (context, blockedSnapshot) {
           final blockedIds = blockedSnapshot.data?.docs
@@ -230,6 +230,11 @@ class MessagesListPage extends StatelessWidget {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final data = docs[index].data() as Map<String, dynamic>;
+                  final hiddenFor = List<String>.from(data['hiddenFor'] ?? []);
+
+if (hiddenFor.contains(currentUser.uid)) {
+  return const SizedBox.shrink();
+}
 
                   final participants =
                       List<String>.from(data['participants'] ?? []);
@@ -387,14 +392,144 @@ class MessagesListPage extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _formatTime(updatedAt),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black45,
-                                ),
-                              ),
+                              const SizedBox(width: 4),
+
+Column(
+  children: [
+    Text(
+      _formatTime(updatedAt),
+      style: const TextStyle(
+        fontSize: 11,
+        color: Colors.black45,
+      ),
+    ),
+
+    PopupMenuButton<String>(
+      padding: EdgeInsets.zero,
+      icon: const Icon(
+        Icons.more_vert,
+        size: 18,
+        color: Colors.black45,
+      ),
+      onSelected: (value) async {
+        if (value == 'remove') {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text(
+        _tr(
+          'Xóa khỏi danh sách?',
+          'Remove from list?',
+        ),
+      ),
+      content: Text(
+        _tr(
+          'Bạn có chắc muốn xóa cuộc trò chuyện này khỏi danh sách không?',
+          'Are you sure you want to remove this conversation from your list?',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(_tr('Huỷ', 'Cancel')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(_tr('Xóa', 'Remove')),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  await FirebaseFirestore.instance
+      .collection('chats')
+      .doc(chatId)
+      .set({
+    'hiddenFor': FieldValue.arrayUnion([currentUser.uid]),
+  }, SetOptions(merge: true));
+}
+
+        if (value == 'block') {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text(_tr('Chặn người dùng?', 'Block user?')),
+      content: Text(
+        _tr(
+          'Bạn có chắc muốn chặn người dùng này không?\n\nSau khi chặn, cuộc trò chuyện sẽ bị xóa khỏi danh sách và hai bạn sẽ không thể nhắn tin cho nhau.',
+          'Are you sure you want to block this user?\n\nAfter blocking, this conversation will be removed from your list and you will no longer be able to message each other.',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(_tr('Huỷ', 'Cancel')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: Text(_tr('Chặn', 'Block')),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUser.uid)
+    .collection('blocked_users')
+    .doc(otherUserId)
+    .set({
+  'uid': otherUserId,
+  'blockedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
+
+  await FirebaseFirestore.instance
+      .collection('chats')
+      .doc(chatId)
+      .set({
+    'hiddenFor': FieldValue.arrayUnion([currentUser.uid]),
+  }, SetOptions(merge: true));
+}
+if (!context.mounted) return;
+
+ScaffoldMessenger.of(context).showSnackBar(
+  SnackBar(
+    content: Text(
+      _tr(
+        'Đã chặn người dùng',
+        'User blocked',
+      ),
+    ),
+  ),
+);
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'remove',
+          child: Text(
+            _tr(
+              'Xóa khỏi danh sách',
+              'Remove from list',
+            ),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'block',
+          child: Text(
+            _tr(
+              'Chặn người dùng',
+              'Block user',
+            ),
+          ),
+        ),
+      ],
+    ),
+  ],
+),
                             ],
                           ),
                         ),

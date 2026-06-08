@@ -562,11 +562,15 @@ exports.addPromoForNewCityGroups = onRequest(
       const db = admin.firestore();
 
       const promoGroupIds = [
-        "sydney_vietnamese",
-        "melbourne_vietnamese",
-        "queensland_vietnamese",
-        "perth_vietnamese",
-      ];
+  "sydney_vietnamese",
+  "melbourne_vietnamese",
+  "queensland_vietnamese",
+  "perth_vietnamese",
+  "adelaide_vietnamese",
+  "tasmania_vietnamese",
+  "canberra_vietnamese",
+  "darwin_vietnamese",
+];
 
       const now = new Date();
       const promoExpiresAt = new Date(now);
@@ -723,11 +727,15 @@ exports.addPromoWhenProfileCompleted = onDocumentUpdated(
       const db = admin.firestore();
 
       const promoGroupIds = [
-        "sydney_vietnamese",
-        "melbourne_vietnamese",
-        "queensland_vietnamese",
-        "perth_vietnamese",
-      ];
+  "sydney_vietnamese",
+  "melbourne_vietnamese",
+  "queensland_vietnamese",
+  "perth_vietnamese",
+  "adelaide_vietnamese",
+  "tasmania_vietnamese",
+  "canberra_vietnamese",
+  "darwin_vietnamese",
+];
 
       const expiresAt = new Date();
       expiresAt.setMonth(expiresAt.getMonth() + 3);
@@ -783,7 +791,225 @@ exports.addPromoWhenProfileCompleted = onDocumentUpdated(
     }
   }
 );
-// 👉 DÁN FUNCTION MỚI Ở ĐÂY
+exports.addFemaleVipWhenProfileCompleted = onDocumentUpdated(
+  {
+    document: "users/{userId}",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (event) => {
+    try {
+      // Chương trình kết thúc sau ngày 30/06/2026
+const promoEndDate = new Date("2026-06-30T23:59:59+10:00");
+
+if (new Date() > promoEndDate) {
+  return;
+}
+      const userId = event.params.userId;
+
+      const before = event.data.before.data() || {};
+      const after = event.data.after.data() || {};
+
+      // Chỉ chạy khi user vừa hoàn thành profile
+      if (
+        before.profileCompleted === true ||
+        after.profileCompleted !== true
+      ) {
+        return;
+      }
+
+      const isDeleted =
+        after.deleted === true ||
+        after.isDeleted === true ||
+        after.accountDeleted === true ||
+        after.status === "deleted";
+
+      if (isDeleted) return;
+
+      const genderText = String(
+        after.genderLower ||
+        after.gender ||
+        after.sex ||
+        ""
+      ).toLowerCase();
+
+      const isFemale =
+        genderText === "female" ||
+        genderText === "woman" ||
+        genderText === "nu" ||
+        genderText === "nữ";
+
+      if (!isFemale) return;
+
+      // Nếu đã từng nhận promo này rồi thì không cho nhận lại
+      if (after.vipPromoSource === "female_1_month_promo") {
+        return;
+      }
+
+      const now = new Date();
+      const promoExpiresAt = new Date(now);
+      promoExpiresAt.setMonth(promoExpiresAt.getMonth() + 1);
+
+      await admin.firestore().collection("users").doc(userId).set(
+        {
+          isVip: true,
+          vipUnlocked: true,
+          membership: "vip",
+          plan: "vip",
+
+          vipStatus: "active",
+          vipPlanId: "promo_1_month_female",
+          subscriptionType: "promo_1_month_female",
+          vipProductId: "promo_female_free_1_month",
+          vipPlatform: "promo",
+
+          vipExpiresAt: admin.firestore.Timestamp.fromDate(promoExpiresAt),
+
+          vipPlanTitleVi: "VIP miễn phí 1 tháng",
+          vipPlanTitleEn: "Free VIP 1 month",
+          vipPriceTextVi: "Miễn phí",
+          vipPriceTextEn: "Free",
+
+          vipPromoSource: "female_1_month_promo",
+          vipPromoStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+          vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+          vipReminder7dSent: false,
+          vipReminder3dSent: false,
+          vipReminder1dSent: false,
+          vipExpiredHandled: false,
+        },
+        { merge: true }
+      );
+
+      console.log("Female 1 month VIP promo added:", userId);
+    } catch (error) {
+      console.error("addFemaleVipWhenProfileCompleted error:", error);
+    }
+  }
+);
+exports.addOneMonthVipForExistingFemaleUsers = onRequest(
+  {
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (req, res) => {
+    try {
+      const secret = req.query.secret;
+
+      if (secret !== "vietlove_female_vip_2026") {
+        res.status(403).send("Forbidden");
+        return;
+      }
+
+      const db = admin.firestore();
+      const usersSnap = await db.collection("users").get();
+
+      const now = new Date();
+      const promoExpiresAt = new Date(now);
+      promoExpiresAt.setMonth(promoExpiresAt.getMonth() + 1);
+
+      let updated = 0;
+      let skipped = 0;
+
+      let batch = db.batch();
+      let batchCount = 0;
+
+      for (const userDoc of usersSnap.docs) {
+        const data = userDoc.data() || {};
+
+        const genderText = String(
+          data.genderLower ||
+          data.gender ||
+          data.sex ||
+          ""
+        ).toLowerCase();
+
+        const isFemale =
+          genderText === "female" ||
+          genderText === "woman" ||
+          genderText === "nu" ||
+          genderText === "nữ";
+
+        const isDeleted =
+          data.deleted === true ||
+          data.isDeleted === true ||
+          data.accountDeleted === true ||
+          data.status === "deleted";
+
+        const profileCompleted =
+          data.profileCompleted === true ||
+          data.profileComplete === true ||
+          data.isProfileComplete === true;
+
+        if (!isFemale || isDeleted || !profileCompleted) {
+          skipped++;
+          continue;
+        }
+
+        batch.set(
+          userDoc.ref,
+          {
+            isVip: true,
+            vipUnlocked: true,
+            membership: "vip",
+            plan: "vip",
+
+            vipStatus: "active",
+            vipPlanId: "promo_1_month_female",
+            subscriptionType: "promo_1_month_female",
+            vipProductId: "promo_female_free_1_month",
+            vipPlatform: "promo",
+
+            vipExpiresAt: admin.firestore.Timestamp.fromDate(promoExpiresAt),
+
+            vipPlanTitleVi: "VIP miễn phí 1 tháng",
+            vipPlanTitleEn: "Free VIP 1 month",
+            vipPriceTextVi: "Miễn phí",
+            vipPriceTextEn: "Free",
+
+            vipPromoSource: "female_1_month_promo_existing",
+            vipPromoStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+            vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+
+            vipReminder7dSent: false,
+            vipReminder3dSent: false,
+            vipReminder1dSent: false,
+            vipExpiredHandled: false,
+          },
+          { merge: true }
+        );
+
+        updated++;
+        batchCount++;
+
+        if (batchCount >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          batchCount = 0;
+        }
+      }
+
+      if (batchCount > 0) {
+        await batch.commit();
+      }
+
+      res.status(200).json({
+        success: true,
+        updated,
+        skipped,
+        vipExpiresAt: promoExpiresAt.toISOString(),
+      });
+    } catch (error) {
+      console.error("addOneMonthVipForExistingFemaleUsers error:", error);
+      res.status(500).send(error.message || "Server error");
+    }
+  }
+);
+// 👉 DÁN 
+// FUNCTION MỚI Ở ĐÂY
 /*
 exports.checkMemberships = onSchedule(
   {
@@ -1045,6 +1271,51 @@ function getGroupPlanFromProductId(productId) {
     };
   }
 
+
+
+    if (productId === "group.adelaide_vietnamese.monthly") {
+    return {
+      groupId: "adelaide_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Adelaide Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Adelaide",
+    };
+  }
+
+  if (productId === "group.tasmania_vietnamese.monthly") {
+    return {
+      groupId: "tasmania_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Tasmania Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Tasmania",
+    };
+  }
+
+  if (productId === "group.canberra_vietnamese.monthly") {
+    return {
+      groupId: "canberra_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Canberra Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Canberra",
+    };
+  }
+
+  if (productId === "group.darwin_vietnamese.monthly") {
+    return {
+      groupId: "darwin_vietnamese",
+      planType: "1_month",
+      price: 9.99,
+      currency: "AUD",
+      groupTitleEn: "Darwin Vietnamese Group",
+      groupTitleVi: "Nhóm Người Việt Darwin",
+    };
+  }
   return null;
 }
 exports.verifyAppleGroupPurchase = onCall(
@@ -1486,6 +1757,219 @@ exports.verifyGoogleVipPurchase = onCall(
     } catch (error) {
       console.error(
         "verifyGoogleVipPurchase error:",
+        error.response?.data || error
+      );
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError("internal", "Server error");
+    }
+  }
+);
+exports.verifyGoogleGroupPurchase = onCall(
+  {
+    region: "us-central1",
+    secrets: ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"],
+  },
+  async (request) => {
+    try {
+      const {
+        userId,
+        groupId,
+        productId,
+        purchaseToken,
+      } = request.data || {};
+
+      if (!userId || !groupId || !productId || !purchaseToken) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing userId, groupId, productId, or purchaseToken"
+        );
+      }
+
+      const plan = getGroupPlanFromProductId(productId);
+
+      if (!plan || plan.groupId !== groupId) {
+        throw new HttpsError(
+          "invalid-argument",
+          "Invalid group productId"
+        );
+      }
+
+      const googleInfo = await getGoogleSubscriptionInfo(
+        productId,
+        purchaseToken
+      );
+
+      console.log("Google group subscription info:", googleInfo);
+
+      const googleOrderId = googleInfo.orderId || "";
+      const expiryTimeMillis = Number(googleInfo.expiryTimeMillis || 0);
+
+      if (!expiryTimeMillis) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Missing expiryTimeMillis from Google"
+        );
+      }
+
+      const expiresAt = new Date(expiryTimeMillis);
+      const now = new Date();
+      const isActive = expiresAt > now;
+
+      const memberRef = admin
+        .firestore()
+        .collection("groups")
+        .doc(groupId)
+        .collection("members")
+        .doc(userId);
+
+      const processedRef = memberRef
+        .collection("processedGroupPurchases")
+        .doc(googleOrderId || purchaseToken);
+
+      const processedSnap = await processedRef.get();
+
+      if (processedSnap.exists) {
+        return {
+          success: isActive,
+          alreadyProcessed: true,
+          shouldShowPopup: false,
+          groupId,
+          groupStatus: isActive ? "active" : "expired",
+          expiresAt: expiresAt.toISOString(),
+          googleOrderId,
+        };
+      }
+
+      const existingGroupSnap = await admin
+        .firestore()
+        .collectionGroup("members")
+        .where("googleGroupPurchaseToken", "==", purchaseToken)
+        .limit(1)
+        .get();
+
+      if (!existingGroupSnap.empty) {
+        const existingMember = existingGroupSnap.docs[0];
+        const existingData = existingMember.data() || {};
+
+        if (existingData.userId !== userId) {
+          throw new HttpsError(
+            "already-exists",
+            "This Google group subscription is already linked to another account."
+          );
+        }
+      }
+
+      const memberSnap = await memberRef.get();
+      const oldData = memberSnap.data() || {};
+
+      const oldOrderId = oldData.googleGroupOrderId || "";
+      const oldRenewCount = Number(oldData.groupRenewCount || 0);
+
+      const isRenew =
+        oldOrderId &&
+        googleOrderId &&
+        oldOrderId !== googleOrderId &&
+        isActive;
+
+      const userSnap = await admin
+        .firestore()
+        .collection("users")
+        .doc(userId)
+        .get();
+
+      const userData = userSnap.data() || {};
+      const userEmail = userData.email || "";
+
+      await memberRef.set(
+        {
+          uid: userId,
+          userId,
+          groupId,
+          email: userEmail,
+
+          membershipActive: isActive,
+          groupStatus: isActive ? "active" : "expired",
+
+          source: "google_play",
+
+          groupProductId: productId,
+          groupTransactionId: googleOrderId || purchaseToken,
+          groupOriginalTransactionId: purchaseToken,
+
+          googleGroupOrderId: googleOrderId,
+          googleGroupPurchaseToken: purchaseToken,
+          googleGroupAutoRenewing: googleInfo.autoRenewing === true,
+          googleGroupPaymentState: googleInfo.paymentState ?? null,
+          googleGroupAcknowledgementState:
+            googleInfo.acknowledgementState ?? null,
+
+          groupRenewCount: isRenew
+            ? oldRenewCount + 1
+            : oldRenewCount,
+
+          groupLastRenewAt: isRenew
+            ? admin.firestore.FieldValue.serverTimestamp()
+            : oldData.groupLastRenewAt || null,
+
+          expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+
+          googleVerified: true,
+          googleVerifiedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          joinedAt:
+            oldData.joinedAt ||
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          expiredHandled: !isActive,
+          reminder7dSent: false,
+          reminder3dSent: false,
+          reminder1dSent: false,
+
+          planType: plan.planType,
+          price: plan.price,
+          currency: plan.currency,
+          groupTitleEn: plan.groupTitleEn,
+          groupTitleVi: plan.groupTitleVi,
+
+          updatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      await processedRef.set(
+        {
+          transactionId: googleOrderId || purchaseToken,
+          googleOrderId,
+          googlePurchaseToken: purchaseToken,
+          productId,
+          groupId,
+          planType: plan.planType,
+          expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+          googleVerified: true,
+          rawGoogleInfo: googleInfo,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      return {
+        success: isActive,
+        alreadyProcessed: false,
+        shouldShowPopup: isActive,
+        groupId,
+        groupStatus: isActive ? "active" : "expired",
+        expiresAt: expiresAt.toISOString(),
+        googleOrderId,
+      };
+    } catch (error) {
+      console.error(
+        "verifyGoogleGroupPurchase error:",
         error.response?.data || error
       );
 

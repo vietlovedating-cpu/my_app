@@ -3,7 +3,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.5+513
+version: 1.0.6+516
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -11,7 +11,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  
   provider: ^6.0.5
   cupertino_icons: ^1.0.6
 

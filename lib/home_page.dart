@@ -343,11 +343,28 @@ bool _shouldHideUserBecauseInMyContacts(Map<String, dynamic> profile) {
 
   return phoneMatched || emailMatched;
 }
+Future<Set<String>> _loadLikedMeIds() async {
+  final user = currentUser;
+  if (user == null) return {};
+
+  final snapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .collection('likedBy')
+      .get();
+
+  return snapshot.docs
+      .map((doc) => doc.id.toString().trim())
+      .where((id) => id.isNotEmpty)
+      .toSet();
+}
   Future<List<Map<String, dynamic>>> _loadProfiles() async {
   final user = currentUser;
   if (user == null) return [];
 
   final currentUid = user.uid;
+
+  final likedMeIds = await _loadLikedMeIds();
 
   final usersSnapshot =
       await FirebaseFirestore.instance.collection('users').get();
@@ -442,6 +459,39 @@ if (data['profileCompleted'] != true) {
   }
 
  profiles.sort((a, b) {
+  int scoreProfile(Map<String, dynamic> profile) {
+    int score = 0;
+
+    final uid = (profile['uid'] ?? profile['docId'] ?? '').toString().trim();
+
+    // Người đã Like mình sẽ được ưu tiên hơn
+    if (likedMeIds.contains(uid)) {
+      score += 1000;
+    }
+
+    // Người đang online ưu tiên nhẹ
+    if (profile['isOnline'] == true) {
+      score += 50;
+    }
+
+    // Profile có nhiều ảnh ưu tiên nhẹ
+    final photos = _extractPhotos(profile);
+    if (photos.length >= 3) {
+      score += 20;
+    } else if (photos.length >= 2) {
+      score += 10;
+    }
+
+    return score;
+  }
+
+  final scoreA = scoreProfile(a);
+  final scoreB = scoreProfile(b);
+
+  if (scoreA != scoreB) {
+    return scoreB.compareTo(scoreA);
+  }
+
   final myLat = double.tryParse((currentUserData?['lat'] ?? '').toString());
   final myLng = double.tryParse((currentUserData?['lng'] ?? '').toString());
 

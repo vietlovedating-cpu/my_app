@@ -811,7 +811,36 @@ if (processedDoc.exists) {
   print('VIP purchase already processed: $transactionId');
   return false;
 }
+if (Platform.isAndroid) {
+  final callable = FirebaseFunctions.instance.httpsCallable(
+    'verifyGoogleVipPurchase',
+  );
 
+  final result = await callable.call({
+    'userId': user.uid,
+    'productId': productId,
+    'purchaseToken': purchase.verificationData.serverVerificationData,
+    'mode': 'purchase',
+  });
+
+  final data = Map<String, dynamic>.from(result.data);
+
+  if (data['success'] == true) {
+    if (data['alreadyProcessed'] == true) {
+      print('VIP Google purchase already processed, skip popup.');
+      return false;
+    }
+
+    if (data['shouldShowPopup'] == false) {
+      print('VIP Google purchase verified but popup skipped.');
+      return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
     String planId = 'unknown';
 String titleVi = '';
 String titleEn = '';

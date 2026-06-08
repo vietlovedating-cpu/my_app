@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -153,8 +154,18 @@ String? _buyingGroupId;
       return 9.99;
     case 'perth_vietnamese':
       return 9.99;
+
+     case 'adelaide_vietnamese':
+      return 9.99;
+    case 'tasmania_vietnamese':
+      return 9.99;
+    case 'canberra_vietnamese':
+      return 9.99;
+    case 'darwin_vietnamese':
+      return 9.99;  
     default:
       return 9.99;
+      
   }
 }
 
@@ -172,6 +183,18 @@ String? _buyingGroupId;
     case 'perth_vietnamese':
       return 'group.perth_vietnamese.monthly';
 
+        case 'adelaide_vietnamese':
+      return 'group.adelaide_vietnamese.monthly';
+
+    case 'tasmania_vietnamese':
+      return 'group.tasmania_vietnamese.monthly';
+
+    case 'canberra_vietnamese':
+      return 'group.canberra_vietnamese.monthly';
+
+    case 'darwin_vietnamese':
+      return 'group.darwin_vietnamese.monthly';  
+
     default:
       return null;
   }
@@ -179,25 +202,56 @@ String? _buyingGroupId;
 
 
   void _openChat() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => GroupChatPage(
-          languageCode: widget.languageCode,
-          group: widget.group,
-
-          // thêm các field này để GroupChatPage biết current user
-          // đã mua / active / expired hay chưa
-          currentUserMembership: _membershipData,
-          currentUserGroupId: widget.group.id,
-          currentUserEmail: currentUser?.email,
-          currentUserUid: currentUser?.uid,
-          currentUserHasJoined: _hasJoinedGroup,
-          currentUserIsActive: _isActive,
+  if (!_isActive) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(
+          _label(
+            'Cần gia hạn',
+            'Renewal Required',
+          ),
         ),
+        content: Text(
+          _label(
+            'Vui lòng gia hạn để tiếp tục.',
+            'Please renew to continue.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: Text(
+              _label(
+                'OK',
+                'OK',
+              ),
+            ),
+          ),
+        ],
       ),
     );
+    return;
   }
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => GroupChatPage(
+        languageCode: widget.languageCode,
+        group: widget.group,
+        currentUserMembership: _membershipData,
+        currentUserGroupId: widget.group.id,
+        currentUserEmail: currentUser?.email,
+        currentUserUid: currentUser?.uid,
+        currentUserHasJoined: _hasJoinedGroup,
+        currentUserIsActive: _isActive,
+      ),
+    ),
+  );
+}
 
   void _handleGroupImageTap() {
   _openActiveGroupPage();
@@ -249,11 +303,16 @@ String? _buyingGroupId;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _label(
-              'Không thể kết nối Apple Store.',
-              'Cannot connect to Apple Store.',
-            ),
-          ),
+  Platform.isAndroid
+      ? _label(
+          'Không thể kết nối Google Play.',
+          'Cannot connect to Google Play.',
+        )
+      : _label(
+          'Không thể kết nối Apple Store.',
+          'Cannot connect to Apple Store.',
+        ),
+),
         ),
       );
       return;
@@ -281,10 +340,15 @@ if (response.error != null || response.productDetails.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            _label(
-              'Không tìm thấy sản phẩm thanh toán trong App Store Connect.',
-              'Product not found in App Store Connect.',
-            ),
+            Platform.isAndroid
+    ? _label(
+        'Không tìm thấy sản phẩm thanh toán trong Google Play Console.',
+        'Product not found in Google Play Console.',
+      )
+    : _label(
+        'Không tìm thấy sản phẩm thanh toán trong App Store Connect.',
+        'Product not found in App Store Connect.',
+      )
           ),
         ),
       );
@@ -330,14 +394,17 @@ Future<bool> _verifyAndActivateGroupMembership(
       purchaseDetails.verificationData.serverVerificationData;
 
   final callable = FirebaseFunctions.instance.httpsCallable(
-    'verifyAppleGroupPurchase',
-  );
+  Platform.isAndroid
+      ? 'verifyGoogleGroupPurchase'
+      : 'verifyAppleGroupPurchase',
+);
 
   final result = await callable.call({
   'userId': user.uid,
   'groupId': widget.group.id,
   'productId': productId,
   'transactionId': transactionId,
+'purchaseToken': purchaseDetails.verificationData.serverVerificationData,
   'mode': 'purchase',
 });
 
@@ -675,6 +742,67 @@ try {
         _label(
           'Sau khi tham gia, bạn sẽ được kết nối với cộng đồng người Việt tại Perth trong môi trường thân thiện và tích cực.',
           'After joining, you will connect with the Vietnamese community in Perth in a friendly and welcoming environment.',
+        ),
+      ];
+
+          case 'adelaide_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt tại Adelaide muốn giao lưu, kết bạn và mở rộng các mối quan hệ.',
+          'This community is for Vietnamese people in Adelaide who want to meet new friends and build connections.',
+        ),
+        _label(
+          'Bạn có thể trò chuyện, chia sẻ cuộc sống, công việc, học tập và tham gia các hoạt động cùng cộng đồng.',
+          'You can chat, share experiences about life, work, study and join community activities.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn có thể kết nối với những người Việt khác tại Adelaide một cách tự nhiên và thân thiện.',
+          'After joining, you can connect with other Vietnamese members in Adelaide naturally and comfortably.',
+        ),
+      ];
+          case 'tasmania_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt tại Tasmania muốn giao lưu, kết bạn và mở rộng các mối quan hệ.',
+          'This community is for Vietnamese people in Tasmania who want to meet new friends and build connections.',
+        ),
+        _label(
+          'Bạn có thể trò chuyện, chia sẻ cuộc sống, công việc, học tập và tham gia các hoạt động cùng cộng đồng.',
+          'You can chat, share experiences about life, work, study and join community activities.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn có thể kết nối với những người Việt khác tại Tasmania một cách tự nhiên và thân thiện.',
+          'After joining, you can connect with other Vietnamese members in Tasmania naturally and comfortably.',
+        ),
+      ];
+          case 'canberra_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt tại Canberra muốn giao lưu, kết bạn và mở rộng các mối quan hệ.',
+          'This community is for Vietnamese people in Canberra who want to meet new friends and build connections.',
+        ),
+        _label(
+          'Bạn có thể trò chuyện, chia sẻ cuộc sống, công việc, học tập và tham gia các hoạt động cùng cộng đồng.',
+          'You can chat, share experiences about life, work, study and join community activities.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn có thể kết nối với những người Việt khác tại Canberra một cách tự nhiên và thân thiện.',
+          'After joining, you can connect with other Vietnamese members in Canberra naturally and comfortably.',
+        ),
+      ];
+          case 'darwin_vietnamese':
+      return [
+        _label(
+          'Đây là cộng đồng dành cho người Việt tại Darwin muốn giao lưu, kết bạn và mở rộng các mối quan hệ.',
+          'This community is for Vietnamese people in Darwin who want to meet new friends and build connections.',
+        ),
+        _label(
+          'Bạn có thể trò chuyện, chia sẻ cuộc sống, công việc, học tập và tham gia các hoạt động cùng cộng đồng.',
+          'You can chat, share experiences about life, work, study and join community activities.',
+        ),
+        _label(
+          'Sau khi tham gia, bạn có thể kết nối với những người Việt khác tại Darwin một cách tự nhiên và thân thiện.',
+          'After joining, you can connect with other Vietnamese members in Darwin naturally and comfortably.',
         ),
       ];
 
