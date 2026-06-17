@@ -27,14 +27,26 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
   String selectedCode = '+61';
 
   final List<Map<String, String>> countryCodes = [
-    {'code': '+61', 'name': 'Australia'},
-    {'code': '+84', 'name': 'Vietnam'},
-    {'code': '+1', 'name': 'USA'},
-    {'code': '+44', 'name': 'UK'},
-    {'code': '+81', 'name': 'Japan'},
-    {'code': '+82', 'name': 'Korea'},
-    {'code': '+65', 'name': 'Singapore'},
-  ];
+  {'code': '+61', 'name': 'Australia'},
+  {'code': '+84', 'name': 'Vietnam'},
+  {'code': '+64', 'name': 'New Zealand'},
+  {'code': '+1', 'name': 'United States'},
+  {'code': '+1', 'name': 'Canada'},
+  {'code': '+44', 'name': 'United Kingdom'},
+  {'code': '+65', 'name': 'Singapore'},
+  {'code': '+60', 'name': 'Malaysia'},
+  {'code': '+66', 'name': 'Thailand'},
+  {'code': '+62', 'name': 'Indonesia'},
+  {'code': '+63', 'name': 'Philippines'},
+  {'code': '+81', 'name': 'Japan'},
+  {'code': '+82', 'name': 'South Korea'},
+  {'code': '+91', 'name': 'India'},
+  {'code': '+33', 'name': 'France'},
+  {'code': '+49', 'name': 'Germany'},
+  {'code': '+39', 'name': 'Italy'},
+  {'code': '+34', 'name': 'Spain'},
+  {'code': '+31', 'name': 'Netherlands'},
+];
 
   String? _verificationId;
   int? _resendToken;
