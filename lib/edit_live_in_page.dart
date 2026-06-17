@@ -16,6 +16,7 @@ class EditLiveInPage extends StatefulWidget {
 
 class _EditLiveInPageState extends State<EditLiveInPage> {
   String? _selectedState;
+  String? _selectedCountry;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -29,7 +30,26 @@ class _EditLiveInPageState extends State<EditLiveInPage> {
     'South Australia (SA)',
     'Western Australia (WA)',
     'Tasmania (TAS)',
+     'Other',
   ];
+  final List<String> _countries = const [
+  'Australia',
+  'Vietnam',
+  'New Zealand',
+  'United States',
+  'Canada',
+  'United Kingdom',
+  'Singapore',
+  'Japan',
+  'South Korea',
+  'China',
+  'India',
+  'Thailand',
+  'Malaysia',
+  'Philippines',
+  'Indonesia',
+  'Other',
+];
 
   @override
   void initState() {
@@ -109,20 +129,40 @@ String _normalizeStateKey(String value) {
       );
       return;
     }
-
+if (_selectedState == 'Other' &&
+    (_selectedCountry == null || _selectedCountry!.isEmpty)) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      behavior: SnackBarBehavior.floating,
+      content: Text(
+        _tr('Vui lòng chọn quốc gia', 'Please choose your country'),
+      ),
+    ),
+  );
+  return;
+}
     setState(() => _isSaving = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance
+      final stateToSave = _selectedState == 'Other'
+    ? 'Other - ${_selectedCountry!}'
+    : _selectedState!;
+
+await FirebaseFirestore.instance
     .collection('users')
     .doc(user.uid)
     .set({
-  'selectedState': _selectedState!,
-  'selectedStateLower': _selectedState!.toLowerCase(),
-  'selectedStateKey': _normalizeStateKey(_selectedState!),
+  'selectedState': stateToSave,
+  'selectedStateLower': stateToSave.toLowerCase(),
+  'selectedStateKey': _selectedState == 'Other'
+      ? 'other'
+      : _normalizeStateKey(_selectedState!),
+  'selectedCountry': _selectedState == 'Other'
+      ? _selectedCountry!
+      : '',
   'onboardingStep': 'current_location',
 }, SetOptions(merge: true));
 
@@ -181,6 +221,36 @@ String _normalizeStateKey(String value) {
               },
             ),
           ),
+          if (_selectedState == 'Other') ...[
+  const SizedBox(height: 16),
+  Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFFFD5E6)),
+    ),
+    child: DropdownButtonFormField<String>(
+      value: _selectedCountry,
+      isExpanded: true,
+      decoration: InputDecoration(
+        border: InputBorder.none,
+        hintText: _tr('Chọn quốc gia', 'Choose your country'),
+      ),
+      items: _countries.map((item) {
+        return DropdownMenuItem<String>(
+          value: item,
+          child: Text(item),
+        );
+      }).toList(),
+      onChanged: (value) {
+        setState(() {
+          _selectedCountry = value;
+        });
+      },
+    ),
+  ),
+],
           const Spacer(),
           SizedBox(
             width: double.infinity,

@@ -57,6 +57,7 @@ class HomePageFilterSheet extends StatefulWidget {
 
   final List<String> stateOptions;
   final List<int> ageOptions;
+  final List<String> countryOptions;
 
   final VoidCallback onTapUpgrade;
   final VoidCallback onResetToDefault;
@@ -84,6 +85,7 @@ class HomePageFilterSheet extends StatefulWidget {
     required this.initialHaveChildren,
     required this.stateOptions,
     required this.ageOptions,
+    required this.countryOptions,
     required this.onTapUpgrade,
     required this.onResetToDefault,
     required this.labelBuilder,
@@ -99,6 +101,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   late int? tempMinAge;
   late int? tempMaxAge;
   late String? tempState;
+  late String? tempCountry;
   late double tempDistanceKm;
 
   late String? tempReligion;
@@ -123,6 +126,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     tempMinAge = widget.initialMinAge;
     tempMaxAge = widget.initialMaxAge;
     tempState = widget.initialState;
+    tempCountry = null;
     tempDistanceKm = widget.initialDistanceKm ?? 200;
 
     tempReligion = widget.initialReligion;
@@ -143,7 +147,9 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
         gender: tempGender,
         minAge: tempMinAge,
         maxAge: tempMaxAge,
-        state: tempState,
+        state: tempState == 'Other' && tempCountry != null
+    ? 'Other - $tempCountry'
+    : tempState,
         height: tempHeight,
         distanceKm: widget.initialDistanceKm == null
     ? null
@@ -341,10 +347,40 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
                 onChanged: (value) {
   setState(() {
     tempState = (value == null || value.trim().isEmpty) ? null : value;
+
+    if (tempState != 'Other') {
+      tempCountry = null;
+    }
   });
 },
-              ),
-
+),
+if (tempState == 'Other') ...[
+  const SizedBox(height: 12),
+  DropdownButtonFormField<String>(
+    value: widget.countryOptions.contains(tempCountry)
+        ? tempCountry
+        : null,
+    decoration: InputDecoration(
+      labelText: _label('Quốc gia', 'Country'),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+    items: widget.countryOptions.map((country) {
+      return DropdownMenuItem<String>(
+        value: country,
+        child: Text(country),
+      );
+    }).toList(),
+    onChanged: (value) {
+      setState(() {
+        tempCountry = value;
+      });
+    },
+  ),
+],
               const SizedBox(height: 18),
 
               if (widget.isVipUser) ...[

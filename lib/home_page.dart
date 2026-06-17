@@ -72,6 +72,24 @@ double? selectedDistanceKm;
   'Tasmania (TAS)',
   'Australian Capital Territory (ACT)',
   'Northern Territory (NT)',
+  'Other',
+];
+final List<String> countryOptions = const [
+  'Australia',
+  'Vietnam',
+  'New Zealand',
+  'United States',
+  'Canada',
+  'United Kingdom',
+  'Singapore',
+  'Japan',
+  'South Korea',
+  'China',
+  'India',
+  'Thailand',
+  'Malaysia',
+  'Philippines',
+  'Indonesia',
 ];
 
   final List<int> ageOptions = List.generate(63, (index) => index + 18);
@@ -1484,6 +1502,7 @@ Future<void> _sendMatchNotification(
           initialHaveChildren: selectedHaveChildrenFilter,
           stateOptions: stateOptions,
           ageOptions: ageOptions,
+          countryOptions: countryOptions,
           labelBuilder: _label,
           translateProfileValue: _translateProfileValue,
           onTapUpgrade: () {
@@ -1507,9 +1526,12 @@ Future<void> _sendMatchNotification(
                 currentUserData?['maxAgePreference'] ??
                     currentUserData?['preferredMaxAge'],
               );
-              selectedStateFilter = _normalizeString(
-  currentUserData?['filterState'],
-);
+              selectedStateFilter =
+    (currentUserData?['filterState'] ?? '').toString().trim();
+
+if (selectedStateFilter!.isEmpty) {
+  selectedStateFilter = null;
+}
 
               
               if (selectedMinAgeFilter == 0) selectedMinAgeFilter = null;
@@ -1728,6 +1750,7 @@ String _normalizeStateKey(dynamic value) {
   if (v.contains('tas') || v.contains('tasmania')) return 'tas';
   if (v.contains('act') || v.contains('australian capital territory')) return 'act';
   if (v.contains('nt') || v.contains('northern territory')) return 'nt';
+  if (v.startsWith('other -')) return v;
 
   return v;
 }
