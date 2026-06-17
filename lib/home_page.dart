@@ -1001,6 +1001,26 @@ await _saveSwipe(
         'flowerMessage': flowerMessage ?? '',
         'createdAt': FieldValue.serverTimestamp(),
       });
+      if (action == 'pass') {
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUid)
+      .collection('passedUsers')
+      .doc(targetUid)
+      .set({
+    'uid': targetUid,
+    'firstName': (targetProfile['firstName'] ?? '').toString().trim(),
+    'age': targetProfile['age'],
+    'photoUrl': (targetProfile['mainPhotoUrl'] ?? targetProfile['photoUrl'] ?? '')
+        .toString()
+        .trim(),
+    'mainPhotoUrl':
+        (targetProfile['mainPhotoUrl'] ?? targetProfile['photoUrl'] ?? '')
+            .toString()
+            .trim(),
+    'timestamp': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+}
 if (action == 'like') {
   await FirebaseFirestore.instance
       .collection('users')

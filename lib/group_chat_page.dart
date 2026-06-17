@@ -50,6 +50,8 @@ class _GroupChatPageState extends State<GroupChatPage> {
   bool _hasActiveMembership = false;
   Map<String, dynamic>? _myMembershipData;
   Set<String> _deletedUserIds = {};
+  Map<String, dynamic>? _replyToMessage;
+String? _replyToMessageId;
 
   bool get isVi => widget.languageCode == 'vi';
   User? get currentUser => FirebaseAuth.instance.currentUser;
@@ -267,21 +269,34 @@ Future<void> _loadDeletedUsers() async {
   }
 
   await _messagesRef.add({
-    'senderId': user.uid,
-    'senderName': firstName,
-    'senderPhotoUrl': mainPhotoUrl,
+  'senderId': user.uid,
+  'senderName': firstName,
+  'senderPhotoUrl': mainPhotoUrl,
 
-    'text': text,
-    'textVi': textVi,
-    'textEn': textEn,
+  'text': text,
+  'textVi': textVi,
+  'textEn': textEn,
 
-    'imageUrl': '',
-    'type': 'text',
-    'createdAt': FieldValue.serverTimestamp(),
-  });
+  'imageUrl': '',
+  'type': 'text',
+  'createdAt': FieldValue.serverTimestamp(),
+
+  'replyToMessageId': _replyToMessageId ?? '',
+  'replyToSenderName': (_replyToMessage?['senderName'] ?? '').toString(),
+  'replyToText': isVi
+    ? (_replyToMessage?['textVi'] ?? _replyToMessage?['text'] ?? '').toString()
+    : (_replyToMessage?['textEn'] ?? _replyToMessage?['text'] ?? '').toString(),
+  'replyToImageUrl': (_replyToMessage?['imageUrl'] ?? '').toString(),
+});
 
   _messageController.clear();
-  _scrollToBottom();
+
+setState(() {
+  _replyToMessage = null;
+  _replyToMessageId = null;
+});
+
+_scrollToBottom();
 } finally {
       if (mounted) {
         setState(() {
@@ -426,7 +441,7 @@ Future<void> _loadDeletedUsers() async {
               builder: (_) => ViewOtherProfilePage(
                 userId: userId,
                 languageCode: widget.languageCode,
-                hideLikeButton: true,
+            
               ),
             ),
           );
@@ -473,7 +488,7 @@ Future<void> _loadDeletedUsers() async {
   );
 }
 
-  Widget _buildMessageCard(Map<String, dynamic> data) {
+  Widget _buildMessageCard(Map<String, dynamic> data, String messageId) {
     final user = currentUser;
     final senderId = (data['senderId'] ?? '').toString();
     final isMe = user != null && senderId == user.uid;
@@ -489,6 +504,16 @@ final text = isVi
     : (textEn.isNotEmpty ? textEn : rawText);
     final imageUrl = (data['imageUrl'] ?? '').toString().trim();
     final timestamp = data['createdAt'] as Timestamp?;
+    final replyToSenderName =
+    (data['replyToSenderName'] ?? '').toString().trim();
+final replyToText =
+    (data['replyToText'] ?? '').toString().trim();
+final replyToImageUrl =
+    (data['replyToImageUrl'] ?? '').toString().trim();
+
+final hasReply = replyToSenderName.isNotEmpty ||
+    replyToText.isNotEmpty ||
+    replyToImageUrl.isNotEmpty;
 
     final avatar = GestureDetector(
       onTap: () {
@@ -499,7 +524,7 @@ final text = isVi
             builder: (_) => ViewOtherProfilePage(
               userId: senderId,
               languageCode: widget.languageCode,
-              hideLikeButton: true,
+              
             ),
           ),
         );
@@ -525,7 +550,7 @@ final text = isVi
       crossAxisAlignment:
           isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        if (!isMe && senderName.isNotEmpty)
+  if (!isMe && senderName.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(bottom: 4, left: 6, right: 6),
             child: Text(
@@ -537,6 +562,49 @@ final text = isVi
               ),
             ),
           ),
+          if (hasReply)
+  Container(
+    constraints: const BoxConstraints(maxWidth: 260),
+    margin: const EdgeInsets.only(bottom: 6),
+    padding: const EdgeInsets.all(8),
+    decoration: BoxDecoration(
+      color: const Color(0xFFEFF2FF),
+      borderRadius: BorderRadius.circular(12),
+      border: const Border(
+        left: BorderSide(
+          color: Color(0xFF5D74D3),
+          width: 4,
+        ),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          replyToSenderName.isEmpty
+              ? _label('Tin nhắn', 'Message')
+              : replyToSenderName,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF5D74D3),
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          replyToText.isNotEmpty
+              ? replyToText
+              : _label('Hình ảnh', 'Image'),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF555555),
+          ),
+        ),
+      ],
+    ),
+  ),
         if (text.isNotEmpty)
           Container(
             constraints: const BoxConstraints(maxWidth: 260),
@@ -620,23 +688,34 @@ final text = isVi
       ],
     );
 
-    return Padding(
-  padding: const EdgeInsets.only(bottom: 14),
-  child: Row(
-    mainAxisAlignment:
-        isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: isMe
-        ? [
-            Flexible(child: bubble),
-            const SizedBox(width: 8),
-            avatar,
-          ]
-        : [
-            avatar,
-            const SizedBox(width: 8),
-            Flexible(child: bubble),
-          ],
+    return GestureDetector(
+  onHorizontalDragEnd: (details) {
+  setState(() {
+    _replyToMessage = data;
+    _replyToMessageId = messageId;
+  });
+
+  debugPrint('REPLY SELECTED ID: $messageId');
+  debugPrint('REPLY SELECTED TEXT: ${data['text']}');
+},
+  child: Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: Row(
+      mainAxisAlignment:
+          isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: isMe
+          ? [
+              Flexible(child: bubble),
+              const SizedBox(width: 8),
+              avatar,
+            ]
+          : [
+              avatar,
+              const SizedBox(width: 8),
+              Flexible(child: bubble),
+            ],
+    ),
   ),
 );
   }
@@ -902,15 +981,81 @@ if (docs.isEmpty) {
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                           itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            return _buildMessageCard(docs[index].data());
+                            return _buildMessageCard(
+  docs[index].data(),
+  docs[index].id,
+);
                           },
                         );
                       },
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                    child: SafeArea(
+                  if (_replyToMessage != null)
+  Container(
+    margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF1F3FF),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: const Color(0xFF5D74D3)),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 4,
+          height: 38,
+          decoration: BoxDecoration(
+            color: const Color(0xFF5D74D3),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _label(
+                  'Đang trả lời ${(_replyToMessage?['senderName'] ?? '').toString()}',
+                  'Replying to ${(_replyToMessage?['senderName'] ?? '').toString()}',
+                ),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF5D74D3),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                ((_replyToMessage?['text'] ?? '').toString().isNotEmpty)
+                    ? (_replyToMessage?['text'] ?? '').toString()
+                    : _label('Hình ảnh', 'Image'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF666666),
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: () {
+            setState(() {
+              _replyToMessage = null;
+              _replyToMessageId = null;
+            });
+          },
+          icon: const Icon(Icons.close, size: 18),
+        ),
+      ],
+    ),
+  ),
+
+Padding(
+  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+  child: SafeArea(
                       top: false,
                       child: Opacity(
                         opacity: _hasActiveMembership ? 1 : 0.65,

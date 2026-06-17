@@ -8,6 +8,7 @@ import 'top_picks_page.dart';
 
 import 'upgrade_vip_page.dart';
 import 'who_likes_me_page.dart';
+import 'who_i_passed_page.dart';
 
 
 class LikesAndViewsHubPage extends StatelessWidget {
@@ -168,20 +169,27 @@ return vipExpiresAt.toDate().isAfter(DateTime.now());
     }
 
     if (type == 'likes') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => WhoLikesMePage(languageCode: languageCode),
-        ),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => TopPicksPage(languageCode: languageCode),
-        ),
-      );
-    }
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => WhoLikesMePage(languageCode: languageCode),
+    ),
+  );
+} else if (type == 'passed') {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => WhoIPassedPage(languageCode: languageCode),
+    ),
+  );
+} else {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => TopPicksPage(languageCode: languageCode),
+    ),
+  );
+}
   }
 
   Widget _buildBlurredAvatar(
@@ -727,6 +735,46 @@ return vipExpiresAt.toDate().isAfter(DateTime.now());
                   iconColor: const Color(0xFFFF6B74),
                   showPremiumTag: true,
                 ),
+                Divider(
+  color: Colors.grey.shade200,
+  height: 1,
+  thickness: 1,
+),
+
+_buildServiceTile(
+  icon: Icons.close_rounded,
+  title: isVi ? 'Người tôi đã bỏ qua' : 'Who I Passed',
+  subtitle: Text(
+    isVi
+        ? 'Xem lại những hồ sơ bạn đã bỏ qua'
+        : 'Review profiles you have passed',
+    style: const TextStyle(
+      fontSize: 15,
+      color: Colors.black45,
+      fontWeight: FontWeight.w500,
+    ),
+  ),
+  trailing: Container(
+    width: 28,
+    height: 28,
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.chevron_right_rounded,
+      color: Colors.black38,
+      size: 20,
+    ),
+  ),
+  onTap: () => _openLockedPage(context, type: 'passed'),
+  iconGradient: const [
+    Color(0xFFEFF3FF),
+    Color(0xFFDDE7FF),
+  ],
+  iconColor: const Color(0xFF5C7CFA),
+  showPremiumTag: true,
+),
               ],
             ),
           ),

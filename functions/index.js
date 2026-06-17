@@ -188,6 +188,19 @@ function buildReminder3dEmail(renewUrl) {
     renewUrl,
   });
 }
+function buildReminder1dEmail(renewUrl) {
+  return buildEmailShell({
+    titleVi: "Gói nhóm của bạn sắp hết hạn",
+    titleEn: "Your group plan is expiring soon",
+    bodyVi:
+      "Gói nhóm của bạn sẽ hết hạn trong 1 ngày.\n\nHãy gia hạn ngay để không bị gián đoạn việc nhắn tin và truy cập nhóm.",
+    bodyEn:
+      "Your group membership will expire in 1 day.\n\nPlease renew now to avoid interruption to your chats and group access.",
+    buttonTextVi: "Gia hạn ngay",
+    buttonTextEn: "Renew now",
+    renewUrl,
+  });
+}
 
 function buildExpiredEmail(renewUrl) {
   return buildEmailShell({
@@ -278,6 +291,200 @@ exports.testSendPush = onRequest(async (req, res) => {
   }
 });
 
+function startOfDayPlus(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function endOfDayPlus(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+async function sendGroupReminderForDay(days, flagField) {
+  const db = admin.firestore();
+
+  const start = admin.firestore.Timestamp.fromDate(startOfDayPlus(days));
+  const end = admin.firestore.Timestamp.fromDate(endOfDayPlus(days));
+
+  const snap = await db
+    .collectionGroup("members")
+    .where("membershipActive", "==", true)
+    .where(flagField, "==", false)
+    .where("expiresAt", ">=", start)
+    .where("expiresAt", "<=", end)
+    .limit(200)
+    .get();
+
+  console.log(`GROUP REMINDER ${days}D COUNT:`, snap.size);
+
+  for (const doc of snap.docs) {
+    const data = doc.data() || {};
+
+    const groupId = data.groupId || "";
+    const renewUrl = `vietlove://group-renew?groupId=${groupId}`;
+    const email = data.email || "";
+    const userId = data.userId || data.uid || doc.id;
+
+    const { fcmToken, languageCode } = await getUserMeta(userId);
+    const isVi = languageCode === "vi";
+
+    if (email) {
+      let html = buildReminder7dEmail(renewUrl);
+
+      if (days === 3) {
+        html = buildReminder3dEmail(renewUrl);
+      }
+
+      if (days === 1) {
+  html = buildReminder1dEmail(renewUrl);
+}
+      await sendEmail(
+        email,
+        "VietLove Dating | Gói nhóm sắp hết hạn / Your group plan is expiring soon",
+        html
+      );
+    }
+
+    await sendPushNotification({
+      token: fcmToken,
+      title: isVi ? "Gói nhóm sắp hết hạn" : "Your group plan is expiring soon",
+      body: isVi
+        ? `Gói nhóm của bạn sẽ hết hạn sau ${days} ngày.`
+        : `Your group plan will expire in ${days} day${days > 1 ? "s" : ""}.`,
+      data: {
+        route: "group_renew",
+        groupId,
+        type: `group_expiry_${days}d`,
+      },
+    });
+
+    await doc.ref.update({
+      [flagField]: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+}
+exports.sendGroupReminder7d = onSchedule(
+  {
+    schedule: "every day 09:00",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await sendGroupReminderForDay(7, "reminder7dSent");
+  }
+);
+
+exports.sendGroupReminder3d = onSchedule(
+  {
+    schedule: "every day 10:00",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await sendGroupReminderForDay(3, "reminder3dSent");
+  }
+);
+
+exports.sendGroupReminder1d = onSchedule(
+  {
+    schedule: "every day 11:00",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await sendGroupReminderForDay(1, "reminder1dSent");
+  }
+);
+async function sendVipReminderForDay(days, flagField) {
+  const db = admin.firestore();
+
+  const start = admin.firestore.Timestamp.fromDate(startOfDayPlus(days));
+  const end = admin.firestore.Timestamp.fromDate(endOfDayPlus(days));
+
+  const snap = await db
+    .collection("users")
+    .where("isVip", "==", true)
+    .where(flagField, "==", false)
+    .where("vipExpiresAt", ">=", start)
+    .where("vipExpiresAt", "<=", end)
+    .limit(200)
+    .get();
+
+  console.log(`VIP REMINDER ${days}D COUNT:`, snap.size);
+
+  for (const userDoc of snap.docs) {
+    const userData = userDoc.data() || {};
+
+    const fcmToken = userData.fcmToken || "";
+    const isVi = userData.languageCode === "vi";
+
+    await sendPushNotification({
+      token: fcmToken,
+      title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
+      body: isVi
+        ? `VIP của bạn sẽ hết hạn sau ${days} ngày.`
+        : `Your VIP will expire in ${days} day${days > 1 ? "s" : ""}.`,
+      data: {
+        type: `vip_${days}d`,
+      },
+    });
+
+    await userDoc.ref.update({
+      [flagField]: true,
+      vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+}
+exports.sendVipReminder7d = onSchedule(
+  {
+    schedule: "every day 12:00",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await sendVipReminderForDay(7, "vipReminder7dSent");
+  }
+);
+
+exports.sendVipReminder3d = onSchedule(
+  {
+    schedule: "every day 13:00",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await sendVipReminderForDay(3, "vipReminder3dSent");
+  }
+);
+
+exports.sendVipReminder1d = onSchedule(
+  {
+    schedule: "every day 14:00",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async () => {
+    await sendVipReminderForDay(1, "vipReminder1dSent");
+  }
+);
 exports.checkMemberships = onSchedule(
   {
     schedule: "every 24 hours",
@@ -287,11 +494,20 @@ exports.checkMemberships = onSchedule(
     memory: "512MiB",
   },
   async () => {
-    const now = new Date();
+  console.log("CHECK MEMBERSHIPS START");
+  console.log("Time:", new Date().toISOString());
 
-    const snapshot = await admin.firestore().collectionGroup("members").get();
+  const now = new Date();
 
-    for (const doc of snapshot.docs) {
+  const snapshot = await admin.firestore()
+  .collectionGroup("members")
+  .where("membershipActive", "==", true)
+  .where("expiresAt", "<=", admin.firestore.Timestamp.fromDate(now))
+  .get();
+
+  console.log("Members count:", snapshot.size);
+
+  for (const doc of snapshot.docs) {
       
       const data = doc.data();
 
@@ -373,6 +589,7 @@ if (diffDays <= 0 && !data.vipExpiredHandled) {
   });
 }
   */
+ /*
       if (diffDays === 7 && !data.reminder7dSent) {
         if (email) {
           await sendEmail(
@@ -445,6 +662,7 @@ if (diffDays === 1 && !data.reminder1dSent) {
     reminder1dSent: true,
   });
 }
+  */
       if (diffDays <= 0 && !data.expiredHandled) {
         if (email) {
           await sendEmail(
@@ -473,6 +691,8 @@ if (diffDays === 1 && !data.reminder1dSent) {
         });
       }
     }
+    console.log("START VIP CHECK");
+    /*
     // VIP 7 ngày
 const vipSnap = await admin.firestore()
   .collection("users")
@@ -518,6 +738,7 @@ await userDoc.ref.update({
   vipReminder7dSent: true,
 });
 }
+*/
 // VIP hết hạn - khóa quyền VIP
 const expiredVipSnap = await admin.firestore()
   .collection("users")
@@ -549,6 +770,7 @@ for (const userDoc of expiredVipSnap.docs) {
 
   console.log("VIP expired and disabled:", userDoc.id);
 }
+console.log("END VIP CHECK");
    }
 );
 exports.addPromoForNewCityGroups = onRequest(
@@ -801,7 +1023,7 @@ exports.addFemaleVipWhenProfileCompleted = onDocumentUpdated(
   async (event) => {
     try {
       // Chương trình kết thúc sau ngày 30/06/2026
-const promoEndDate = new Date("2026-06-30T23:59:59+10:00");
+const promoEndDate = new Date("2026-06-15T23:59:59+10:00");
 
 if (new Date() > promoEndDate) {
   return;

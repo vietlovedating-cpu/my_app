@@ -9,6 +9,7 @@ class ViewOtherProfilePage extends StatefulWidget {
   final String? fallbackName;
   final String? fallbackPhotoUrl;
   final bool hideLikeButton;
+  final bool allowActionsForPassedProfile;
 
   const ViewOtherProfilePage({
     super.key,
@@ -17,6 +18,7 @@ class ViewOtherProfilePage extends StatefulWidget {
     this.fallbackName,
     this.fallbackPhotoUrl,
     this.hideLikeButton = false,
+    this.allowActionsForPassedProfile = false,
   });
 
   @override
@@ -1993,7 +1995,8 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
                   ],
                 ),
               ),
-              if (!_isCheckingSwipe && !_alreadyActed)
+              if (!_isCheckingSwipe &&
+    (!_alreadyActed || widget.allowActionsForPassedProfile))
                 Positioned(
                   left: 0,
                   right: 0,

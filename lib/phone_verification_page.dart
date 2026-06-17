@@ -18,6 +18,7 @@ class PhoneVerificationPage extends StatefulWidget {
 }
 
 class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
+  final GlobalKey _otpSectionKey = GlobalKey();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   final TextEditingController _phoneController = TextEditingController();
@@ -104,26 +105,47 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
           );
         },
 
-        codeSent: (String verificationId, int? resendToken) {
-          if (!mounted) return;
+        codeSent: (String verificationId, int? resendToken) async {
+  if (!mounted) return;
 
-          setState(() {
-            _verificationId = verificationId;
-            _resendToken = resendToken;
-            _codeSent = true;
-            _isSendingCode = false;
-          });
+  final user = FirebaseAuth.instance.currentUser;
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                isVi
-                    ? 'Mã OTP đã được gửi tới số điện thoại của bạn'
-                    : 'OTP has been sent to your phone number',
-              ),
-            ),
-          );
-        },
+  if (user != null) {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'otpCodeSent': true,
+      'otpCodeSentAt': FieldValue.serverTimestamp(),
+      'otpPhoneNumber': fullPhoneNumber,
+    }, SetOptions(merge: true));
+  }
+
+  setState(() {
+    _verificationId = verificationId;
+    _resendToken = resendToken;
+    _codeSent = true;
+    _isSendingCode = false;
+  });
+  Future.delayed(const Duration(milliseconds: 300), () {
+  if (_otpSectionKey.currentContext != null) {
+    Scrollable.ensureVisible(
+      _otpSectionKey.currentContext!,
+      duration: const Duration(milliseconds: 500),
+    );
+  }
+});
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isVi
+            ? 'Mã OTP đã được gửi tới số điện thoại của bạn'
+            : 'OTP has been sent to your phone number',
+      ),
+    ),
+  );
+},
 
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
@@ -473,7 +495,10 @@ await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                 ),
 
                 if (_codeSent) ...[
-                  const SizedBox(height: 28),
+  Container(
+    key: _otpSectionKey,
+    child: const SizedBox(height: 28),
+  ),
 
                   Text(
                     isVi ? 'Mã OTP' : 'OTP Code',
