@@ -201,13 +201,11 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
         data['maxAgePreference'] ?? data['preferredMaxAge'],
       );
 
-      selectedStateFilter = _normalizeString(
-  data['filterState'],
-);
+      selectedStateFilter =
+    (data['filterState'] ?? '').toString().trim();
 
-       selectedDistanceKm = double.tryParse(
-    (data['maxDistanceKm'] ?? '').toString(),
-  );
+selectedDistanceKm =
+    (data['maxDistanceKm'] as num?)?.toDouble();
 
 
       if (selectedMinAgeFilter == 0) selectedMinAgeFilter = null;

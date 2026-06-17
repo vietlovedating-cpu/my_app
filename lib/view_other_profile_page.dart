@@ -1129,7 +1129,7 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
       'sau đại học': 'Postgraduate',
       'thạc sĩ': 'Master Degree',
       'tiến sĩ': 'Doctorate / PhD',
-      'dưới 40,000 aud': 'Below 40,000 AUD',
+      'dưới 40,000': 'Below 40,000',
       'muốn có': 'Want children',
       'chưa chắc': 'Not sure',
     };
