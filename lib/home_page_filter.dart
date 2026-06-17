@@ -125,8 +125,13 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     tempGender = widget.initialGender?.toLowerCase();
     tempMinAge = widget.initialMinAge;
     tempMaxAge = widget.initialMaxAge;
-    tempState = widget.initialState;
-    tempCountry = null;
+    if ((widget.initialState ?? '').startsWith('Other - ')) {
+  tempState = 'Other';
+  tempCountry = widget.initialState!.replaceFirst('Other - ', '').trim();
+} else {
+  tempState = widget.initialState;
+  tempCountry = null;
+}
     tempDistanceKm = widget.initialDistanceKm ?? 200;
 
     tempReligion = widget.initialReligion;
@@ -151,9 +156,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     ? 'Other - $tempCountry'
     : tempState,
         height: tempHeight,
-        distanceKm: widget.initialDistanceKm == null
-    ? null
-    : tempDistanceKm,
+        distanceKm: tempDistanceKm,
         religion: widget.isVipUser ? tempReligion : null,
         relationshipGoal: widget.isVipUser ? tempGoal : null,
         maritalStatus: widget.isVipUser ? tempMarital : null,

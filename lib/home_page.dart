@@ -401,6 +401,16 @@ Future<Set<String>> _loadLikedMeIds() async {
       .doc(currentUid)
       .collection('blocked_users')
       .get();
+      final todayTopPicksDoc = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUid)
+    .collection('top_picks_daily')
+    .doc(_todayKey())
+    .get();
+
+final todayTopPickIds = _stringList(
+  todayTopPicksDoc.data()?['pickUserIds'],
+).toSet();
 
   final swipedUserIds = swipesSnapshot.docs
       .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
@@ -437,7 +447,7 @@ if (uid == currentUid) continue;
 if (swipedUserIds.contains(uid)) continue;
 if (hiddenUserIds.contains(uid)) continue;
 if (blockedUserIds.contains(uid)) continue;
-
+if (todayTopPickIds.contains(uid)) continue;
 final mainPhotoUrl = (data['mainPhotoUrl'] ?? '').toString().trim();
 
 if (mainPhotoUrl.isEmpty) {
@@ -1732,6 +1742,23 @@ if (user != null) {
   }
 
   return vipExpiresAt.toDate().isAfter(DateTime.now());
+}
+String _todayKey() {
+  final now = DateTime.now();
+  final y = now.year.toString().padLeft(4, '0');
+  final m = now.month.toString().padLeft(2, '0');
+  final d = now.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
+}
+
+List<String> _stringList(dynamic value) {
+  if (value is List) {
+    return value
+        .map((e) => e.toString().trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+  }
+  return [];
 }
 
   String _normalizeString(dynamic value) {

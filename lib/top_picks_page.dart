@@ -27,7 +27,7 @@ class _TopPicksPageState extends State<TopPicksPage> {
   Map<String, dynamic>? _currentUserData;
   int _currentIndex = 0;
 
-  static const int _dailyTopPicksLimit = 6;
+  static const int _dailyTopPicksLimit = 10;
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -796,7 +796,16 @@ final homeFeedSnapshot = await FirebaseFirestore.instance
     .doc(currentUid)
     .collection('home_feed')
     .get();
+final likedBySnapshot = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUid)
+    .collection('likedBy')
+    .get();
 
+final likedMeIds = likedBySnapshot.docs
+    .map((doc) => doc.id.toString().trim())
+    .where((id) => id.isNotEmpty)
+    .toSet();
     final swipedUserIds = swipesSnapshot.docs
         .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
         .where((id) => id.isNotEmpty)
@@ -860,9 +869,15 @@ final homeFeedUserIds = homeFeedSnapshot.docs
     }
 
     int scoreProfile(Map<String, dynamic> profile) {
-      int score = 0;
+  int score = 0;
 
-      final profileState = _normalizeString(
+  final uid = (profile['uid'] ?? profile['docId'] ?? '').toString().trim();
+
+  if (likedMeIds.contains(uid)) {
+    score += 1000;
+  }
+
+  final profileState = _normalizeString(
         profile['selectedState'] ?? profile['state'],
       );
 
