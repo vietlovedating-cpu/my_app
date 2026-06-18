@@ -214,7 +214,24 @@ class MessagesListPage extends StatelessWidget {
                 );
               }
 
-              final docs = snapshot.data?.docs ?? [];
+              final allDocs = snapshot.data?.docs ?? [];
+
+final docs = allDocs.where((doc) {
+  final data = doc.data() as Map<String, dynamic>;
+
+  final hiddenFor = List<String>.from(data['hiddenFor'] ?? []);
+  if (hiddenFor.contains(currentUser.uid)) return false;
+
+  final participants = List<String>.from(data['participants'] ?? []);
+  final otherUserId = participants.firstWhere(
+    (id) => id != currentUser.uid,
+    orElse: () => '',
+  );
+
+  if (blockedIds.contains(otherUserId)) return false;
+
+  return true;
+}).toList();
 
               if (docs.isEmpty) {
                 return Center(
@@ -232,10 +249,6 @@ class MessagesListPage extends StatelessWidget {
                   final data = docs[index].data() as Map<String, dynamic>;
                   final hiddenFor = List<String>.from(data['hiddenFor'] ?? []);
 
-if (hiddenFor.contains(currentUser.uid)) {
-  return const SizedBox.shrink();
-}
-
                   final participants =
                       List<String>.from(data['participants'] ?? []);
 
@@ -244,9 +257,7 @@ if (hiddenFor.contains(currentUser.uid)) {
                     orElse: () => '',
                   );
 
-                  if (blockedIds.contains(otherUserId)) {
-                    return const SizedBox.shrink();
-                  }
+                
 
                   final names = Map<String, dynamic>.from(
                     data['participantNames'] ?? {},
