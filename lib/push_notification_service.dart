@@ -305,17 +305,37 @@ if (route == 'chat') {
   final nav = navigatorKey.currentState;
   if (nav == null || chatId == null || chatId.isEmpty) return;
 
-  nav.push(
-    MaterialPageRoute(
-      builder: (_) => MessagePage(
-        languageCode: getLanguageCode(),
-        chatId: chatId,
-        otherUserId: '', // tạm thời để trống
-        otherUserName: '',
-        otherUserPhotoUrl: '',
+  FirebaseFirestore.instance
+      .collection('chats')
+      .doc(chatId)
+      .get()
+      .then((chatSnap) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    final chatData = chatSnap.data() ?? {};
+    final participants =
+        List<String>.from(chatData['participants'] ?? []);
+
+    final otherUserId = participants.firstWhere(
+      (id) => id != currentUser.uid,
+      orElse: () => '',
+    );
+
+    if (otherUserId.isEmpty) return;
+
+    nav.push(
+      MaterialPageRoute(
+        builder: (_) => MessagePage(
+          languageCode: getLanguageCode(),
+          chatId: chatId,
+          otherUserId: otherUserId,
+          otherUserName: '',
+          otherUserPhotoUrl: '',
+        ),
       ),
-    ),
-  );
+    );
+  });
 
   return;
 }
