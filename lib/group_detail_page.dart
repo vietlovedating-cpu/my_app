@@ -932,6 +932,7 @@ try {
             ),
           ),
         ),
+        /*
         const SizedBox(width: 12),
         Expanded(
           child: SizedBox(
@@ -967,6 +968,7 @@ try {
             ),
           ),
         ),
+        */
       ],
     );
   }
@@ -1187,6 +1189,7 @@ try {
                               ),
                             ),
                           ],
+                          /*
                           Row(
                             children: [
                               const Icon(
@@ -1205,6 +1208,7 @@ try {
                             ],
                           ),
                           const SizedBox(height: 18),
+                          */
                           _buildGroupDescription(),
                           const SizedBox(height: 22),
                           _buildActionButtons(),
@@ -1431,6 +1435,7 @@ class _ActiveGroupOverviewPage extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 14),
+                    /*
                     Row(
                       children: [
                         const Icon(
@@ -1449,6 +1454,7 @@ class _ActiveGroupOverviewPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 18),
+                    */
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: descriptionParagraphs.map((text) {
@@ -1494,6 +1500,7 @@ class _ActiveGroupOverviewPage extends StatelessWidget {
                             ),
                           ),
                         ),
+                        /*
                         const SizedBox(width: 12),
                         Expanded(
                           child: SizedBox(
@@ -1527,6 +1534,7 @@ class _ActiveGroupOverviewPage extends StatelessWidget {
                             ),
                           ),
                         ),
+                        */
                       ],
                     ),
                   ],

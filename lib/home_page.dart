@@ -833,38 +833,64 @@ if (selectedStateFilter == null ||
                   : 'You have used all 5 free flowers. Please buy VIP or purchase 1 extra flower for \$1.99.',
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(isVi ? 'Để sau' : 'Later'),
-              ),
-              ElevatedButton(
-  onPressed: () async {
-    Navigator.pop(context);
+  TextButton(
+    onPressed: () => Navigator.pop(context),
+    child: Text(isVi ? 'Để sau' : 'Later'),
+  ),
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BuyFlowerPage(
-  languageCode: widget.languageCode,
-  autoBuyProductId: 'flower_1',
-),
+  TextButton(
+    onPressed: () {
+      Navigator.pop(context);
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UpgradeVipPage(
+            languageCode: widget.languageCode,
+            onPurchaseSuccess: () async {
+              await _reloadCurrentUserData();
+            },
+          ),
+        ),
+      );
+    },
+    child: Text(
+      isVi ? 'Nâng cấp VIP' : 'Upgrade VIP',
+      style: const TextStyle(
+        color: Color(0xFFCC3D7A),
+        fontWeight: FontWeight.w700,
       ),
-    );
+    ),
+  ),
 
-    await _reloadCurrentUserData();
-  },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFCC3D7A),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: Text(
-                  isVi ? 'Mua flower' : 'Buy flower',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
+  ElevatedButton(
+    onPressed: () async {
+      Navigator.pop(context);
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BuyFlowerPage(
+            languageCode: widget.languageCode,
+            autoBuyProductId: 'flower_1',
+          ),
+        ),
+      );
+
+      await _reloadCurrentUserData();
+    },
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFFCC3D7A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+    child: Text(
+      isVi ? 'Mua flower' : 'Buy flower',
+      style: const TextStyle(color: Colors.white),
+    ),
+  ),
+],
           );
         },
       );
@@ -872,6 +898,8 @@ if (selectedStateFilter == null ||
     }
 
     final controller = TextEditingController();
+    final sentCount = await _sentFlowerCount();
+final remaining = (5 - sentCount).clamp(0, 5);
 
     final result = await showDialog<String?>(
       context: context,
@@ -888,33 +916,50 @@ if (selectedStateFilter == null ||
               fontWeight: FontWeight.w800,
             ),
           ),
-          content: TextField(
-            controller: controller,
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText:
-                  isVi ? 'Nhập lời nhắn của bạn...' : 'Write your message...',
-              filled: true,
-              fillColor: const Color(0xFFFFF3F8),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(
-                  color: Color(0xFFFFD5E6),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(
-                  color: Color(0xFFCC3D7A),
-                  width: 1.3,
-                ),
-              ),
-            ),
+          content: Column(
+  mainAxisSize: MainAxisSize.min,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text(
+  isVi
+      ? '🌹 Bạn còn: $remaining/5 hoa'
+      : '🌹 Flowers Remaining: $remaining/5',
+  style: const TextStyle(
+    fontWeight: FontWeight.w600,
+    color: Color(0xFFCC3D7A),
+  ),
+),
+    const SizedBox(height: 12),
+    TextField(
+      controller: controller,
+      maxLines: 4,
+      decoration: InputDecoration(
+        hintText: isVi
+            ? 'Nhập lời nhắn của bạn...'
+            : 'Write your message...',
+        filled: true,
+        fillColor: const Color(0xFFFFF3F8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(
+            color: Color(0xFFFFD5E6),
           ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(
+            color: Color(0xFFCC3D7A),
+            width: 1.3,
+          ),
+        ),
+      ),
+    ),
+  ],
+),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, null),
