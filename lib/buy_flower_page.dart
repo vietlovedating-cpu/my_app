@@ -224,6 +224,12 @@ debugPrint('FLOWER ERROR: ${response.error}');
     if (productId == 'flower_10') return 10;
     return 0;
   }
+  String _hardcodedPrice(String productId) {
+  if (productId == 'flower_1') return '\$0.99';
+  if (productId == 'flower_5') return '\$3.99';
+  if (productId == 'flower_10') return '\$6.99';
+  return '';
+}
 
   String _titleForProduct(ProductDetails product) {
     final count = _flowerCountFromProductId(product.id);
@@ -341,13 +347,13 @@ return _label('$count messaging accesses', '$count messaging accesses');
                                       ),
                                     ),
                                     Text(
-                                      product.price,
-                                      style: const TextStyle(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFFCC3D7A),
-                                      ),
-                                    ),
+  _hardcodedPrice(product.id),
+  style: const TextStyle(
+    fontSize: 17,
+    fontWeight: FontWeight.w800,
+    color: Color(0xFFCC3D7A),
+  ),
+),
                                   ],
                                 ),
                               ),

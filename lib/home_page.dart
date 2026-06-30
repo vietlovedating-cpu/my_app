@@ -829,8 +829,8 @@ if (selectedStateFilter == null ||
             title: Text(isVi ? 'Hết lượt tặng hoa' : 'No flowers left'),
             content: Text(
               isVi
-                  ? 'Bạn đã dùng hết 5 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$1.99 cho 1 flower.'
-                  : 'You have used all 5 free flowers. Please buy VIP or purchase 1 extra flower for \$1.99.',
+                  ? 'Bạn đã dùng hết 5 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$0.99 cho 1 flower.'
+                  : 'You have used all 5 free flowers. Please buy VIP or purchase 1 extra flower for \$0.99.',
             ),
             actions: [
   TextButton(
