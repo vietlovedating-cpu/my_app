@@ -185,8 +185,8 @@ if (user != null) {
         SnackBar(
           content: Text(
             isVi
-    ? 'Đăng ký thành công. Vui lòng xác minh số điện thoại để tiếp tục.'
-    : 'Sign up successful. Please verify your phone number to continue.'
+    ? 'Vui lòng xác minh số điện thoại để tiếp tục.'
+    : 'Please verify your phone number to continue.'
           ),
         ),
       );
@@ -327,6 +327,11 @@ const SizedBox(height: 20),
                     if (!value.contains('@') || !value.contains('.')) {
                       return isVi ? 'Email không hợp lệ' : 'Invalid email';
                     }
+                    if (value.contains('+')) {
+  return isVi
+      ? 'Email không được chứa dấu +'
+      : 'Email cannot contain +';
+}
                     return null;
                   },
                 ),

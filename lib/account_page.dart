@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -104,113 +105,119 @@ class _AccountPageState extends State<AccountPage> {
   }
 
   Future<void> _deleteAccount() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _showSnackBar(_tr('Bạn chưa đăng nhập.', 'You are not logged in.'));
-      return;
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    _showSnackBar(
+      _tr('Bạn chưa đăng nhập.', 'You are not logged in.'),
+    );
+    return;
+  }
+
+  final deleteReason = await _showDeleteReasonDialog();
+  if (deleteReason == null) return;
+
+  final password = await _showDeletePasswordDialog();
+  if (password == null) return;
+
+  final confirmed = await _showConfirmDialog(
+    title: _tr('Xóa tài khoản', 'Delete account'),
+    message: _tr(
+      'Bạn có chắc bạn muốn xóa tài khoản vĩnh viễn không?\n\nNếu muốn, bạn có thể chọn tạm dừng tài khoản thay vì xóa.\n\nKhi xóa thì sẽ không thể khôi phục tài khoản.',
+      'Are you sure you want to permanently delete your account?\n\nIf you want, you can pause your account instead of deleting it.\n\nOnce deleted, your account cannot be recovered.',
+    ),
+    confirmText: _tr('Có', 'Yes'),
+    cancelText: 'Cancel',
+    isDestructive: true,
+  );
+
+  if (confirmed != true) return;
+
+  try {
+    setState(() => _isLoading = true);
+
+    final email = user.email;
+
+    if (email == null || email.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'missing-email',
+        message: 'Current user email is missing.',
+      );
     }
 
-    final password = await _showDeletePasswordDialog();
-    if (password == null) return;
-
-    final confirmed = await _showConfirmDialog(
-      title: _tr('Xóa tài khoản', 'Delete account'),
-      message: _tr(
-        'Bạn có chắc bạn muốn xóa tài khoản vĩnh viễn không?\n\nNếu muốn, bạn có thể chọn tạm dừng tài khoản thay vì xóa.\n\nKhi xóa thì sẽ không thể khôi phục tài khoản.',
-        'Are you sure you want to permanently delete your account?\n\nIf you want, you can pause your account instead of deleting it.\n\nOnce deleted, your account cannot be recovered.',
-      ),
-      confirmText: _tr('Có', 'Yes'),
-      cancelText: 'Cancel',
-      isDestructive: true,
+    final credential = EmailAuthProvider.credential(
+      email: email,
+      password: password,
     );
 
-    if (confirmed != true) return;
+    await user.reauthenticateWithCredential(credential);
 
-    try {
-      setState(() => _isLoading = true);
+    final callable = FirebaseFunctions.instanceFor(
+      region: 'us-central1',
+    ).httpsCallable('deleteMyAccount');
 
-      final email = user.email;
-      if (email == null || email.isEmpty) {
-        throw FirebaseAuthException(
-          code: 'missing-email',
-          message: 'Current user email is missing.',
+    await callable.call({
+      'deleteReason': deleteReason['reason'] ?? '',
+      'deleteReasonText': deleteReason['text'] ?? '',
+    });
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => LoginPage(
+          initialLanguageCode: widget.languageCode,
+        ),
+      ),
+      (route) => false,
+    );
+  } on FirebaseAuthException catch (e) {
+    String message;
+
+    switch (e.code) {
+      case 'wrong-password':
+      case 'invalid-credential':
+        message = _tr(
+          'Mật khẩu không đúng.',
+          'Incorrect password.',
         );
-      }
+        break;
 
-      final credential = EmailAuthProvider.credential(
-        email: email,
-        password: password,
-      );
+      case 'requires-recent-login':
+        message = _tr(
+          'Vì lý do bảo mật, vui lòng đăng nhập lại rồi thử xóa tài khoản lần nữa.',
+          'For security reasons, please log in again and try deleting your account once more.',
+        );
+        break;
 
-      await user.reauthenticateWithCredential(credential);
+      default:
+        message = _tr(
+          'Không thể xóa tài khoản: ${e.message ?? e.code}',
+          'Could not delete account: ${e.message ?? e.code}',
+        );
+    }
 
-      final firestore = FirebaseFirestore.instance;
-      final uid = user.uid;
-
-      final userDocRef = firestore.collection('users').doc(uid);
-      final userDoc = await userDocRef.get();
-      final userData = userDoc.data() ?? <String, dynamic>{};
-
-      await firestore.collection('deletion_logs').add({
-        'uid': uid,
-        'email': email,
-        'requestedByUser': true,
-        'deletedAt': FieldValue.serverTimestamp(),
-      });
-
-      await _deleteMatches(uid);
-      await _anonymizeChats(uid);
-      await _deleteUserImagesFromStorage(uid: uid, userData: userData);
-      await _deleteKnownUserSubcollections(uid);
-
-      await userDocRef.delete();
-      await user.delete();
-
-      if (!mounted) return;
-
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => LoginPage(
-            initialLanguageCode: widget.languageCode,
-          ),
-        ),
-        (route) => false,
-      );
-    } on FirebaseAuthException catch (e) {
-      String message;
-
-      switch (e.code) {
-        case 'wrong-password':
-        case 'invalid-credential':
-          message = _tr('Mật khẩu không đúng.', 'Incorrect password.');
-          break;
-        case 'requires-recent-login':
-          message = _tr(
-            'Vì lý do bảo mật, vui lòng đăng nhập lại rồi thử xóa tài khoản lần nữa.',
-            'For security reasons, please log in again and try deleting your account once more.',
-          );
-          break;
-        default:
-          message = _tr(
-            'Không thể xóa tài khoản: ${e.message ?? e.code}',
-            'Could not delete account: ${e.message ?? e.code}',
-          );
-      }
-
-      _showSnackBar(message);
-    } catch (e) {
-      _showSnackBar(
-        _tr(
-          'Có lỗi khi xóa tài khoản: $e',
-          'An error occurred while deleting the account: $e',
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    _showSnackBar(message);
+  } on FirebaseFunctionsException catch (e) {
+    _showSnackBar(
+      _tr(
+        'Không thể xóa tài khoản: ${e.message ?? e.code}',
+        'Could not delete account: ${e.message ?? e.code}',
+      ),
+    );
+  } catch (e) {
+    _showSnackBar(
+      _tr(
+        'Có lỗi khi xóa tài khoản: $e',
+        'An error occurred while deleting the account: $e',
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   Future<void> _deleteMatches(String uid) async {
     final firestore = FirebaseFirestore.instance;
@@ -416,7 +423,105 @@ class _AccountPageState extends State<AccountPage> {
       },
     );
   }
+Future<Map<String, String>?> _showDeleteReasonDialog() async {
+  String? selectedReason;
+  final otherController = TextEditingController();
 
+  final reasons = [
+    _tr('Tôi đã tìm được người phù hợp', 'I found the right person'),
+    _tr('Không có nhiều người phù hợp', 'Not enough suitable people'),
+    _tr('App khó sử dụng', 'The app is difficult to use'),
+    _tr('Tôi lo về quyền riêng tư', 'I have privacy concerns'),
+    _tr('Tôi muốn nghỉ hẹn hò một thời gian', 'I want to take a break from dating'),
+    _tr('Khác', 'Other'),
+  ];
+
+  return showDialog<Map<String, String>>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setInnerState) {
+          final isOther = selectedReason == _tr('Khác', 'Other');
+
+          return RadioGroup<String>(
+            groupValue: selectedReason,
+            onChanged: (value) {
+              setInnerState(() {
+                selectedReason = value;
+              });
+            },
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
+              ),
+              title: Text(
+                _tr(
+                  'Tại sao bạn muốn xóa tài khoản?',
+                  'Why do you want to delete your account?',
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ...reasons.map(
+                      (reason) => RadioListTile<String>(
+                        value: reason,
+                        title: Text(reason),
+                        activeColor: const Color(0xFFD94B8A),
+                      ),
+                    ),
+                    if (isOther) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: otherController,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                          hintText: _tr(
+                            'Vui lòng cho chúng tôi biết lý do...',
+                            'Please tell us your reason...',
+                          ),
+                          filled: true,
+                          fillColor: const Color(0xFFFFF7FA),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, null),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: selectedReason == null
+                      ? null
+                      : () {
+                          Navigator.pop(dialogContext, {
+                            'reason': selectedReason!,
+                            'text': isOther ? otherController.text.trim() : '',
+                          });
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFD94B8A),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: Text(_tr('Tiếp tục', 'Continue')),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
   Future<String?> _showDeletePasswordDialog() async {
     final controller = TextEditingController();
     bool obscure = true;
@@ -696,7 +801,7 @@ class _AccountPageState extends State<AccountPage> {
         ),
         if (_isLoading)
           Container(
-            color: Colors.black.withOpacity(0.12),
+           color: Colors.black.withValues(alpha: 0.12),
             child: const Center(
               child: CircularProgressIndicator(
                 color: Color(0xFFD94B8A),

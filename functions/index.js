@@ -88,6 +88,239 @@ async function sendPushNotification({
   }
 }
 
+
+exports.deleteMyAccount = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be logged in.");
+    }
+
+    const uid = request.auth.uid;
+    const email = request.auth.token.email || "";
+
+    const { deleteReason = "", deleteReasonText = "" } = request.data || {};
+console.log("DELETE REASON RECEIVED:", {
+  uid,
+  deleteReason,
+  deleteReasonText,
+  rawData: request.data || {},
+});
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
+
+    let logRef;
+
+    try {
+      const userSnap = await userRef.get();
+      const userData = userSnap.data() || {};
+
+      logRef = await db.collection("deletion_logs").add({
+        uid,
+        email,
+        requestedByUser: true,
+        deleteReason,
+        deleteReasonText,
+        status: "deleting",
+deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+requestedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await userRef.set(
+        {
+          isDeleted: true,
+          isPaused: true,
+          showOnDiscover: false,
+          profileCompleted: false,
+          deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      try {
+        const matchesSnap = await db
+          .collection("matches")
+          .where("users", "array-contains", uid)
+          .get();
+
+        for (const doc of matchesSnap.docs) {
+          await doc.ref.delete();
+        }
+      } catch (error) {
+        console.error("DELETE MATCHES ERROR:", uid, error);
+      }
+
+      try {
+        const chatsSnap = await db
+          .collection("chats")
+          .where("participants", "array-contains", uid)
+          .get();
+
+        for (const chatDoc of chatsSnap.docs) {
+          const chatData = chatDoc.data() || {};
+
+          const participants = (chatData.participants || []).filter(
+            (id) => id !== uid
+          );
+
+          const participantNames = {
+            ...(chatData.participantNames || {}),
+          };
+
+          const participantPhotos = {
+            ...(chatData.participantPhotos || {}),
+          };
+
+          delete participantNames[uid];
+          delete participantPhotos[uid];
+
+          await chatDoc.ref.set(
+            {
+              participants,
+              participantNames,
+              participantPhotos,
+              deletedUserIds: admin.firestore.FieldValue.arrayUnion(uid),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        }
+      } catch (error) {
+        console.error("ANONYMIZE CHATS ERROR:", uid, error);
+      }
+
+      try {
+        const bucket = admin.storage().bucket();
+
+        const storagePaths = new Set();
+
+        for (const field of ["mainPhotoUrl"]) {
+          const value = userData[field];
+          if (typeof value === "string" && value) {
+            storagePaths.add(value);
+          }
+        }
+
+        for (const field of ["photoUrls", "photos"]) {
+          const values = userData[field];
+
+          if (Array.isArray(values)) {
+            for (const value of values) {
+              if (typeof value === "string" && value) {
+                storagePaths.add(value);
+              }
+            }
+          }
+        }
+
+        for (const photoUrl of storagePaths) {
+          try {
+            const decodedUrl = decodeURIComponent(photoUrl);
+            const match = decodedUrl.match(/\/o\/(.+?)\?/);
+
+            if (!match || !match[1]) continue;
+
+            await bucket.file(match[1]).delete({
+              ignoreNotFound: true,
+            });
+          } catch (error) {
+            console.error("DELETE PHOTO ERROR:", uid, photoUrl, error);
+          }
+        }
+
+        await bucket.deleteFiles({ prefix: `users/${uid}/` });
+        await bucket.deleteFiles({ prefix: `user_photos/${uid}/` });
+      } catch (error) {
+        console.error("DELETE STORAGE ERROR:", uid, error);
+      }
+
+      try {
+        const subcollections = [
+          "blocked_users",
+          "likedBy",
+          "passedUsers",
+          "processedVipPurchases",
+        ];
+
+        for (const collectionName of subcollections) {
+          const collectionRef = userRef.collection(collectionName);
+
+          while (true) {
+            const snap = await collectionRef.limit(400).get();
+
+            if (snap.empty) break;
+
+            const batch = db.batch();
+
+            for (const doc of snap.docs) {
+              batch.delete(doc.ref);
+            }
+
+            await batch.commit();
+          }
+        }
+      } catch (error) {
+        console.error("DELETE SUBCOLLECTIONS ERROR:", uid, error);
+      }
+try {
+  const photoVerificationSnap = await db
+    .collection("photo_verification_requests")
+    .where("uid", "==", uid)
+    .get();
+
+  for (const doc of photoVerificationSnap.docs) {
+    await doc.ref.delete();
+  }
+} catch (error) {
+  console.error(
+    "DELETE PHOTO VERIFICATION REQUEST ERROR:",
+    uid,
+    error
+  );
+}
+      await userRef.delete();
+
+      try {
+        await admin.auth().deleteUser(uid);
+      } catch (error) {
+        console.error("DELETE AUTH ERROR:", uid, error);
+        throw error;
+      }
+
+      await logRef.set(
+        {
+          status: "completed",
+          completedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      console.log("ACCOUNT DELETED:", uid);
+
+      return { success: true };
+    } catch (error) {
+      console.error("DELETE ACCOUNT FAILED:", uid, error);
+
+      if (logRef) {
+        await logRef.set(
+          {
+            status: "failed",
+            errorMessage: error.message || String(error),
+            failedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      throw new HttpsError("internal", "Could not delete account.");
+    }
+  }
+);
 function buildEmailShell({
   titleVi,
   titleEn,
@@ -369,6 +602,7 @@ async function sendGroupReminderForDay(days, flagField) {
     });
   }
 }
+/*
 exports.sendGroupReminder7d = onSchedule(
   {
     schedule: "every day 09:00",
@@ -407,6 +641,7 @@ exports.sendGroupReminder1d = onSchedule(
     await sendGroupReminderForDay(1, "reminder1dSent");
   }
 );
+*/
 async function sendVipReminderForDay(days, flagField) {
   const db = admin.firestore();
 
@@ -663,6 +898,7 @@ if (diffDays === 1 && !data.reminder1dSent) {
   });
 }
   */
+ 
       if (diffDays <= 0 && !data.expiredHandled) {
         if (email) {
           await sendEmail(
@@ -690,6 +926,7 @@ if (diffDays === 1 && !data.reminder1dSent) {
           expiredHandled: true,
         });
       }
+      
     }
     console.log("START VIP CHECK");
     /*
@@ -1230,6 +1467,105 @@ exports.addOneMonthVipForExistingFemaleUsers = onRequest(
     }
   }
 );
+
+exports.syncGoogleVipSubscriptions = onSchedule(
+  {
+    schedule: "every 24 hours",
+    timeZone: "Australia/Sydney",
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+    secrets: ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"],
+  },
+  async () => {
+    const db = admin.firestore();
+
+    const snap = await db
+      .collection("users")
+      .where("vipPlatform", "==", "google_play")
+      .where("googlePurchaseToken", "!=", "")
+      .get();
+
+    console.log("SYNC GOOGLE VIP COUNT:", snap.size);
+
+    const now = new Date();
+
+    for (const userDoc of snap.docs) {
+      const data = userDoc.data() || {};
+
+      const productId = data.vipProductId;
+      const purchaseToken = data.googlePurchaseToken;
+
+      if (!productId || !purchaseToken) continue;
+
+      try {
+        const googleInfo = await getGoogleSubscriptionInfo(
+          productId,
+          purchaseToken
+        );
+
+        const expiryTimeMillis = Number(
+          googleInfo.expiryTimeMillis || 0
+        );
+
+        if (!expiryTimeMillis) continue;
+
+        const expiresAt = new Date(expiryTimeMillis);
+        const isActive = expiresAt > now;
+
+        await userDoc.ref.set(
+          {
+            isVip: isActive,
+            vipUnlocked: isActive,
+            membership: isActive ? "vip" : "",
+            plan: isActive ? "vip" : "",
+            vipStatus: isActive ? "active" : "expired",
+            vipExpiresAt:
+              admin.firestore.Timestamp.fromDate(expiresAt),
+
+            googleOrderId:
+              googleInfo.orderId || data.googleOrderId || "",
+
+            googleAutoRenewing:
+              googleInfo.autoRenewing === true,
+
+            googlePaymentState:
+              googleInfo.paymentState ?? null,
+
+            googleAcknowledgementState:
+              googleInfo.acknowledgementState ?? null,
+
+            vipGoogleSyncedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+
+            vipUpdatedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+
+            vipExpiredHandled: !isActive,
+          },
+          { merge: true }
+        );
+
+        console.log(
+          "Google VIP synced:",
+          userDoc.id,
+          expiresAt
+        );
+      } catch (e) {
+        console.error(
+          "syncGoogleVipSubscriptions error:",
+          userDoc.id,
+          e.response?.data || e
+        );
+      }
+    }
+  }
+);
+
+// 👉 DÁN 
+// FUNCTION MỚI Ở ĐÂY
+/*
+exports.checkMemberships = onSchedule(
 // 👉 DÁN 
 // FUNCTION MỚI Ở ĐÂY
 /*
@@ -1366,8 +1702,8 @@ function getVipPlanFromProductId(productId) {
       vipPlanId: "1_week",
       vipPlanTitleVi: "1 tuần",
       vipPlanTitleEn: "1 week",
-      vipPriceTextVi: "$14.99/tuần",
-      vipPriceTextEn: "$14.99/week",
+      vipPriceTextVi: "$1/tuần",
+      vipPriceTextEn: "$1/week",
     };
   }
 
@@ -1396,8 +1732,8 @@ function getVipPlanFromProductId(productId) {
       vipPlanId: "6_months",
       vipPlanTitleVi: "6 tháng",
       vipPlanTitleEn: "6 months",
-      vipPriceTextVi: "$24.99/tháng",
-      vipPriceTextEn: "$24.99/month",
+      vipPriceTextVi: "$2/tháng",
+      vipPriceTextEn: "$2/month",
     };
   }
 
@@ -1409,7 +1745,7 @@ function getGroupPlanFromProductId(productId) {
     return {
       groupId: "weekend_coffee",
       planType: "1_month",
-      price: 24.99,
+      price: 2,
       currency: "AUD",
       groupTitleEn: "Weekend Coffee",
       groupTitleVi: "Cà phê cuối tuần",
@@ -1420,7 +1756,7 @@ function getGroupPlanFromProductId(productId) {
     return {
       groupId: "hiking_camping",
       planType: "1_month",
-      price: 24.99,
+      price: 2,
       currency: "AUD",
       groupTitleEn: "Hiking & Camping",
       groupTitleVi: "Leo núi & Cắm trại",
@@ -1442,7 +1778,7 @@ function getGroupPlanFromProductId(productId) {
     return {
       groupId: "gym_fitness",
       planType: "1_month",
-      price: 24.99,
+      price: 2,
       currency: "AUD",
       groupTitleEn: "Gym & Fitness",
       groupTitleVi: "Gym & Fitness",
@@ -3033,3 +3369,64 @@ exports.autoTranslatePrompts = onRequest(async (req, res) => {
     res.status(500).send("Translate failed");
   }
 });
+
+exports.syncPhotoVerificationStatus = onDocumentUpdated(
+  {
+    document: "photo_verification_requests/{userId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    try {
+      const userId = event.params.userId;
+
+      const before = event.data.before.data() || {};
+      const after = event.data.after.data() || {};
+
+      const beforeStatus = String(
+        before.photoVerificationStatus || ""
+      ).toLowerCase();
+
+      const afterStatus = String(
+        after.photoVerificationStatus || ""
+      ).toLowerCase();
+
+      if (beforeStatus === afterStatus) {
+        return;
+      }
+
+      if (
+        afterStatus !== "approved" &&
+        afterStatus !== "rejected"
+      ) {
+        return;
+      }
+
+      const isApproved = afterStatus === "approved";
+
+      await admin
+        .firestore()
+        .collection("users")
+        .doc(userId)
+        .set(
+          {
+            photoVerified: isApproved,
+            photoVerificationStatus: afterStatus,
+            photoVerificationReviewedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+
+      console.log(
+        "PHOTO VERIFICATION SYNCED:",
+        userId,
+        afterStatus
+      );
+    } catch (error) {
+      console.error(
+        "syncPhotoVerificationStatus error:",
+        error
+      );
+    }
+  }
+);

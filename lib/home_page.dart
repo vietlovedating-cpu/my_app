@@ -3006,6 +3006,44 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
   ),
 ),
                 const SizedBox(height: 22),
+                                if (profile['photoVerified'] == true) ...[
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F4FF),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF2196F3),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.verified_rounded,
+                            size: 16,
+                            color: Color(0xFF1976D2),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            isVi ? 'Ảnh đã xác minh' : 'Photo Verified',
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF1976D2),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
                _buildInfoSlide(
   items: [
     if (age.isNotEmpty)

@@ -4,12 +4,13 @@ require("dotenv").config();
 const admin = require("firebase-admin");
 const functions = require("firebase-functions/v1");
 
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 admin.initializeApp();
 
+/*
 exports.deleteUnverifiedUserByEmail = onCall(async (request) => {
   const email = String(request.data.email || "").trim().toLowerCase();
 
@@ -29,12 +30,14 @@ exports.deleteUnverifiedUserByEmail = onCall(async (request) => {
   await admin.auth().deleteUser(user.uid);
 
   await admin.firestore().collection("users").doc(user.uid).delete().catch(() => {});
+  
 
   return {
     ok: true,
     deletedUid: user.uid,
   };
 });
+*/
 async function isNotificationEnabled(userId, type) {
   try {
     const snap = await admin
@@ -204,9 +207,14 @@ const latestMessages = await admin
   .limit(1)
   .get();
 
-const latest = latestMessages.docs[0]?.data();
+const latestDoc = latestMessages.docs[0];
+const latest = latestDoc?.data();
 
-if (!latest || latest.senderId !== senderId) {
+if (
+  !latestDoc ||
+  latestDoc.id !== event.params.messageId ||
+  latest.senderId !== senderId
+) {
   console.log("Skip - newer message exists");
   return;
 }
@@ -248,6 +256,84 @@ await sendPushNotification({
     }
   }
 );
+exports.sendMessageReactionNotification = onDocumentUpdated(
+  {
+    document: "chats/{chatId}/messages/{messageId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    try {
+      const before = event.data.before.data() || {};
+      const after = event.data.after.data() || {};
+
+      const beforeReactions = before.reactions || {};
+      const afterReactions = after.reactions || {};
+
+      const reactionUserIds = Object.keys(afterReactions);
+
+      for (const reactionUserId of reactionUserIds) {
+        const oldReaction = beforeReactions[reactionUserId];
+        const newReaction = afterReactions[reactionUserId];
+
+        if (!newReaction || oldReaction === newReaction) {
+          continue;
+        }
+
+        const messageSenderId = after.senderId;
+
+        if (!messageSenderId || reactionUserId === messageSenderId) {
+          continue;
+        }
+
+        const receiverSnap = await admin
+          .firestore()
+          .collection("users")
+          .doc(messageSenderId)
+          .get();
+
+        const receiverData = receiverSnap.data() || {};
+        const token = receiverData.fcmToken;
+
+        if (!token) {
+          continue;
+        }
+
+        const reactionUserSnap = await admin
+          .firestore()
+          .collection("users")
+          .doc(reactionUserId)
+          .get();
+
+        const reactionUserData = reactionUserSnap.data() || {};
+        const reactionUserName =
+          reactionUserData.firstName || "Someone";
+
+        await sendPushNotification({
+          token,
+          title: "VietLove Dating",
+          body: `${reactionUserName} reacted ${newReaction} to your message.`,
+          data: {
+            route: "chat",
+            chatId: event.params.chatId,
+            userId: reactionUserId,
+            type: "message_reaction",
+          },
+        });
+
+        console.log(
+          "MESSAGE REACTION NOTIFICATION SENT:",
+          event.params.chatId,
+          event.params.messageId
+        );
+      }
+    } catch (e) {
+      console.error(
+        "sendMessageReactionNotification error:",
+        e
+      );
+    }
+  }
+);
 exports.sendGroupMessageNotification = onDocumentCreated(
   {
     document: "groups/{groupId}/messages/{messageId}",
@@ -257,6 +343,7 @@ exports.sendGroupMessageNotification = onDocumentCreated(
     try {
       const message = event.data.data();
       const groupId = event.params.groupId;
+      const messageId = event.params.messageId;
 
       const senderId = (message.senderId || "").toString();
       const senderName = (message.senderName || "Someone").toString();
@@ -264,6 +351,28 @@ exports.sendGroupMessageNotification = onDocumentCreated(
       const messageType = (message.type || "text").toString();
 
       if (!groupId || !senderId) return;
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+
+const latestMessages = await admin
+  .firestore()
+  .collection("groups")
+  .doc(groupId)
+  .collection("messages")
+  .orderBy("createdAt", "desc")
+  .limit(1)
+  .get();
+
+const latestDoc = latestMessages.docs[0];
+const latest = latestDoc?.data();
+
+if (
+  !latestDoc ||
+  latestDoc.id !== messageId ||
+  latest.senderId !== senderId
+) {
+  console.log("Skip group notification - newer message exists");
+  return;
+}
 
       const groupTitles = {
         weekend_coffee: "Weekend Coffee",
@@ -583,7 +692,7 @@ exports.addPromoForAllExistingUsers = onRequest(
     }
   }
 );
-
+/*
 exports.sendIncompleteProfileReminderEmails = onSchedule(
   {
     schedule: "every day 09:00",
@@ -601,8 +710,8 @@ exports.sendIncompleteProfileReminderEmails = onSchedule(
       const now = new Date();
 
       // 3 ngày trước
-      const fourteenDaysAgo = new Date(
-  now.getTime() - 14 * 24 * 60 * 60 * 1000
+      const sixWeeksAgo = new Date(
+  now.getTime() - 42 * 24 * 60 * 60 * 1000
 );
 
       const snapshot = await db
@@ -627,9 +736,9 @@ exports.sendIncompleteProfileReminderEmails = onSchedule(
           data.lastReminderEmailAt?.toDate?.();
 
         // nếu chưa đủ 3 ngày thì skip
-        if (
+       if (
   lastReminderEmailAt &&
-  lastReminderEmailAt > fourteenDaysAgo
+  lastReminderEmailAt > sixWeeksAgo
 ) {
   continue;
 }
@@ -722,6 +831,7 @@ exports.sendIncompleteProfileReminderEmails = onSchedule(
     }
   }
 );
+*/
 
 
 

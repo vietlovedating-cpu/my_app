@@ -9,6 +9,7 @@ import 'support_help_page.dart';
 import 'account_page.dart';
 import 'notification_settings_page.dart';
 import 'privacy_profile_page.dart';
+import 'photo_verification_page.dart';
 
 class MyProfilePage extends StatefulWidget {
   final String languageCode;
@@ -995,18 +996,96 @@ class _MyProfilePageState extends State<MyProfilePage> {
         Center(child: _buildMainCirclePhoto(mainPhoto)),
         const SizedBox(height: 18),
         Text(
-          age.isNotEmpty ? '$displayName, $age' : displayName,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF7A2E6E),
-            letterSpacing: 0.15,
+  age.isNotEmpty ? '$displayName, $age' : displayName,
+  textAlign: TextAlign.center,
+  style: const TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w900,
+    color: Color(0xFF7A2E6E),
+    letterSpacing: 0.15,
+  ),
+),
+
+const SizedBox(height: 8),
+
+InkWell(
+  borderRadius: BorderRadius.circular(20),
+  onTap: profile['photoVerificationStatus'] == 'pending'
+    ? null
+    : () async {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PhotoVerificationPage(
+              languageCode: widget.languageCode,
+            ),
+          ),
+        );
+
+        if (result == true && mounted) {
+          setState(() {});
+        }
+      },
+  child: Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 13,
+      vertical: 7,
+    ),
+    decoration: BoxDecoration(
+      color: profile['photoVerified'] == true
+          ? const Color(0xFFE8F4FF)
+          : const Color(0xFFFFEEF6),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: profile['photoVerified'] == true
+            ? const Color(0xFF2196F3)
+            : const Color(0xFFFFC4DC),
+      ),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          profile['photoVerified'] == true
+    ? Icons.verified_rounded
+    : (profile['photoVerificationStatus'] == 'pending'
+        ? Icons.hourglass_top_rounded
+        : Icons.camera_alt_outlined),
+          size: 18,
+          color: profile['photoVerified'] == true
+              ? const Color(0xFF2196F3)
+              : const Color(0xFFCC3D7A),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          profile['photoVerified'] == true
+    ? _tr(isVi, 'Ảnh đã xác minh', 'Photo Verified')
+    : (profile['photoVerificationStatus'] == 'pending'
+        ? _tr(isVi, 'Đang chờ duyệt ảnh', 'Photo Pending Review')
+        : (profile['photoVerificationStatus'] == 'rejected'
+            ? _tr(
+                isVi,
+                'Ảnh chưa được duyệt - Thử lại',
+                'Photo not approved - Try again',
+              )
+            : _tr(isVi, 'Xác minh ảnh', 'Verify Photo'))),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: profile['photoVerified'] == true
+                ? const Color(0xFF1976D2)
+                : const Color(0xFFCC3D7A),
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          stateText,
+      ],
+    ),
+  ),
+),
+
+const SizedBox(height: 8),
+
+Text(
+  stateText,
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 15.5,

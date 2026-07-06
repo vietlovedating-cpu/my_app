@@ -362,7 +362,142 @@ _scrollToBottom();
       }
     }
   }
+ Future<void> _deleteGroupMessage(String messageId) async {
+  await _messagesRef.doc(messageId).update({
+    'isDeleted': true,
+    'text': 'Message deleted',
+    'type': 'text',
+    'imageUrl': '',
+    'editedAt': null,
+    'deletedAt': FieldValue.serverTimestamp(),
+  });
+}
 
+Future<void> _editGroupMessage(String messageId, String oldText) async {
+  final controller = TextEditingController(text: oldText);
+
+  final newText = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(_label('Sửa tin nhắn', 'Edit message')),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        maxLines: 4,
+        decoration: InputDecoration(
+          hintText: _label('Nhập tin nhắn...', 'Type a message...'),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(_label('Hủy', 'Cancel')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, controller.text.trim()),
+          child: Text(_label('Lưu', 'Save')),
+        ),
+      ],
+    ),
+  );
+
+  if (newText == null || newText.isEmpty || newText == oldText.trim()) return;
+
+  await _messagesRef.doc(messageId).update({
+    'text': newText,
+    if (isVi) 'textVi': newText,
+    if (!isVi) 'textEn': newText,
+    'editedAt': FieldValue.serverTimestamp(),
+  });
+}
+Future<void> _setGroupMessageReaction(
+  String messageId,
+  String reaction,
+) async {
+  final user = currentUser;
+  if (user == null) return;
+
+  await _messagesRef.doc(messageId).set({
+    'reactions': {
+      user.uid: reaction,
+    },
+  }, SetOptions(merge: true));
+}
+void _showGroupMessageOptions({
+  required String messageId,
+  required String text,
+  required String type,
+  required bool isMe,
+}) {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Wrap(
+        children: [
+          SizedBox(
+  height: 220,
+  child: SingleChildScrollView(
+    child: Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final reaction in [
+          '😀', '😃', '😄', '😁', '😆', '🥹', '😅', '😂',
+          '🤣', '🥲', '😊', '😇', '🙂', '🙃', '😉', '😌',
+          '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
+          '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+          '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁',
+          '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭',
+          '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶',
+          '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🫣',
+          '🤭', '🫢', '🫡', '👍', '👎', '❤️', '🔥', '👏',
+          '🙏',
+        ])
+          InkWell(
+            onTap: () {
+              Navigator.pop(context);
+              _setGroupMessageReaction(messageId, reaction);
+            },
+            borderRadius: BorderRadius.circular(30),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Text(
+                reaction,
+                style: const TextStyle(fontSize: 27),
+              ),
+            ),
+          ),
+      ],
+    ),
+  ),
+),
+          if (isMe && type == 'text')
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: Text(_label('Sửa tin nhắn', 'Edit message')),
+              onTap: () {
+                Navigator.pop(context);
+                _editGroupMessage(messageId, text);
+              },
+            ),
+            if (isMe)
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Colors.red),
+            title: Text(
+              _label('Xóa tin nhắn', 'Delete message'),
+              style: const TextStyle(color: Colors.red),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _deleteGroupMessage(messageId);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
   void _scrollToBottom() {
   WidgetsBinding.instance.addPostFrameCallback((_) {
     if (!_scrollController.hasClients) return;
@@ -492,6 +627,10 @@ _scrollToBottom();
     final user = currentUser;
     final senderId = (data['senderId'] ?? '').toString();
     final isMe = user != null && senderId == user.uid;
+    final isDeleted = data['isDeleted'] == true;
+final isEdited = data['editedAt'] != null;
+final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
+final myReaction = currentUser == null ? '' : (reactions[currentUser!.uid] ?? '').toString();
 
     final senderPhoto = (data['senderPhotoUrl'] ?? '').toString().trim();
     final senderName = (data['senderName'] ?? '').toString().trim();
@@ -503,6 +642,11 @@ final text = isVi
     ? (textVi.isNotEmpty ? textVi : rawText)
     : (textEn.isNotEmpty ? textEn : rawText);
     final imageUrl = (data['imageUrl'] ?? '').toString().trim();
+    final displayText = isDeleted
+    ? _label('Tin nhắn đã được xóa', 'Message deleted')
+    : text;
+
+final displayImageUrl = isDeleted ? '' : imageUrl;
     final timestamp = data['createdAt'] as Timestamp?;
     final replyToSenderName =
     (data['replyToSenderName'] ?? '').toString().trim();
@@ -546,7 +690,7 @@ final hasReply = replyToSenderName.isNotEmpty ||
       ),
     );
 
-    final bubble = Column(
+   final bubbleContent = Column(
       crossAxisAlignment:
           isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
@@ -605,7 +749,7 @@ final hasReply = replyToSenderName.isNotEmpty ||
       ],
     ),
   ),
-        if (text.isNotEmpty)
+        if (displayText.isNotEmpty)
           Container(
             constraints: const BoxConstraints(maxWidth: 260),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -629,14 +773,14 @@ final hasReply = replyToSenderName.isNotEmpty ||
               ],
             ),
             child: Text(
-              text,
+              displayText,
               style: TextStyle(
                 fontSize: 15,
                 color: isMe ? Colors.white : const Color(0xFF444444),
               ),
             ),
           ),
-        if (imageUrl.isNotEmpty) ...[
+        if (displayImageUrl.isNotEmpty) ...[
           if (text.isNotEmpty) const SizedBox(height: 8),
           Container(
             constraints: const BoxConstraints(maxWidth: 260),
@@ -653,7 +797,7 @@ final hasReply = replyToSenderName.isNotEmpty ||
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Image.network(
-                imageUrl,
+                displayImageUrl,
                 height: 190,
                 width: 260,
                 fit: BoxFit.cover,
@@ -674,6 +818,22 @@ final hasReply = replyToSenderName.isNotEmpty ||
             ),
           ),
         ],
+        if (reactions.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: reactions.values
+          .map(
+            (reaction) => Text(
+              reaction.toString(),
+              style: const TextStyle(fontSize: 18),
+            ),
+          )
+          .toList(),
+    ),
+  ),
         if (timestamp != null)
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 6, right: 6),
@@ -687,6 +847,19 @@ final hasReply = replyToSenderName.isNotEmpty ||
           ),
       ],
     );
+    final bubble = GestureDetector(
+  onLongPress: !isDeleted
+      ? () {
+          _showGroupMessageOptions(
+            messageId: messageId,
+            text: text,
+            type: (data['type'] ?? 'text').toString(),
+            isMe: isMe,
+          );
+        }
+      : null,
+  child: bubbleContent,
+);
 
     return GestureDetector(
   onHorizontalDragEnd: (details) {

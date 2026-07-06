@@ -162,7 +162,8 @@ void _onMessageChanged(String value) {}
 
   if (user == null || text.isEmpty) return;
 
-  _messageController.clear();
+  if (!mounted) return;
+_messageController.clear();
 
   final firestore = FirebaseFirestore.instance;
 final blockedDoc = await firestore
@@ -446,6 +447,66 @@ Future<void> _sendPendingImage() async {
   if (!_scrollController.hasClients) return;
   _scrollController.jumpTo(0);
 }
+Future<void> _deleteMessage(String messageId) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  await FirebaseFirestore.instance
+    .collection('chats')
+    .doc(widget.chatId)
+    .collection('messages')
+    .doc(messageId)
+    .update({
+  'isDeleted': true,
+  'text': 'Message deleted',
+  'type': 'text',
+  'imageUrl': '',
+  'editedAt': null,
+  'deletedAt': FieldValue.serverTimestamp(),
+});
+}
+
+Future<void> _editMessage(String messageId, String oldText) async {
+  final controller = TextEditingController(text: oldText);
+
+  final newText = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(_tr('Sửa tin nhắn', 'Edit message')),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        maxLines: 4,
+        decoration: InputDecoration(
+          hintText: _tr('Nhập tin nhắn...', 'Type a message...'),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(_tr('Hủy', 'Cancel')),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, controller.text.trim()),
+          child: Text(_tr('Lưu', 'Save')),
+        ),
+      ],
+    ),
+  );
+
+
+  if (newText == null || newText.isEmpty || newText == oldText.trim()) return;
+
+  await FirebaseFirestore.instance
+      .collection('chats')
+      .doc(widget.chatId)
+      .collection('messages')
+      .doc(messageId)
+      .update({
+    'text': newText,
+    'editedAt': FieldValue.serverTimestamp(),
+  });
+}
 
   String _formatTime(Timestamp? timestamp) {
     if (timestamp == null) return '';
@@ -463,7 +524,99 @@ Future<void> _sendPendingImage() async {
     final amPm = hour >= 12 ? 'PM' : 'AM';
     return '$displayHour:$minute $amPm';
   }
+  Future<void> _setMessageReaction(
+  String messageId,
+  String reaction,
+) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
+  await FirebaseFirestore.instance
+      .collection('chats')
+      .doc(widget.chatId)
+      .collection('messages')
+      .doc(messageId)
+      .set({
+    'reactions': {
+      user.uid: reaction,
+    },
+  }, SetOptions(merge: true));
+}
+void _showMessageOptions({
+  required String messageId,
+  required String text,
+  required String type,
+  required bool isMe,
+}) {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Wrap(
+        children: [
+          SizedBox(
+  height: 220,
+  child: SingleChildScrollView(
+    child: Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final reaction in [
+          '😀', '😃', '😄', '😁', '😆', '🥹', '😅', '😂',
+          '🤣', '🥲', '😊', '😇', '🙂', '🙃', '😉', '😌',
+          '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛',
+          '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩',
+          '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁',
+          '☹️', '😣', '😖', '😫', '😩', '🥺', '😢', '😭',
+          '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶',
+          '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🫣',
+          '🤭', '🫢', '🫡', '👍', '👎', '❤️', '🔥', '👏',
+          '🙏',
+        ])
+          InkWell(
+            onTap: () {
+              Navigator.pop(context);
+              _setMessageReaction(messageId, reaction);
+            },
+            borderRadius: BorderRadius.circular(30),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Text(
+                reaction,
+                style: const TextStyle(fontSize: 27),
+              ),
+            ),
+          ),
+      ],
+    ),
+  ),
+),
+          if (isMe && type == 'text')
+            ListTile(
+              leading: const Icon(Icons.edit),
+              title: Text(_tr('Sửa tin nhắn', 'Edit message')),
+              onTap: () {
+                Navigator.pop(context);
+                _editMessage(messageId, text);
+              },
+            ),
+            if (isMe)
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: Colors.red),
+            title: Text(
+              _tr('Xóa tin nhắn', 'Delete message'),
+              style: const TextStyle(color: Colors.red),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              _deleteMessage(messageId);
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Widget _buildAvatar(String imageUrl, {double radius = 18}) {
     final raw = imageUrl.trim();
 
@@ -625,6 +778,7 @@ Future<void> _sendPendingImage() async {
   }
 
   Widget _buildMessageBubble({
+  required String messageId,
   required bool isMe,
   required String text,
   required String type,
@@ -632,16 +786,24 @@ Future<void> _sendPendingImage() async {
   required String timeText,
   required String avatarUrl,
   required bool isRead,
+  required bool isDeleted,
+  required bool isEdited,
+  required Map<String, dynamic> reactions,
 }) {
   final isHeart = type == 'heart';
   final isImage = type == 'image';
+final displayText = isDeleted
+    ? _tr('Tin nhắn đã được xóa', 'Message deleted')
+    : text;
 
+final displayType = isDeleted ? 'text' : type;
+final displayImageUrl = isDeleted ? '' : imageUrl;
   final avatarWidget = _buildAvatar(
     avatarUrl,
     radius: 18,
   );
 
-  final bubble = Column(
+  final bubbleContent = Column(
     crossAxisAlignment:
         isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
     children: [
@@ -676,12 +838,27 @@ Future<void> _sendPendingImage() async {
                     : Border.all(color: const Color(0xFFFFD5E6)),
               ),
         child: _buildBubbleContent(
-          type: type,
-          text: text,
-          imageUrl: imageUrl,
-          isMe: isMe,
-        ),
+  type: displayType,
+  text: displayText,
+  imageUrl: displayImageUrl,
+  isMe: isMe,
+),
       ),
+      if (reactions.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Wrap(
+      spacing: 4,
+      children: reactions.values
+          .map(
+            (reaction) => Text(
+              reaction.toString(),
+              style: const TextStyle(fontSize: 18),
+            ),
+          )
+          .toList(),
+    ),
+  ),
       const SizedBox(height: 4),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -700,7 +877,13 @@ Future<void> _sendPendingImage() async {
             if (isMe && timeText.isNotEmpty) const SizedBox(width: 6),
             if (isMe)
               Text(
-                isRead ? _tr('Đã xem', 'Seen') : _tr('Đã gửi', 'Sent'),
+                isDeleted
+    ? _tr('Đã xóa', 'Deleted')
+    : isEdited
+        ? _tr('Đã chỉnh sửa', 'Edited')
+        : isRead
+            ? _tr('Đã xem', 'Seen')
+            : _tr('Đã gửi', 'Sent'),
                 style: TextStyle(
                   fontSize: 11,
                   color: isRead ? const Color(0xFFE91E63) : Colors.black45,
@@ -712,7 +895,19 @@ Future<void> _sendPendingImage() async {
       ),
     ],
   );
-
+final bubble = GestureDetector(
+  onLongPress: !isDeleted
+      ? () {
+          _showMessageOptions(
+            messageId: messageId,
+            text: text,
+            type: type,
+            isMe: isMe,
+          );
+        }
+      : null,
+  child: bubbleContent,
+);
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
     child: Row(
@@ -927,8 +1122,16 @@ Future<void> _sendPendingImage() async {
               : (senderPhotoUrl.isNotEmpty
                   ? senderPhotoUrl
                   : _effectiveOtherUserPhotoUrl);
-
+final messageId = docs[index].id;
+final isDeleted = data['isDeleted'] == true;
+final isEdited = data['editedAt'] != null;
+final reactions =
+    Map<String, dynamic>.from(data['reactions'] ?? {});
           return _buildMessageBubble(
+            messageId: messageId,
+isDeleted: isDeleted,
+isEdited: isEdited,
+reactions: reactions,
   isMe: isMe,
   text: text,
   type: type,
