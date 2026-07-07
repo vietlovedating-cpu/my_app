@@ -159,17 +159,20 @@ String? _pendingVipPlanId;
   }
 
  String _displayPrice(_VipPlan plan) {
+  if (plan.id == '1_week') {
+    return _label('\$14.99/tuần', '\$14.99/week');
+  }
+
+  if (plan.id == '1_month') {
+    return _label('\$29.99/tháng', '\$29.99/month');
+  }
+
   if (plan.id == '3_months') {
     return _label('\$79.99 / 3 tháng', '\$79.99 / 3 months');
   }
 
   if (plan.id == '6_months') {
     return _label('\$149.94 / 6 tháng', '\$149.94 / 6 months');
-  }
-
-  final storeProduct = _storeProducts[plan.productId];
-  if (storeProduct != null) {
-    return storeProduct.price;
   }
 
   return isVi ? plan.priceTextVi : plan.priceTextEn;
