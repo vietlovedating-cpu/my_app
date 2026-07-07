@@ -58,6 +58,8 @@
 	<string>We need permission to save photos when needed.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We use your photo library so you can upload profile photos and share images in the app.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>VietLoveDating needs microphone access so you can record and send voice messages.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
