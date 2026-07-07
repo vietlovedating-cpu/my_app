@@ -9,6 +9,7 @@ class ViewOtherProfilePage extends StatefulWidget {
   final String? fallbackName;
   final String? fallbackPhotoUrl;
   final bool hideLikeButton;
+  final bool hidePassButton;
   final bool allowActionsForPassedProfile;
 
   const ViewOtherProfilePage({
@@ -18,6 +19,7 @@ class ViewOtherProfilePage extends StatefulWidget {
     this.fallbackName,
     this.fallbackPhotoUrl,
     this.hideLikeButton = false,
+    this.hidePassButton = false,
     this.allowActionsForPassedProfile = false,
   });
 
@@ -1572,12 +1574,13 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildActionCircleButton(
-            onTap: _isProcessingAction ? null : () => _handlePass(profile),
-            icon: Icons.close_rounded,
-            iconColor: Colors.black87,
-            size: 64,
-          ),
+          if (!widget.hidePassButton)
+  _buildActionCircleButton(
+    onTap: _isProcessingAction ? null : () => _handlePass(profile),
+    icon: Icons.close_rounded,
+    iconColor: Colors.black87,
+    size: 64,
+  ),
           _buildActionCircleButton(
             onTap: _isProcessingAction ? null : () => _handleFlower(profile),
             icon: Icons.local_florist_rounded,

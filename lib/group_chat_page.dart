@@ -576,7 +576,8 @@ void _showGroupMessageOptions({
               builder: (_) => ViewOtherProfilePage(
                 userId: userId,
                 languageCode: widget.languageCode,
-            
+            hideLikeButton: true,
+            hidePassButton: true,
               ),
             ),
           );
@@ -668,7 +669,8 @@ final hasReply = replyToSenderName.isNotEmpty ||
             builder: (_) => ViewOtherProfilePage(
               userId: senderId,
               languageCode: widget.languageCode,
-              
+              hideLikeButton: true,
+              hidePassButton: true,
             ),
           ),
         );

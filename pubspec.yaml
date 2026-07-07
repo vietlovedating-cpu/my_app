@@ -3,7 +3,7 @@ name: my_app
 description: "A new Flutter project."
 publish_to: 'none'
 
-version: 1.0.8+615
+version: 1.0.8+618
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -36,6 +36,13 @@ dependencies:
   in_app_purchase: 3.2.3
   http: ^1.2.2
   cloud_functions: ^5.5.0
+  
+
+  record: ^6.1.2
+  audioplayers: ^6.5.1
+  path_provider: ^2.1.5
+
+
 
 dev_dependencies:
   flutter_test:

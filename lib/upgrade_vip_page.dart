@@ -158,122 +158,112 @@ String? _pendingVipPlanId;
     });
   }
 
-  String _displayPrice(_VipPlan plan) {
-      if (plan.id == '3_months' || plan.id == '6_months') {
-    return isVi ? plan.priceTextVi : plan.priceTextEn;
-  }
-    final storeProduct = _storeProducts[plan.productId];
-    if (storeProduct != null) {
-      return storeProduct.price;
-    }
-    return isVi ? plan.priceTextVi : plan.priceTextEn;
+ String _displayPrice(_VipPlan plan) {
+  if (plan.id == '3_months') {
+    return _label('\$79.99 / 3 tháng', '\$79.99 / 3 months');
   }
 
-  Future<void> _confirmPurchase(_VipPlan plan) async {
-    final bool? shouldBuy = await showDialog<bool>(
-      context: context,
-      builder: (_) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Stack(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 26, 22, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 8),
-                    Text(
-                      isVi
-                          ? 'Bạn đã chọn gói VIP ${plan.titleVi} ${_displayPrice(plan)}'
-                          : 'You selected VIP ${plan.titleEn} ${_displayPrice(plan)}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF4438CA),
-                        height: 1.4,
-                      ),
+  if (plan.id == '6_months') {
+    return _label('\$149.94 / 6 tháng', '\$149.94 / 6 months');
+  }
+
+  final storeProduct = _storeProducts[plan.productId];
+  if (storeProduct != null) {
+    return storeProduct.price;
+  }
+
+  return isVi ? plan.priceTextVi : plan.priceTextEn;
+}
+
+Future<void> _confirmPurchase(_VipPlan plan) async {
+  final bool? shouldBuy = await showDialog<bool>(
+    context: context,
+    builder: (_) {
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 26, 22, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  Text(
+                    isVi
+                        ? 'Bạn đã chọn gói VIP ${plan.titleVi} ${_displayPrice(plan)}'
+                        : 'You selected VIP ${plan.titleEn} ${_displayPrice(plan)}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF4438CA),
+                      height: 1.4,
                     ),
-                    const SizedBox(height: 26),
-                    Text(
-                      _label(
-                        'Bạn có chắc muốn tiếp tục không?',
-                        'Are you sure you want to proceed?',
-                      ),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.black87,
-                        height: 1.4,
-                      ),
+                  ),
+                  const SizedBox(height: 26),
+                  Text(
+                    _label(
+                      'Bạn có chắc muốn tiếp tục không?',
+                      'Are you sure you want to proceed?',
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      isVi
-    ? plan.id == '1_week'
-    ? 'Bạn đã chọn gói VIP 1 tuần tự động gia hạn mỗi tuần với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
-    : plan.id == '1_month'
-        ? 'Bạn đã chọn gói VIP 1 tháng tự động gia hạn mỗi tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
-        : plan.id == '2_months'
-            ? 'Bạn đã chọn gói VIP 2 tháng tự động gia hạn mỗi 2 tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
-            : plan.id == '3_months'
-                ? 'Bạn đã chọn gói VIP 3 tháng tự động gia hạn mỗi 3 tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
-                : 'Bạn đã chọn gói VIP 6 tháng tự động gia hạn mỗi 6 tháng với giá ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
-: plan.id == '1_week'
-    ? 'You selected a 1 week VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
-    : plan.id == '1_month'
-        ? 'You selected a 1 month VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
-        : plan.id == '2_months'
-            ? 'You selected a 2 months VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
-            : plan.id == '3_months'
-                ? 'You selected a 3 months VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.'
-                : 'You selected a 6 months VIP auto-renewable subscription for ${_displayPrice(plan)}. Cancel anytime.',
-textAlign: TextAlign.center,
-style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.black54,
-                        height: 1.45,
-                      ),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                      height: 1.4,
                     ),
-                    const SizedBox(height: 28),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(48),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    isVi
+                        ? 'Gói này sẽ tự động gia hạn. Số tiền thanh toán là ${_displayPrice(plan)}. Có thể hủy bất kỳ lúc nào.'
+                        : 'This subscription renews automatically. The billed amount is ${_displayPrice(plan)}. Cancel anytime.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Colors.black54,
+                      height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(_label('Hủy', 'Cancel')),
+                          ),
+                          child: Text(_label('Hủy', 'Cancel')),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF5B4BDB),
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            _label('Mua', 'Purchase'),
+                            style: const TextStyle(color: Colors.white),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-  child: ElevatedButton(
-    onPressed: () => Navigator.pop(context, true),
-    style: ElevatedButton.styleFrom(
-      backgroundColor: const Color(0xFF5B4BDB),
-      minimumSize: const Size.fromHeight(48),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
-    ),
-    child: Text(
-      _label('Mua', 'Purchase'),
-      style: const TextStyle(color: Colors.white),
-    ),
-  ),
-),
-],
-),
+                      ),
+                    ],
+                  ),
 
 const SizedBox(height: 12),
 
@@ -1044,85 +1034,144 @@ return true;
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: plans.map((item) {
-                        final selected = selectedPlanId == item.id;
-                        final isLast = item.id == plans.last.id;
+                    GridView.builder(
+  shrinkWrap: true,
+  physics: const NeverScrollableScrollPhysics(),
+  itemCount: plans.length,
+  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+    crossAxisSpacing: 10,
+    mainAxisSpacing: 10,
+    childAspectRatio: 0.85,
+  ),
+  itemBuilder: (context, index) {
+    final item = plans[index];
+    final selected = selectedPlanId == item.id;
 
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(right: isLast ? 0 : 8),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(14),
-                                onTap: (_isBuying || _isRestoring)
-                                    ? null
-                                    : () {
-                                        setState(() {
-                                          selectedPlanId = item.id;
-                                        });
-                                        _confirmPurchase(item);
-                                      },
-                                child: Container(
-  constraints: const BoxConstraints(
-    minHeight: 118,
-  ),
-  padding: const EdgeInsets.symmetric(
-    horizontal: 8,
-    vertical: 18,
-  ),
-  decoration: BoxDecoration(
-    color: selected
-        ? const Color(0xFFF0EEFF)
-        : Colors.white,
-    borderRadius: BorderRadius.circular(14),
-    border: Border.all(
-      color: selected
-          ? const Color(0xFF4F46E5)
-          : Colors.grey.shade300,
-      width: selected ? 1.5 : 1,
-    ),
-  ),
-  child: Column(
-    mainAxisSize: MainAxisSize.min,
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Text(
-        isVi ? item.titleVi : item.titleEn,
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w800,
-          color: selected
-              ? const Color(0xFF4F46E5)
-              : Colors.black87,
-        ),
-      ),
-      const SizedBox(height: 6),
-      Text(
-        _displayPrice(item),
-        textAlign: TextAlign.center,
-        maxLines: 2,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: selected
-              ? const Color(0xFF4F46E5)
-              : Colors.black54,
-        ),
-      ),
-    ],
-  ),
-),
+    final String? monthlyPrice = item.id == '3_months'
+        ? _label('\$26.66/tháng', '\$26.66/month')
+        : item.id == '6_months'
+            ? _label('\$24.99/tháng', '\$24.99/month')
+            : null;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: (_isBuying || _isRestoring)
+            ? null
+            : () {
+                setState(() {
+                  selectedPlanId = item.id;
+                });
+
+                _confirmPurchase(item);
+              },
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 10,
+            vertical: 12,
+          ),
+          decoration: BoxDecoration(
+            color: selected
+                ? const Color(0xFFF0EEFF)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFF4F46E5)
+                  : Colors.grey.shade300,
+              width: selected ? 1.8 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isVi ? item.titleVi : item.titleEn,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: selected
+                      ? const Color(0xFF4F46E5)
+                      : Colors.black87,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  _displayPrice(item),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: selected
+                        ? const Color(0xFF4F46E5)
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+
+              if (monthlyPrice != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  monthlyPrice,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black45,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 5),
+
+              Text(
+                item.id == '1_week'
+                    ? _label(
+                        'Thanh toán mỗi tuần',
+                        'Billed weekly',
+                      )
+                    : item.id == '1_month'
+                        ? _label(
+                            'Thanh toán mỗi tháng',
+                            'Billed monthly',
+                          )
+                        : item.id == '3_months'
+                            ? _label(
+                                'Thanh toán \$79.99 mỗi 3 tháng',
+                                'Billed \$79.99 every 3 months',
+                              )
+                            : _label(
+                                'Thanh toán \$149.94 mỗi 6 tháng',
+                                'Billed \$149.94 every 6 months',
                               ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 22),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black54,
+                  height: 1.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  },
+),
                     Text(
                       _label('Quyền lợi VIP', 'VIP benefits'),
                       style: const TextStyle(

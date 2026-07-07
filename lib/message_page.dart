@@ -8,6 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'view_other_profile_page.dart';
 
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
+
 class MessagePage extends StatefulWidget {
   final String languageCode;
   final String chatId;
@@ -40,6 +44,30 @@ class _MessagePageState extends State<MessagePage> {
 
 File? _pendingImageFile;
 
+final AudioRecorder _audioRecorder = AudioRecorder();
+final AudioPlayer _audioPlayer = AudioPlayer();
+
+String? _playingVoiceUrl;
+final ValueNotifier<String?> _playingVoiceNotifier =
+    ValueNotifier<String?>(null);
+
+bool _isRecordingVoice = false;
+final ValueNotifier<bool> _isRecordingVoiceNotifier =
+    ValueNotifier<bool>(false);
+
+final ValueNotifier<String?> _pendingVoicePathNotifier =
+    ValueNotifier<String?>(null);
+bool _isSendingVoice = false;
+final ValueNotifier<bool> _isSendingVoiceNotifier =
+    ValueNotifier<bool>(false);
+String? _pendingVoicePath;
+int _recordSeconds = 0;
+DateTime? _recordStartedAt;
+final ValueNotifier<int> _recordSecondsNotifier =
+    ValueNotifier<int>(0);
+
+Timer? _recordTimer;
+
   String _currentUserPhotoUrl = '';
   String _currentUserName = '';
 
@@ -61,16 +89,27 @@ File? _pendingImageFile;
   String _tr(String vi, String en) => isVi ? vi : en;
 
   @override
-  void initState() {
-    super.initState();
-    _loadCurrentUserInfo();
-    _loadOtherUserInfo();
-    _markIncomingMessagesAsRead();
-    
-  }
+void initState() {
+  super.initState();
+  _loadCurrentUserInfo();
+  _loadOtherUserInfo();
+  _markIncomingMessagesAsRead();
 
-  @override
+  _audioPlayer.onPlayerComplete.listen((_) {
+  _playingVoiceNotifier.value = null;
+});
+}
+
+ @override
 void dispose() {
+  _recordTimer?.cancel();
+_recordSecondsNotifier.dispose();
+_playingVoiceNotifier.dispose();
+_isRecordingVoiceNotifier.dispose();
+_pendingVoicePathNotifier.dispose();
+_isSendingVoiceNotifier.dispose();
+  _audioRecorder.dispose();
+  _audioPlayer.dispose();
   _messageController.dispose();
   _scrollController.dispose();
   super.dispose();
@@ -155,7 +194,206 @@ void _onMessageChanged(String value) {}
       }
     } catch (_) {}
   }
+Future<void> _startVoiceRecording() async {
+  final hasPermission = await _audioRecorder.hasPermission();
 
+  if (!hasPermission) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Cần quyền micro',
+            'Microphone permission required',
+          ),
+        ),
+      ),
+    );
+
+    return;
+  }
+
+  final dir = await getTemporaryDirectory();
+
+  final path =
+      '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+  await _audioRecorder.start(
+    const RecordConfig(
+      encoder: AudioEncoder.aacLc,
+      bitRate: 64000,
+      sampleRate: 44100,
+    ),
+    path: path,
+  );
+
+  if (!mounted) return;
+
+  _isRecordingVoice = true;
+_pendingVoicePath = null;
+_recordSeconds = 0;
+_recordStartedAt = DateTime.now();
+
+_isRecordingVoiceNotifier.value = true;
+_pendingVoicePathNotifier.value = null;
+  _recordTimer?.cancel();
+_recordSecondsNotifier.value = 0;
+
+_recordTimer = Timer.periodic(
+  const Duration(seconds: 1),
+  (_) {
+    _recordSecondsNotifier.value++;
+  },
+);
+}
+
+Future<void> _stopVoiceRecording() async {
+  _recordTimer?.cancel();
+  final path = await _audioRecorder.stop();
+
+if (path == null) {
+  debugPrint('VOICE STOP PATH NULL');
+  return;
+}
+
+final file = File(path);
+debugPrint('RECORDED VOICE PATH: $path');
+debugPrint('RECORDED VOICE EXISTS: ${await file.exists()}');
+debugPrint('RECORDED VOICE SIZE: ${await file.length()}');
+
+  final startedAt = _recordStartedAt;
+
+  int durationSeconds = 1;
+
+  if (startedAt != null) {
+    durationSeconds =
+        DateTime.now().difference(startedAt).inSeconds;
+
+    if (durationSeconds < 1) {
+      durationSeconds = 1;
+    }
+  }
+
+  if (!mounted) return;
+
+  _isRecordingVoice = false;
+_pendingVoicePath = path;
+_recordSeconds = durationSeconds;
+_recordStartedAt = null;
+
+_isRecordingVoiceNotifier.value = false;
+_pendingVoicePathNotifier.value = path;
+}
+
+String _formatVoiceDuration(int seconds) {
+  final m = (seconds ~/ 60).toString().padLeft(2, '0');
+  final s = (seconds % 60).toString().padLeft(2, '0');
+  return '$m:$s';
+}
+Future<void> _sendPendingVoice() async {
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null ||
+      _pendingVoicePath == null ||
+      _isSendingVoice) {
+    return;
+  }
+
+  try {
+  _isSendingVoice = true;
+  _isSendingVoiceNotifier.value = true;
+
+  final file = File(_pendingVoicePath!);
+
+    if (!await file.exists()) {
+      throw Exception('Voice file does not exist');
+    }
+    debugPrint('SEND VOICE PATH: ${file.path}');
+debugPrint('SEND VOICE SIZE: ${await file.length()}');
+
+    final fileName =
+        '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.m4a';
+
+    final storageRef = FirebaseStorage.instance
+        .ref()
+        .child('chat_voice')
+        .child(widget.chatId)
+        .child(fileName);
+
+    await storageRef.putFile(
+      file,
+      SettableMetadata(
+        contentType: 'audio/mp4',
+      ),
+    );
+
+    final voiceUrl = await storageRef.getDownloadURL();
+
+    final firestore = FirebaseFirestore.instance;
+
+    await firestore
+        .collection('chats')
+        .doc(widget.chatId)
+        .collection('messages')
+        .add({
+      'senderId': user.uid,
+      'receiverId': widget.otherUserId,
+      'senderName': _currentUserName,
+      'senderPhotoUrl': _currentUserPhotoUrl,
+      'text': '',
+      'type': 'voice',
+      'imageUrl': '',
+      'voiceUrl': voiceUrl,
+      'voiceDuration': _recordSeconds,
+      'createdAt': FieldValue.serverTimestamp(),
+      'isRead': false,
+    });
+
+    await firestore.collection('chats').doc(widget.chatId).set({
+      'chatId': widget.chatId,
+      'participants': [user.uid, widget.otherUserId],
+      'lastMessage': _tr('Tin nhắn thoại', 'Voice message'),
+      'lastMessageType': 'voice',
+      'lastSenderId': user.uid,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'typing': {
+        user.uid: false,
+        widget.otherUserId: false,
+      },
+    }, SetOptions(merge: true));
+
+    await firestore.collection('matches').doc(widget.chatId).set({
+      'lastMessage': _tr('Tin nhắn thoại', 'Voice message'),
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+_pendingVoicePath = null;
+_recordSeconds = 0;
+_isRecordingVoice = false;
+
+_pendingVoicePathNotifier.value = null;
+_recordSecondsNotifier.value = 0;
+_isRecordingVoiceNotifier.value = false;
+
+    _scrollToBottom();
+  } catch (e) {
+    debugPrint('SEND VOICE ERROR: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Send voice error: $e'),
+      ),
+    );
+  } finally {
+  _isSendingVoice = false;
+  _isSendingVoiceNotifier.value = false;
+}
+}
   Future<void> _sendMessage() async {
   final user = FirebaseAuth.instance.currentUser;
   final text = _messageController.text.trim();
@@ -758,7 +996,66 @@ void _showMessageOptions({
         },
       );
     }
+if (type == 'voice') {
+  final voiceUrl = imageUrl.trim();
+ return ValueListenableBuilder<String?>(
+  valueListenable: _playingVoiceNotifier,
+  builder: (context, playingVoiceUrl, _) {
+    final isPlaying = playingVoiceUrl == voiceUrl;
 
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: voiceUrl.isEmpty
+              ? null
+              : () async {
+                  try {
+                    if (isPlaying) {
+                      await _audioPlayer.pause();
+                      _playingVoiceNotifier.value = null;
+                      return;
+                    }
+
+                    _playingVoiceNotifier.value = voiceUrl;
+
+                    await _audioPlayer.stop();
+                    await _audioPlayer.play(
+                      UrlSource(voiceUrl),
+                    );
+                  } catch (e) {
+                    debugPrint('PLAY VOICE ERROR: $e');
+                    _playingVoiceNotifier.value = null;
+                  }
+                },
+          child: SizedBox(
+            width: 30,
+            height: 30,
+            child: Center(
+              child: Icon(
+                isPlaying ? Icons.pause : Icons.play_arrow,
+                size: 24,
+                color: isMe
+                    ? Colors.white
+                    : const Color(0xFFE91E63),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          'Voice',
+          style: TextStyle(
+            color: isMe ? Colors.white : Colors.black87,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  },
+);
+}
     if (type == 'heart') {
       return const Text(
         '❤️',
@@ -1107,7 +1404,9 @@ final bubble = GestureDetector(
           final senderId = (data['senderId'] ?? '').toString();
           final text = (data['text'] ?? '').toString();
           final type = (data['type'] ?? 'text').toString();
-          final imageUrl = (data['imageUrl'] ?? '').toString();
+          final imageUrl = type == 'voice'
+    ? (data['voiceUrl'] ?? '').toString()
+    : (data['imageUrl'] ?? '').toString();
           final timestamp = data['createdAt'] as Timestamp?;
           final isRead = data['isRead'] == true;
           final isMe = senderId == currentUser?.uid;
@@ -1162,8 +1461,135 @@ reactions: reactions,
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-      
-        if (_pendingImageFile != null)
+       ValueListenableBuilder<bool>(
+  valueListenable: _isRecordingVoiceNotifier,
+  builder: (context, isRecording, _) {
+    if (!isRecording) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 12,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFE4EF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFFFC7DE),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.mic,
+            color: Color(0xFFE91E63),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ValueListenableBuilder<int>(
+              valueListenable: _recordSecondsNotifier,
+              builder: (context, seconds, _) {
+                return Text(
+                  '${_tr('Đang ghi âm', 'Recording')} '
+                  '${_formatVoiceDuration(seconds)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFE91E63),
+                  ),
+                );
+              },
+            ),
+          ),
+          IconButton(
+            onPressed: _stopVoiceRecording,
+            icon: const Icon(
+              Icons.stop_circle,
+              color: Color(0xFFE91E63),
+            ),
+          ),
+        ],
+      ),
+    );
+  },
+),
+
+ValueListenableBuilder<String?>(
+  valueListenable: _pendingVoicePathNotifier,
+  builder: (context, pendingVoicePath, _) {
+    if (pendingVoicePath == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.symmetric(
+      horizontal: 14,
+      vertical: 8,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: const Color(0xFFFFC7DE),
+      ),
+    ),
+    child: Row(
+      children: [
+        const Icon(
+          Icons.mic,
+          color: Color(0xFFE91E63),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            '${_tr('Tin nhắn thoại', 'Voice message')} '
+            '${_formatVoiceDuration(_recordSeconds)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: () {
+            setState(() {
+              _pendingVoicePath = null;
+              _recordSeconds = 0;
+            });
+          },
+          icon: const Icon(
+            Icons.close,
+            color: Colors.black54,
+          ),
+        ),
+        ValueListenableBuilder<bool>(
+  valueListenable: _isSendingVoiceNotifier,
+  builder: (context, isSendingVoice, _) {
+    return IconButton(
+      onPressed:
+          isSendingVoice ? null : _sendPendingVoice,
+      icon: isSendingVoice
+          ? const SizedBox(
+              width: 22,
+              height: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+              ),
+            )
+          : const Icon(
+              Icons.send_rounded,
+              color: Color(0xFFE91E63),
+            ),
+    );
+  },
+),
+      ],
+        ),
+  );
+  },
+),
+
+if (_pendingImageFile != null)
           Container(
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(8),
@@ -1235,6 +1661,32 @@ reactions: reactions,
               ),
             ),
             const SizedBox(width: 8),
+            InkWell(
+  onTap: () {
+    if (_isRecordingVoice) {
+      _stopVoiceRecording();
+    } else {
+      _startVoiceRecording();
+    }
+  },
+  borderRadius: BorderRadius.circular(999),
+  child: Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: _isRecordingVoice
+          ? const Color(0xFFE91E63)
+          : const Color(0xFFFFE4EF),
+      shape: BoxShape.circle,
+      border: Border.all(color: const Color(0xFFFFC7DE)),
+    ),
+    child: Icon(
+      _isRecordingVoice ? Icons.stop : Icons.mic_none,
+      color: _isRecordingVoice ? Colors.white : const Color(0xFFE91E63),
+    ),
+  ),
+),
+const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: _messageController,
