@@ -3,6 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'prompt_data.dart';
 
+import 'upgrade_vip_page.dart';
+import 'buy_flower_page.dart';
+
 class ViewOtherProfilePage extends StatefulWidget {
   final String userId;
   final String languageCode;
@@ -123,9 +126,179 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
       await _showMatchDialog(targetProfile);
     }
   }
+Future<int> _sentFlowerCount() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return 0;
 
+  final snapshot = await FirebaseFirestore.instance
+      .collection('swipes')
+      .where('fromUserId', isEqualTo: user.uid)
+      .where('action', isEqualTo: 'flower')
+      .get();
+
+  return snapshot.docs.length;
+}
+
+bool _hasVipAccess(Map<String, dynamic>? data) {
+  if (data == null) return false;
+
+  final vipExpiresAt = data['vipExpiresAt'];
+
+  if (vipExpiresAt is! Timestamp) {
+    return false;
+  }
+
+  return vipExpiresAt.toDate().isAfter(DateTime.now());
+}
+
+int _flowerBalance(Map<String, dynamic>? data) {
+  return _parseInt(data?['flowerBalance']);
+}
+
+Future<Map<String, dynamic>> _loadCurrentUserData() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return {};
+
+  final doc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+
+  return doc.data() ?? {};
+}
+
+Future<bool> _canSendFlower() async {
+  final currentUserData = await _loadCurrentUserData();
+
+  if (_hasVipAccess(currentUserData)) return true;
+
+  final sentCount = await _sentFlowerCount();
+
+  if (sentCount < 7) return true;
+
+  return _flowerBalance(currentUserData) > 0;
+}
+
+Future<bool> _consumePurchasedFlowerIfNeeded() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return false;
+
+  final currentUserData = await _loadCurrentUserData();
+
+  if (_hasVipAccess(currentUserData)) return true;
+
+  final sentCount = await _sentFlowerCount();
+
+  if (sentCount < 7) return true;
+
+  final userRef =
+      FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+  bool success = false;
+
+  await FirebaseFirestore.instance.runTransaction((transaction) async {
+    final doc = await transaction.get(userRef);
+    final data = doc.data() ?? {};
+
+    final balance = _parseInt(data['flowerBalance']);
+
+    if (balance <= 0) {
+      success = false;
+      return;
+    }
+
+    transaction.set(
+      userRef,
+      {
+        'flowerBalance': FieldValue.increment(-1),
+        'lastFlowerUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    success = true;
+  });
+
+  return success;
+}
   Future<void> _handleFlower(Map<String, dynamic> targetProfile) async {
-    final controller = TextEditingController();
+  final canSend = await _canSendFlower();
+
+  if (!canSend && mounted) {
+    await showDialog(
+      context: context,
+      builder: (_) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+          ),
+          title: Text(_tr('Hết lượt tặng hoa', 'No flowers left')),
+          content: Text(
+            _tr(
+              'Bạn đã dùng hết 7 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$0.99 cho 1 flower.',
+              'You have used all 7 free flowers. Please buy VIP or purchase 1 extra flower for \$0.99.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(_tr('Để sau', 'Later')),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UpgradeVipPage(
+                      languageCode: widget.languageCode,
+                      onPurchaseSuccess: () async {},
+                    ),
+                  ),
+                );
+              },
+              child: Text(
+                _tr('Nâng cấp VIP', 'Upgrade VIP'),
+                style: const TextStyle(
+                  color: Color(0xFFCC3D7A),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BuyFlowerPage(
+                      languageCode: widget.languageCode,
+                      autoBuyProductId: 'flower_1',
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFCC3D7A),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                _tr('Mua flower', 'Buy flower'),
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return;
+  }
+
+  final controller = TextEditingController();
 
     final result = await showDialog<String?>(
       context: context,
@@ -196,11 +369,43 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
 
     if (result == null) return;
 
-    await _saveSwipe(
-      targetProfile: targetProfile,
-      action: 'flower',
-      flowerMessage: result,
-    );
+if (result.trim().isEmpty) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        _tr(
+          'Vui lòng nhập lời nhắn trước khi gửi hoa.',
+          'Please write a message before sending a flower.',
+        ),
+      ),
+    ),
+  );
+  return;
+}
+
+final canUseFlower = await _consumePurchasedFlowerIfNeeded();
+
+if (!canUseFlower) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        _tr(
+          'Bạn không còn flower. Vui lòng mua thêm flower.',
+          'You have no flowers left. Please purchase more flowers.',
+        ),
+      ),
+    ),
+  );
+  return;
+}
+
+await _saveSwipe(
+  targetProfile: targetProfile,
+  action: 'flower',
+  flowerMessage: result,
+);
 
     if (!mounted) return;
 

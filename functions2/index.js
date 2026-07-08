@@ -344,6 +344,7 @@ exports.sendGroupMessageNotification = onDocumentCreated(
       const message = event.data.data();
       const groupId = event.params.groupId;
       const messageId = event.params.messageId;
+      const db = admin.firestore();
 
       const senderId = (message.senderId || "").toString();
       const senderName = (message.senderName || "Someone").toString();
@@ -351,6 +352,34 @@ exports.sendGroupMessageNotification = onDocumentCreated(
       const messageType = (message.type || "text").toString();
 
       if (!groupId || !senderId) return;
+      const senderGroupRateLimitRef = db
+  .collection("group_notification_rate_limits")
+  .doc(`${groupId}_${senderId}`);
+
+const senderGroupRateLimitSnap = await senderGroupRateLimitRef.get();
+const now = new Date();
+
+if (senderGroupRateLimitSnap.exists) {
+  const lastSentAt = senderGroupRateLimitSnap.data()?.lastSentAt?.toDate?.();
+
+  if (lastSentAt) {
+    const diffSeconds = (now - lastSentAt) / 1000;
+
+    if (diffSeconds < 60) {
+      console.log("Skip group notification spam:", groupId, senderId);
+      return;
+    }
+  }
+}
+
+await senderGroupRateLimitRef.set(
+  {
+    groupId,
+    senderId,
+    lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
+  },
+  { merge: true }
+);
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
 const latestMessages = await admin

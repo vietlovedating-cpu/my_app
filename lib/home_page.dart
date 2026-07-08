@@ -829,8 +829,8 @@ if (selectedStateFilter == null ||
             title: Text(isVi ? 'Hết lượt tặng hoa' : 'No flowers left'),
             content: Text(
               isVi
-                  ? 'Bạn đã dùng hết 5 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$0.99 cho 1 flower.'
-                  : 'You have used all 5 free flowers. Please buy VIP or purchase 1 extra flower for \$0.99.',
+                  ? 'Bạn đã dùng hết 7 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$0.99 cho 1 flower.'
+                  : 'You have used all 7 free flowers. Please buy VIP or purchase 1 extra flower for \$0.99.',
             ),
             actions: [
   TextButton(
@@ -899,7 +899,7 @@ if (selectedStateFilter == null ||
 
     final controller = TextEditingController();
     final sentCount = await _sentFlowerCount();
-final remaining = (5 - sentCount).clamp(0, 5);
+final remaining = (7 - sentCount).clamp(0, 7);
 
     final result = await showDialog<String?>(
       context: context,
@@ -922,8 +922,8 @@ final remaining = (5 - sentCount).clamp(0, 5);
   children: [
     Text(
   isVi
-      ? '🌹 Bạn còn: $remaining/5 hoa'
-      : '🌹 Flowers Remaining: $remaining/5',
+      ? '🌹 Bạn còn: $remaining/7 hoa'
+      : '🌹 Flowers Remaining: $remaining/7',
   style: const TextStyle(
     fontWeight: FontWeight.w600,
     color: Color(0xFFCC3D7A),
@@ -1176,7 +1176,7 @@ Future<bool> _canSendFlower() async {
 
   final sentCount = await _sentFlowerCount();
 
-  if (sentCount < 5) return true;
+  if (sentCount < 7) return true;
 
   return _flowerBalance() > 0;
 }
@@ -1189,8 +1189,8 @@ Future<bool> _consumePurchasedFlowerIfNeeded() async {
 
   final sentCount = await _sentFlowerCount();
 
-  // Free user vẫn còn trong 5 flower miễn phí
-  if (sentCount < 5) return true;
+  // Free user vẫn còn trong 7 flower miễn phí
+  if (sentCount < 7) return true;
 
   final userRef =
       FirebaseFirestore.instance.collection('users').doc(user.uid);
