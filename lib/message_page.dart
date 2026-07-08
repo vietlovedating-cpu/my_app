@@ -1551,12 +1551,25 @@ ValueListenableBuilder<String?>(
           ),
         ),
         IconButton(
-          onPressed: () {
-            setState(() {
-              _pendingVoicePath = null;
-              _recordSeconds = 0;
-            });
-          },
+          onPressed: () async {
+  final path = _pendingVoicePath;
+
+  _pendingVoicePath = null;
+  _recordSeconds = 0;
+  _recordStartedAt = null;
+
+  _pendingVoicePathNotifier.value = null;
+  _recordSecondsNotifier.value = 0;
+  _isRecordingVoiceNotifier.value = false;
+
+  if (path != null) {
+    final file = File(path);
+
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+},
           icon: const Icon(
             Icons.close,
             color: Colors.black54,
