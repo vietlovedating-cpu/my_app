@@ -461,12 +461,23 @@ if (!started && mounted) {
 
     try {
       await _inAppPurchase.restorePurchases();
-Future.delayed(const Duration(seconds: 1), () {
+Future.delayed(const Duration(seconds: 2), () {
   if (!mounted) return;
 
   setState(() {
     _isRestoring = false;
   });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        _label(
+          'Đã kiểm tra mua hàng trước đó. Nếu bạn có VIP đang hoạt động, vui lòng chắc chắn bạn đang dùng đúng tài khoản Apple/Google đã mua.',
+          'Previous purchases checked. If you have an active VIP, please make sure you are using the same Apple/Google account used to purchase.',
+        ),
+      ),
+    ),
+  );
 });
       if (!mounted) return;
       
@@ -503,6 +514,7 @@ ScaffoldMessenger.of(context).showSnackBar(
 ) async {
   for (final purchaseDetails in purchaseDetailsList) {
     print('PURCHASE STATUS: ${purchaseDetails.status}');
+    print('RESTORE MODE ACTIVE: $_isRestoring');
     print('PRODUCT ID: ${purchaseDetails.productID}');
     print('PENDING COMPLETE: ${purchaseDetails.pendingCompletePurchase}');
     print('PURCHASE ERROR: ${purchaseDetails.error}');
@@ -767,11 +779,13 @@ if (purchase.status != PurchaseStatus.purchased &&
   );
 
   final result = await callable.call({
-  'userId': user.uid,
-  'productId': productId,
-  'transactionId': transactionId,
-  'mode': 'purchase',
-});
+    'userId': user.uid,
+    'productId': productId,
+    'transactionId': transactionId,
+    'mode': purchase.status == PurchaseStatus.restored
+        ? 'restore'
+        : 'purchase',
+  });
 
   final data = Map<String, dynamic>.from(result.data);
 
@@ -813,7 +827,9 @@ if (Platform.isAndroid) {
     'userId': user.uid,
     'productId': productId,
     'purchaseToken': purchase.verificationData.serverVerificationData,
-    'mode': 'purchase',
+    'mode': purchase.status == PurchaseStatus.restored
+        ? 'restore'
+        : 'purchase',
   });
 
   final data = Map<String, dynamic>.from(result.data);
@@ -1265,7 +1281,7 @@ return true;
                       ),
                     ),
                                         
-/*
+
 const SizedBox(height: 10),
 
 Center(
@@ -1292,7 +1308,6 @@ Center(
           ),
   ),
 ),
-*/
 
 
                     const SizedBox(height: 12),

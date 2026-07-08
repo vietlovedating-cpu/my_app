@@ -300,7 +300,10 @@ Future<bool> _consumePurchasedFlowerIfNeeded() async {
 
   final controller = TextEditingController();
 
-    final result = await showDialog<String?>(
+final sentCount = await _sentFlowerCount();
+final remaining = (7 - sentCount).clamp(0, 7);
+
+final result = await showDialog<String?>(
       context: context,
       builder: (_) {
         return AlertDialog(
@@ -316,8 +319,23 @@ Future<bool> _consumePurchasedFlowerIfNeeded() async {
               fontWeight: FontWeight.w800,
             ),
           ),
-          content: TextField(
-            controller: controller,
+          content: Column(
+  mainAxisSize: MainAxisSize.min,
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text(
+      _tr(
+        '🌹 Bạn còn: $remaining/7 hoa',
+        '🌹 Flowers Remaining: $remaining/7',
+      ),
+      style: const TextStyle(
+        fontWeight: FontWeight.w600,
+        color: Color(0xFFCC3D7A),
+      ),
+    ),
+    const SizedBox(height: 12),
+    TextField(
+      controller: controller,
             maxLines: 4,
             decoration: InputDecoration(
               hintText: _tr('Nhập lời nhắn của bạn...', 'Write your message...'),
@@ -342,6 +360,7 @@ Future<bool> _consumePurchasedFlowerIfNeeded() async {
               ),
             ),
           ),
+      ],),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, null),
