@@ -323,10 +323,9 @@ final docs = allDocs.where((doc) {
                             'photo': fallbackPhoto,
                           };
 
-                     if (userInfo['deleted'] == 'true') {
-  return const SizedBox(height: 82);
+                  if (userInfo['deleted'] == 'true') {
+  return const SizedBox.shrink();
 }
-
                       final otherName = (userInfo['name'] ?? '').trim();
                       final otherPhoto = (userInfo['photo'] ?? '').trim();
 
