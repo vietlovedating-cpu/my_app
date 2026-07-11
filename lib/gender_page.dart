@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dating_preference_page.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class GenderPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -18,6 +20,7 @@ class GenderPage extends StatefulWidget {
   const GenderPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -35,7 +38,7 @@ class GenderPage extends StatefulWidget {
 
 class _GenderPageState extends State<GenderPage> {
   String? selectedGender;
-
+  bool isSaving = false;
   @override
   void initState() {
     super.initState();
@@ -93,7 +96,10 @@ class _GenderPageState extends State<GenderPage> {
             borderRadius: BorderRadius.circular(18),
           ),
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          padding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 14,
+          ),
         ),
         child: AnimatedDefaultTextStyle(
           duration: const Duration(milliseconds: 180),
@@ -101,7 +107,7 @@ class _GenderPageState extends State<GenderPage> {
             fontSize: 16,
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
             color: isSelected
-                ? Color.fromARGB(255, 0, 0, 0)
+                ? const Color.fromARGB(255, 0, 0, 0)
                 : const Color.fromARGB(255, 233, 30, 99),
             letterSpacing: 0.2,
             shadows: isSelected
@@ -119,6 +125,86 @@ class _GenderPageState extends State<GenderPage> {
       ),
     );
   }
+  Future<void> _saveAndContinue() async {
+  final isVi = widget.languageCode == 'vi';
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (selectedGender == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Vui lòng chọn giới tính'
+              : 'Please choose your gender',
+        ),
+      ),
+    );
+    return;
+  }
+
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không tìm thấy tài khoản'
+              : 'User account not found',
+        ),
+      ),
+    );
+    return;
+  }
+
+
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'gender': selectedGender,
+      'onboardingStep': 'dating_preference',
+      'genderUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DatingPreferencePage(
+          languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
+          selectedState: widget.selectedState,
+          firstName: widget.firstName,
+          address: widget.address,
+          gender: selectedGender!,
+          initialDatingPreference: widget.initialDatingPreference,
+          initialAge: widget.initialAge,
+          initialMinAge: widget.initialMinAge,
+          initialMaxAge: widget.initialMaxAge,
+          isEditingFromHome: widget.isEditingFromHome,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      isSaving = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không thể lưu giới tính. Vui lòng thử lại.'
+              : 'Unable to save gender. Please try again.',
+        ),
+      ),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -230,60 +316,33 @@ class _GenderPageState extends State<GenderPage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (selectedGender == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          content: Text(
-                            isVi
-                                ? 'Vui lòng chọn giới tính'
-                                : 'Please choose your gender',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => DatingPreferencePage(
-                          languageCode: widget.languageCode,
-                          selectedState: widget.selectedState,
-                          firstName: widget.firstName,
-                          address: widget.address,
-                          gender: selectedGender!,
-                          initialDatingPreference:
-                              widget.initialDatingPreference,
-                          initialAge: widget.initialAge,
-                          initialMinAge: widget.initialMinAge,
-                          initialMaxAge: widget.initialMaxAge,
-                          isEditingFromHome: widget.isEditingFromHome,
-                        ),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.pink,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: Text(
-                    isVi ? 'Tiếp theo →' : 'Next →',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ),
+  onPressed: _saveAndContinue,
+  style: ElevatedButton.styleFrom(
+    backgroundColor: Colors.pink,
+    foregroundColor: Colors.white,
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(18),
+    ),
+  ),
+  child: isSaving
+      ? const SizedBox(
+          width: 23,
+          height: 23,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.4,
+            color: Colors.white,
+          ),
+        )
+      : Text(
+          isVi ? 'Tiếp theo →' : 'Next →',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+)
               ),
             ],
           ),

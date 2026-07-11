@@ -1232,7 +1232,28 @@ await _saveSwipe(
 
     return _normalizeString(raw);
   }
+List<String> _extractRelationshipGoalKeys(
+  Map<String, dynamic> profile,
+) {
+  final dynamic raw =
+      profile['relationshipGoals'] ?? profile['relationshipGoal'];
 
+  if (raw is List) {
+    return raw
+        .map((item) => _normalizeString(item))
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  final value = _normalizeString(raw);
+
+  if (value.isEmpty) {
+    return [];
+  }
+
+  return [value];
+}
   String _translateProfileValue(String raw, bool isVi) {
     final value = _normalizeString(raw);
 
@@ -1363,7 +1384,35 @@ await _saveSwipe(
     if (raw.trim().isEmpty) return '';
     return isVi ? (viMap[value] ?? raw) : (enMap[value] ?? raw);
   }
+bool _isOnlineRecently(Map<String, dynamic> profile) {
+  final lastSeen = profile['lastSeen'];
 
+  if (lastSeen is! Timestamp) {
+    return false;
+  }
+
+  final difference =
+      DateTime.now().difference(lastSeen.toDate());
+
+  return difference.inMinutes <= 15;
+}
+
+bool _isRecentlyActive(Map<String, dynamic> profile) {
+  if (_isOnlineRecently(profile)) {
+    return false;
+  }
+
+  final lastSeen = profile['lastSeen'];
+
+  if (lastSeen is! Timestamp) {
+    return false;
+  }
+
+  final difference =
+      DateTime.now().difference(lastSeen.toDate());
+
+  return difference.inDays <= 3;
+}
   Widget _buildOnlineDot(bool isOnline) {
   if (!isOnline) {
     return const SizedBox.shrink();
@@ -1940,7 +1989,8 @@ await _saveSwipe(
     final displayName =
         firstName.isEmpty ? _tr('Người dùng', 'User') : firstName;
     final age = (p['age'] ?? '').toString().trim();
-    final isOnline = p['isOnline'] == true;
+  final isOnline = _isOnlineRecently(p);
+final isRecentlyActive = _isRecentlyActive(p);
 
     final genderRaw = _firstNonEmpty(p, [
       'gender',
@@ -2095,6 +2145,12 @@ await _saveSwipe(
                             label: _tr('Bang đang sống', 'State living'),
                             text: livingState,
                           ),
+                          if (isRecentlyActive)
+  _InfoItem(
+    icon: Icons.access_time_rounded,
+    label: _tr('Hoạt động', 'Activity'),
+    text: _tr('Online gần đây', 'Recently online'),
+  ),
                       ],
                     ),
                     if (getPhoto(1).isNotEmpty) ...[
@@ -2162,21 +2218,69 @@ await _saveSwipe(
                             label: _tr('Tình trạng hôn nhân', 'Marital status'),
                             text: maritalStatus,
                           ),
-                            if (haveChildren.isNotEmpty)
+                           
       if (haveChildren.isNotEmpty)
       _InfoItem(
         icon: Icons.child_care_outlined,
         label: _tr('Con cái', 'Children'),
         text: haveChildren,
       ),
-                        if (relationshipGoal.isNotEmpty)
-                          _InfoItem(
-                            icon: Icons.flag_circle_outlined,
-                            label: _tr('Mục tiêu hẹn hò', 'Relationship goal'),
-                            text: relationshipGoal,
-                          ),
+                        
                       ],
                     ),
+                    if (_extractRelationshipGoalKeys(p).isNotEmpty)
+  Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: const Color(0xFFFFD6E7),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr(
+            '💕 Mục tiêu hẹn hò',
+            '💕 Relationship goals',
+          ),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _extractRelationshipGoalKeys(p).map((goal) {
+            return Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEDF4),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _translateProfileValue(goal, isVi),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9C2859),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    ),
+  ),
                     if (getPhoto(4).isNotEmpty) ...[
                       const SizedBox(height: 18),
                       _buildPhotoBlock(getPhoto(4)),

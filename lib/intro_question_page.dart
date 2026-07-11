@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'state_question_page.dart';
+import 'place_you_call_home_page.dart';
 
 class IntroPage extends StatefulWidget {
   final String languageCode;
@@ -192,7 +192,7 @@ class _IntroPageState extends State<IntroPage>
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => StateQuestionPage(
+                          builder: (_) => PlaceYouCallHomePage(
                             languageCode: widget.languageCode,
                             firstName: widget.firstName,
                           ),

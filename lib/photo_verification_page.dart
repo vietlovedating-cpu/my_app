@@ -15,7 +15,8 @@ class PhotoVerificationPage extends StatefulWidget {
   });
 
   @override
-  State<PhotoVerificationPage> createState() => _PhotoVerificationPageState();
+  State<PhotoVerificationPage> createState() =>
+      _PhotoVerificationPageState();
 }
 
 class _PhotoVerificationPageState extends State<PhotoVerificationPage> {
@@ -56,52 +57,72 @@ class _PhotoVerificationPageState extends State<PhotoVerificationPage> {
 
     try {
       final uid = user.uid;
+
       final path =
-          'photo_verifications/$uid/${DateTime.now().millisecondsSinceEpoch}.jpg';
+          'photo_verifications/$uid/'
+          '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       final ref = FirebaseStorage.instance.ref().child(path);
 
       await ref.putFile(
         file,
-        SettableMetadata(contentType: 'image/jpeg'),
+        SettableMetadata(
+          contentType: 'image/jpeg',
+        ),
       );
 
       final downloadUrl = await ref.getDownloadURL();
+
       final userDoc = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(uid)
-    .get();
+          .collection('users')
+          .doc(uid)
+          .get();
 
-final userData = userDoc.data() ?? {};
+      final userData = userDoc.data() ?? {};
 
-final email = (user.email ?? userData['email'] ?? '').toString();
-final firstName = (userData['firstName'] ?? '').toString();
-final mainPhotoUrl = (userData['mainPhotoUrl'] ?? '').toString();
+      final email =
+          (user.email ?? userData['email'] ?? '').toString();
+
+      final firstName =
+          (userData['firstName'] ?? '').toString();
+
+      final mainPhotoUrl =
+          (userData['mainPhotoUrl'] ?? '').toString();
 
       final verificationData = {
-  'uid': uid,
-  'email': email,
-  'firstName': firstName,
-  'mainPhotoUrl': mainPhotoUrl,
-  'photoVerified': false,
-  'photoVerificationStatus': 'pending',
-  'photoVerificationImageUrl': downloadUrl,
-  'photoVerificationStoragePath': path,
-  'photoVerificationSubmittedAt': FieldValue.serverTimestamp(),
-};
+        'uid': uid,
+        'email': email,
+        'firstName': firstName,
+        'mainPhotoUrl': mainPhotoUrl,
 
-await FirebaseFirestore.instance.collection('users').doc(uid).set(
-  verificationData,
-  SetOptions(merge: true),
-);
+        // Khi gửi ảnh mới thì quay về pending.
+        'photoVerified': false,
+        'photoVerificationStatus': 'pending',
 
-await FirebaseFirestore.instance
-    .collection('photo_verification_requests')
-    .doc(uid)
-    .set(
-      verificationData,
-      SetOptions(merge: true),
-    );
+        // Xóa lý do reject cũ nếu user đang chụp lại.
+        'photoVerificationRejectReason': FieldValue.delete(),
+
+        'photoVerificationImageUrl': downloadUrl,
+        'photoVerificationStoragePath': path,
+        'photoVerificationSubmittedAt':
+            FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .set(
+        verificationData,
+        SetOptions(merge: true),
+      );
+
+      await FirebaseFirestore.instance
+          .collection('photo_verification_requests')
+          .doc(uid)
+          .set(
+        verificationData,
+        SetOptions(merge: true),
+      );
 
       if (!mounted) return;
 
@@ -122,7 +143,9 @@ await FirebaseFirestore.instance
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            isVi ? 'Có lỗi xảy ra: $e' : 'Something went wrong: $e',
+            isVi
+                ? 'Có lỗi xảy ra: $e'
+                : 'Something went wrong: $e',
           ),
         ),
       );
@@ -137,7 +160,7 @@ await FirebaseFirestore.instance
 
   @override
   Widget build(BuildContext context) {
-    final pink = const Color(0xFFE91E63);
+    const pink = Color(0xFFE91E63);
 
     return Scaffold(
       appBar: AppBar(
@@ -166,32 +189,48 @@ await FirebaseFirestore.instance
               ),
               child: Column(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.verified_user_rounded,
                     color: pink,
                     size: 54,
                   ),
+
                   const SizedBox(height: 14),
+
                   Text(
-                    isVi ? 'Xác minh ảnh của bạn' : 'Verify your photo',
+                    isVi
+                        ? 'Xác minh ảnh của bạn'
+                        : 'Verify your photo',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 23,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
+
                   const SizedBox(height: 10),
+
                   Text(
-  isVi
-      ? 'Chụp một ảnh selfie rõ mặt bằng camera. Ảnh này chỉ được sử dụng để VietLove xem xét và xác minh hồ sơ của bạn. Ảnh xác minh sẽ không hiển thị công khai và người dùng khác sẽ không thể xem ảnh này.'
-      : 'Take a clear selfie using your camera. This photo is only used by VietLove to review and verify your profile. Your verification photo will not be displayed publicly and cannot be viewed by other users.',
-  textAlign: TextAlign.center,
-  style: const TextStyle(
-    fontSize: 15,
-    height: 1.45,
-    color: Color(0x99000000),
-  ),
-),
+                    isVi
+                        ? 'Chụp một ảnh selfie rõ mặt bằng camera. '
+                            'Ảnh này chỉ được sử dụng để VietLove '
+                            'xem xét và xác minh hồ sơ của bạn. '
+                            'Ảnh xác minh sẽ không hiển thị công khai '
+                            'và người dùng khác sẽ không thể xem ảnh này.'
+                        : 'Take a clear selfie using your camera. '
+                            'This photo is only used by VietLove '
+                            'to review and verify your profile. '
+                            'Your verification photo will not be '
+                            'displayed publicly and cannot be viewed '
+                            'by other users.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.45,
+                      color: Color(0x99000000),
+                    ),
+                  ),
+
                   const SizedBox(height: 22),
 
                   if (_selfieFile != null)
@@ -218,14 +257,16 @@ await FirebaseFirestore.instance
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.camera_alt_rounded,
                             color: pink,
                             size: 46,
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            isVi ? 'Chưa có ảnh selfie' : 'No selfie yet',
+                            isVi
+                                ? 'Chưa có ảnh selfie'
+                                : 'No selfie yet',
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               color: Colors.black54,
@@ -241,17 +282,27 @@ await FirebaseFirestore.instance
                     width: double.infinity,
                     height: 54,
                     child: OutlinedButton.icon(
-                      onPressed: _isUploading ? null : _takeSelfie,
-                      icon: const Icon(Icons.camera_alt_rounded),
+                      onPressed:
+                          _isUploading ? null : _takeSelfie,
+                      icon: const Icon(
+                        Icons.camera_alt_rounded,
+                      ),
                       label: Text(
-                        isVi ? 'Chụp selfie' : 'Take Selfie',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        isVi
+                            ? 'Chụp selfie'
+                            : 'Take Selfie',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: pink,
-                        side: BorderSide(color: pink),
+                        side: const BorderSide(
+                          color: pink,
+                        ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius:
+                              BorderRadius.circular(16),
                         ),
                       ),
                     ),
@@ -263,30 +314,37 @@ await FirebaseFirestore.instance
                     width: double.infinity,
                     height: 54,
                     child: ElevatedButton(
-                      onPressed: (_selfieFile == null || _isUploading)
-                          ? null
-                          : _submitVerification,
+                      onPressed:
+                          (_selfieFile == null || _isUploading)
+                              ? null
+                              : _submitVerification,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: pink,
-                        disabledBackgroundColor: Colors.grey.shade300,
+                        disabledBackgroundColor:
+                            Colors.grey.shade300,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius:
+                              BorderRadius.circular(16),
                         ),
                       ),
                       child: _isUploading
                           ? const SizedBox(
                               width: 22,
                               height: 22,
-                              child: CircularProgressIndicator(
+                              child:
+                                  CircularProgressIndicator(
                                 strokeWidth: 2.4,
                                 color: Colors.white,
                               ),
                             )
                           : Text(
-                              isVi ? 'Gửi xác minh' : 'Submit Verification',
+                              isVi
+                                  ? 'Gửi xác minh'
+                                  : 'Submit Verification',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w900,
+                                fontWeight:
+                                    FontWeight.w900,
                               ),
                             ),
                     ),

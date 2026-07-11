@@ -77,7 +77,7 @@ We may update this policy at any time. Continued use means you accept updates.
 
 11. Contact
 If you have any questions, contact us at:
-Contact: vietlovedating@gmail.com
+Contact: info@vietlovedating.com
 ''';
 
 const String _privacyVi = '''

@@ -11,6 +11,8 @@ import 'view_other_profile_page.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
+import 'trusted_contacts_page.dart';
+import 'package:flutter_sms/flutter_sms.dart';
 
 class MessagePage extends StatefulWidget {
   final String languageCode;
@@ -36,6 +38,11 @@ class MessagePage extends StatefulWidget {
 
 class _MessagePageState extends State<MessagePage> {
   final TextEditingController _messageController = TextEditingController();
+  final TextEditingController _dateLocationController =
+    TextEditingController();
+
+DateTime? _selectedDate;
+TimeOfDay? _selectedTime;
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
 
@@ -87,6 +94,1808 @@ Timer? _recordTimer;
   }
 
   String _tr(String vi, String en) => isVi ? vi : en;
+  String _formatDatePlanDate(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+
+  return '$day/$month/${date.year}';
+}
+
+String _formatDatePlanTime(TimeOfDay time) {
+  final hour = time.hourOfPeriod == 0
+      ? 12
+      : time.hourOfPeriod;
+
+  final minute = time.minute.toString().padLeft(2, '0');
+  final period = time.period == DayPeriod.am ? 'AM' : 'PM';
+
+  return '$hour:$minute $period';
+}
+
+DateTime _combineDateAndTime(
+  DateTime date,
+  TimeOfDay time,
+) {
+  return DateTime(
+    date.year,
+    date.month,
+    date.day,
+    time.hour,
+    time.minute,
+  );
+}
+
+Future<void> _shareDatePlanBySms({
+  required DateTime selectedDate,
+  required TimeOfDay selectedTime,
+  required String location,
+  required List<Map<String, dynamic>> selectedContacts,
+}) async {
+  final currentUser = FirebaseAuth.instance.currentUser;
+
+  if (currentUser == null) {
+    throw Exception('User is not signed in');
+  }
+
+  final scheduledAt = _combineDateAndTime(
+    selectedDate,
+    selectedTime,
+  );
+
+  final contactCopies = selectedContacts.map((contact) {
+    return {
+      'contactId':
+          (contact['contactId'] ?? '').toString(),
+      'name': (contact['name'] ?? '').toString(),
+      'phone': (contact['phone'] ?? '').toString(),
+      'relationship':
+          (contact['relationship'] ?? '').toString(),
+    };
+  }).toList();
+
+  final datePlanReference = FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUser.uid)
+    .collection('datePlans')
+    .doc(widget.chatId);
+
+  await datePlanReference.set({
+  'datePlanId': widget.chatId,
+  'ownerId': currentUser.uid,
+  'ownerName': _currentUserName,
+  'chatId': widget.chatId,
+
+  'partnerId': widget.otherUserId,
+  'partnerName': _effectiveOtherUserName,
+  'partnerPhotoUrl': _effectiveOtherUserPhotoUrl,
+
+  'scheduledAt': Timestamp.fromDate(scheduledAt),
+  'location': location,
+
+  'selectedContacts': contactCopies,
+
+  'status': 'scheduled',
+  'shareMethod': 'sms',
+
+  'createdAt': FieldValue.serverTimestamp(),
+  'updatedAt': FieldValue.serverTimestamp(),
+  'shareOpenedAt': FieldValue.serverTimestamp(),
+
+  'safeConfirmedAt': null,
+  'cancelledAt': null,
+}, SetOptions(merge: true));
+
+  final ownerName = _currentUserName.trim().isNotEmpty
+      ? _currentUserName.trim()
+      : _tr('Người dùng VietLove', 'A VietLove user');
+
+  final partnerName =
+      _effectiveOtherUserName.trim().isNotEmpty
+          ? _effectiveOtherUserName.trim()
+          : _tr('một người dùng VietLove', 'a VietLove user');
+
+  final message = isVi
+      ? '''
+VietLove Dating – Kế hoạch hẹn hò an toàn
+
+$ownerName sắp gặp: $partnerName
+
+Ngày: ${_formatDatePlanDate(selectedDate)}
+Giờ: ${_formatDatePlanTime(selectedTime)}
+Địa điểm: $location
+
+Mã kế hoạch an toàn: ${datePlanReference.id}
+
+Vui lòng liên hệ với $ownerName sau buổi hẹn để bảo đảm họ đã về nhà an toàn.
+'''
+      : '''
+VietLove Dating – Safe Date Plan
+
+$ownerName is meeting: $partnerName
+
+Date: ${_formatDatePlanDate(selectedDate)}
+Time: ${_formatDatePlanTime(selectedTime)}
+Location: $location
+
+Safety plan ID: ${datePlanReference.id}
+
+Please check in with $ownerName after the date to make sure they arrived home safely.
+''';
+
+  final recipients = selectedContacts
+      .map(
+        (contact) =>
+            (contact['phone'] ?? '').toString().trim(),
+      )
+      .where((phone) => phone.isNotEmpty)
+      .toList();
+
+  if (recipients.isEmpty) {
+    throw Exception('No valid phone number selected');
+  }
+
+  await sendSMS(
+    message: message.trim(),
+    recipients: recipients,
+  );
+}
+Future<void> _openDatePlan() async {
+  final currentUser = FirebaseAuth.instance.currentUser;
+
+  if (currentUser == null) return;
+
+  try {
+    final planDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(currentUser.uid)
+        .collection('datePlans')
+        .doc(widget.chatId)
+        .get();
+
+    if (!mounted) return;
+
+    final data = planDoc.data();
+
+    final status =
+        (data?['status'] ?? '').toString().trim().toLowerCase();
+
+    final hasActivePlan =
+        planDoc.exists &&
+        data != null &&
+        status == 'scheduled';
+
+    if (hasActivePlan) {
+      _showExistingDatePlanSheet(data);
+    } else {
+      _selectedDate = null;
+      _selectedTime = null;
+      _dateLocationController.clear();
+
+      _showDatePlanSheet();
+    }
+  } catch (e) {
+    debugPrint('OPEN DATE PLAN ERROR: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Không thể tải kế hoạch hẹn hò.',
+            'Could not load the date plan.',
+          ),
+        ),
+      ),
+    );
+  }
+}
+  void _showExistingDatePlanSheet(
+  Map<String, dynamic> planData,
+) {
+  final scheduledTimestamp =
+      planData['scheduledAt'] as Timestamp?;
+
+  final scheduledAt = scheduledTimestamp?.toDate();
+
+  final location =
+      (planData['location'] ?? '').toString().trim();
+
+  final partnerName =
+      (planData['partnerName'] ?? _effectiveOtherUserName)
+          .toString()
+          .trim();
+
+  final partnerPhotoUrl =
+      (planData['partnerPhotoUrl'] ??
+              _effectiveOtherUserPhotoUrl)
+          .toString()
+          .trim();
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      bool isUpdating = false;
+
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          return SafeArea(
+            top: false,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                24,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(26),
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.black12,
+                        borderRadius:
+                            BorderRadius.circular(999),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFE4EF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.favorite_rounded,
+                          color: Color(0xFFE91E63),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _tr(
+                            'Cuộc hẹn sắp tới',
+                            'Upcoming Date',
+                          ),
+                          style: const TextStyle(
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF8A2F6A),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: isUpdating
+                            ? null
+                            : () {
+                                Navigator.pop(sheetContext);
+                              },
+                        icon: const Icon(
+                          Icons.close_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7FB),
+                      borderRadius:
+                          BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFFFFD5E6),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildAvatar(
+                          partnerPhotoUrl,
+                          radius: 34,
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        Text(
+                          partnerName.isNotEmpty
+                              ? partnerName
+                              : _tr(
+                                  'Người dùng VietLove',
+                                  'VietLove user',
+                                ),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+
+                        const SizedBox(height: 18),
+
+                        _buildDatePlanDetailRow(
+                          icon:
+                              Icons.calendar_today_rounded,
+                          label: _tr('Ngày', 'Date'),
+                          value: scheduledAt == null
+                              ? _tr(
+                                  'Chưa xác định',
+                                  'Not available',
+                                )
+                              : _formatDatePlanDate(
+                                  scheduledAt,
+                                ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        _buildDatePlanDetailRow(
+                          icon: Icons.schedule_rounded,
+                          label: _tr('Giờ', 'Time'),
+                          value: scheduledAt == null
+                              ? _tr(
+                                  'Chưa xác định',
+                                  'Not available',
+                                )
+                              : _formatDatePlanTime(
+                                  TimeOfDay.fromDateTime(
+                                    scheduledAt,
+                                  ),
+                                ),
+                        ),
+
+                        const SizedBox(height: 12),
+
+                        _buildDatePlanDetailRow(
+                          icon:
+                              Icons.location_on_outlined,
+                          label:
+                              _tr('Địa điểm', 'Location'),
+                          value: location.isNotEmpty
+                              ? location
+                              : _tr(
+                                  'Chưa xác định',
+                                  'Not available',
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: isUpdating
+                          ? null
+                          : () {
+                              if (scheduledAt != null) {
+                                _selectedDate = DateTime(
+                                  scheduledAt.year,
+                                  scheduledAt.month,
+                                  scheduledAt.day,
+                                );
+
+                                _selectedTime =
+                                    TimeOfDay.fromDateTime(
+                                  scheduledAt,
+                                );
+                              }
+
+                              _dateLocationController.text =
+                                  location;
+
+                              Navigator.pop(sheetContext);
+
+                              _showDatePlanSheet();
+                            },
+                      icon: const Icon(
+                        Icons.edit_calendar_rounded,
+                      ),
+                      label: Text(
+                        _tr(
+                          'Chỉnh sửa kế hoạch',
+                          'Edit Date Plan',
+                        ),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            const Color(0xFFE91E63),
+                        foregroundColor: Colors.white,
+                        padding:
+                            const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: isUpdating
+                          ? null
+                          : () async {
+                              final confirmed =
+                                  await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) {
+                                  return AlertDialog(
+                                    title: Text(
+                                      _tr(
+                                        'Bạn đã về nhà an toàn?',
+                                        'Are you home safely?',
+                                      ),
+                                    ),
+                                    content: Text(
+                                      _tr(
+                                        'Xác nhận rằng cuộc hẹn đã kết thúc và bạn đã về nhà an toàn.',
+                                        'Confirm that the date has ended and you are home safely.',
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(
+                                            dialogContext,
+                                            false,
+                                          );
+                                        },
+                                        child: Text(
+                                          _tr('Hủy', 'Cancel'),
+                                        ),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          Navigator.pop(
+                                            dialogContext,
+                                            true,
+                                          );
+                                        },
+                                        child: Text(
+                                          _tr(
+                                            'Tôi an toàn',
+                                            'I am safe',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+
+                              if (confirmed != true) return;
+
+                              setSheetState(() {
+                                isUpdating = true;
+                              });
+
+                              try {
+                                await _updateDatePlanStatus(
+                                  status: 'completed',
+                                  additionalData: {
+                                    'safeConfirmedAt':
+                                        FieldValue
+                                            .serverTimestamp(),
+                                    'completedAt': FieldValue
+                                        .serverTimestamp(),
+                                  },
+                                );
+
+                                if (!mounted) return;
+
+                                Navigator.pop(sheetContext);
+
+                                ScaffoldMessenger.of(
+                                  this.context,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      _tr(
+                                        'Rất vui vì bạn đã về nhà an toàn ❤️',
+                                        'We are glad you arrived home safely ❤️',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                debugPrint(
+                                  'SAFE CONFIRM ERROR: $e',
+                                );
+
+                                if (!mounted) return;
+
+                                setSheetState(() {
+                                  isUpdating = false;
+                                });
+                              }
+                            },
+                      icon: const Icon(
+                        Icons.verified_user_rounded,
+                      ),
+                      label: Text(
+                        _tr(
+                          'Tôi đã về nhà an toàn',
+                          'I’m Home Safely',
+                        ),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor:
+                            const Color(0xFF2E7D32),
+                        side: const BorderSide(
+                          color: Color(0xFF81C784),
+                        ),
+                        padding:
+                            const EdgeInsets.symmetric(
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton.icon(
+                      onPressed: isUpdating
+                          ? null
+                          : () async {
+                              final confirmed =
+                                  await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) {
+                                  return AlertDialog(
+                                    title: Text(
+                                      _tr(
+                                        'Hủy kế hoạch hẹn?',
+                                        'Cancel Date Plan?',
+                                      ),
+                                    ),
+                                    content: Text(
+                                      _tr(
+                                        'Kế hoạch này sẽ được đánh dấu là đã hủy.',
+                                        'This date plan will be marked as cancelled.',
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(
+                                            dialogContext,
+                                            false,
+                                          );
+                                        },
+                                        child: Text(
+                                          _tr('Không', 'No'),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(
+                                            dialogContext,
+                                            true,
+                                          );
+                                        },
+                                        child: Text(
+                                          _tr(
+                                            'Hủy kế hoạch',
+                                            'Cancel Plan',
+                                          ),
+                                          style:
+                                              const TextStyle(
+                                            color: Colors.red,
+                                            fontWeight:
+                                                FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+
+                              if (confirmed != true) return;
+
+                              setSheetState(() {
+                                isUpdating = true;
+                              });
+
+                              try {
+                                await _updateDatePlanStatus(
+                                  status: 'cancelled',
+                                  additionalData: {
+                                    'cancelledAt':
+                                        FieldValue
+                                            .serverTimestamp(),
+                                  },
+                                );
+
+                                if (!mounted) return;
+
+                                Navigator.pop(sheetContext);
+
+                                ScaffoldMessenger.of(
+                                  this.context,
+                                ).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      _tr(
+                                        'Đã hủy kế hoạch hẹn.',
+                                        'Date plan cancelled.',
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              } catch (e) {
+                                debugPrint(
+                                  'CANCEL DATE PLAN ERROR: $e',
+                                );
+
+                                if (!mounted) return;
+
+                                setSheetState(() {
+                                  isUpdating = false;
+                                });
+                              }
+                            },
+                      icon: const Icon(
+                        Icons.event_busy_rounded,
+                        color: Colors.red,
+                      ),
+                      label: Text(
+                        _tr(
+                          'Hủy kế hoạch hẹn',
+                          'Cancel Date Plan',
+                        ),
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  if (isUpdating)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+Widget _buildDatePlanDetailRow({
+  required IconData icon,
+  required String label,
+  required String value,
+}) {
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        width: 38,
+        height: 38,
+        decoration: const BoxDecoration(
+          color: Color(0xFFFFE4EF),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          size: 20,
+          color: const Color(0xFFE91E63),
+        ),
+      ),
+      const SizedBox(width: 11),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.black54,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              value,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+                fontWeight: FontWeight.w800,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+Future<void> _updateDatePlanStatus({
+  required String status,
+  Map<String, dynamic>? additionalData,
+}) async {
+  final currentUser =
+      FirebaseAuth.instance.currentUser;
+
+  if (currentUser == null) {
+    throw Exception('User is not signed in');
+  }
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUser.uid)
+      .collection('datePlans')
+      .doc(widget.chatId)
+      .set({
+    'status': status,
+    'updatedAt': FieldValue.serverTimestamp(),
+    if (additionalData != null)
+      ...additionalData,
+  }, SetOptions(merge: true));
+}
+  void _showDatePlanSheet() {
+  DateTime? tempSelectedDate = _selectedDate;
+  TimeOfDay? tempSelectedTime = _selectedTime;
+
+  final Set<String> selectedContactIds = {};
+  final Map<String, Map<String, dynamic>>
+      selectedContactData = {};
+
+  bool isSharing = false;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          final keyboardBottom =
+              MediaQuery.of(context).viewInsets.bottom;
+
+          return SafeArea(
+            top: false,
+            child: Container(
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.of(context).size.height * 0.90,
+              ),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                keyboardBottom + 20,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(26),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 42,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: Colors.black12,
+                          borderRadius:
+                              BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFFE4EF),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.calendar_month_rounded,
+                            color: Color(0xFFE91E63),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            _tr(
+                              'Chia sẻ kế hoạch hẹn hò',
+                              'Share Date Plan',
+                            ),
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF8A2F6A),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: isSharing
+                              ? null
+                              : () {
+                                  Navigator.pop(
+                                    sheetContext,
+                                  );
+                                },
+                          icon: const Icon(
+                            Icons.close_rounded,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Text(
+                      _tr(
+                        'Chia sẻ thời gian và địa điểm với người thân hoặc bạn bè mà bạn tin tưởng.',
+                        'Share the time and location with a trusted friend or family member.',
+                      ),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black54,
+                        height: 1.4,
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF7FB),
+                        borderRadius:
+                            BorderRadius.circular(18),
+                        border: Border.all(
+                          color: const Color(0xFFFFD5E6),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          _buildAvatar(
+                            _effectiveOtherUserPhotoUrl,
+                            radius: 25,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _tr(
+                                    'Bạn sẽ gặp',
+                                    'You are meeting',
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.black54,
+                                    fontWeight:
+                                        FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  _effectiveOtherUserName
+                                          .trim()
+                                          .isNotEmpty
+                                      ? _effectiveOtherUserName
+                                          .trim()
+                                      : _tr(
+                                          'Người dùng VietLove',
+                                          'VietLove user',
+                                        ),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight:
+                                        FontWeight.w800,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    Text(
+                      _tr(
+                        'Ngày hẹn',
+                        'Date',
+                      ),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    InkWell(
+                      onTap: isSharing
+                          ? null
+                          : () async {
+                              final now = DateTime.now();
+
+                              final pickedDate =
+                                  await showDatePicker(
+                                context: context,
+                                initialDate:
+                                    tempSelectedDate ?? now,
+                                firstDate: DateTime(
+                                  now.year,
+                                  now.month,
+                                  now.day,
+                                ),
+                                lastDate: DateTime(
+                                  now.year + 2,
+                                ),
+                              );
+
+                              if (pickedDate == null) return;
+
+                              setSheetState(() {
+                                tempSelectedDate =
+                                    pickedDate;
+                              });
+                            },
+                      borderRadius:
+                          BorderRadius.circular(16),
+                      child: Container(
+                        width: double.infinity,
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 15,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7FB),
+                          borderRadius:
+                              BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                const Color(0xFFFFD5E6),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.calendar_today_rounded,
+                              color: Color(0xFFE91E63),
+                              size: 21,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                tempSelectedDate == null
+                                    ? _tr(
+                                        'Chọn ngày',
+                                        'Select date',
+                                      )
+                                    : _formatDatePlanDate(
+                                        tempSelectedDate!,
+                                      ),
+                                style: TextStyle(
+                                  fontWeight:
+                                      FontWeight.w700,
+                                  color:
+                                      tempSelectedDate ==
+                                              null
+                                          ? Colors.black45
+                                          : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons
+                                  .keyboard_arrow_down_rounded,
+                              color: Colors.black45,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Text(
+                      _tr(
+                        'Giờ hẹn',
+                        'Time',
+                      ),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    InkWell(
+                      onTap: isSharing
+                          ? null
+                          : () async {
+                              final pickedTime =
+                                  await showTimePicker(
+                                context: context,
+                                initialTime:
+                                    tempSelectedTime ??
+                                        TimeOfDay.now(),
+                              );
+
+                              if (pickedTime == null) return;
+
+                              setSheetState(() {
+                                tempSelectedTime =
+                                    pickedTime;
+                              });
+                            },
+                      borderRadius:
+                          BorderRadius.circular(16),
+                      child: Container(
+                        width: double.infinity,
+                        padding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 15,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7FB),
+                          borderRadius:
+                              BorderRadius.circular(16),
+                          border: Border.all(
+                            color:
+                                const Color(0xFFFFD5E6),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.schedule_rounded,
+                              color: Color(0xFFE91E63),
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                tempSelectedTime == null
+                                    ? _tr(
+                                        'Chọn giờ',
+                                        'Select time',
+                                      )
+                                    : _formatDatePlanTime(
+                                        tempSelectedTime!,
+                                      ),
+                                style: TextStyle(
+                                  fontWeight:
+                                      FontWeight.w700,
+                                  color:
+                                      tempSelectedTime ==
+                                              null
+                                          ? Colors.black45
+                                          : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons
+                                  .keyboard_arrow_down_rounded,
+                              color: Colors.black45,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    Text(
+                      _tr(
+                        'Địa điểm',
+                        'Location',
+                      ),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    TextField(
+                      controller:
+                          _dateLocationController,
+                      enabled: !isSharing,
+                      textCapitalization:
+                          TextCapitalization.words,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText: _tr(
+                          'Ví dụ: Nhà hàng tại Bankstown',
+                          'Example: Restaurant in Bankstown',
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.location_on_outlined,
+                          color: Color(0xFFE91E63),
+                        ),
+                        filled: true,
+                        fillColor:
+                            const Color(0xFFFFF7FB),
+                        contentPadding:
+                            const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color:
+                                Color(0xFFFFD5E6),
+                          ),
+                        ),
+                        focusedBorder:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE91E63),
+                            width: 1.3,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 22),
+
+                    StreamBuilder<
+                        QuerySnapshot<
+                            Map<String, dynamic>>>(
+                      stream: FirebaseAuth
+                                  .instance.currentUser ==
+                              null
+                          ? null
+                          : FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(
+                                FirebaseAuth.instance
+                                    .currentUser!.uid,
+                              )
+                              .collection(
+                                'trustedContacts',
+                              )
+                              .orderBy(
+                                'createdAt',
+                                descending: false,
+                              )
+                              .snapshots(),
+                      builder: (context, snapshot) {
+                        final contacts =
+                            snapshot.data?.docs ?? [];
+
+                        return Container(
+                          padding:
+                              const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFFFFF7FB),
+                            borderRadius:
+                                BorderRadius.circular(18),
+                            border: Border.all(
+                              color:
+                                  const Color(0xFFFFD5E6),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.shield_rounded,
+                                    color:
+                                        Color(0xFFE91E63),
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Expanded(
+                                    child: Text(
+                                      _tr(
+                                        'Liên hệ an toàn',
+                                        'Trusted Contacts',
+                                      ),
+                                      style:
+                                          const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight:
+                                            FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                  if (selectedContactIds
+                                      .isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets
+                                          .symmetric(
+                                        horizontal: 9,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(
+                                          0xFFFFE4EF,
+                                        ),
+                                        borderRadius:
+                                            BorderRadius
+                                                .circular(999),
+                                      ),
+                                      child: Text(
+                                        selectedContactIds
+                                            .length
+                                            .toString(),
+                                        style:
+                                            const TextStyle(
+                                          color: Color(
+                                            0xFFE91E63,
+                                          ),
+                                          fontWeight:
+                                              FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 10),
+
+                              if (snapshot
+                                      .connectionState ==
+                                  ConnectionState.waiting)
+                                const Center(
+                                  child: Padding(
+                                    padding:
+                                        EdgeInsets.all(14),
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                )
+                              else if (snapshot.hasError)
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.all(
+                                    10,
+                                  ),
+                                  child: Text(
+                                    _tr(
+                                      'Không thể tải liên hệ an toàn.',
+                                      'Could not load trusted contacts.',
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                )
+                              else if (contacts.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets
+                                      .symmetric(
+                                    vertical: 10,
+                                  ),
+                                  child: Text(
+                                    _tr(
+                                      'Bạn chưa có liên hệ an toàn. Hãy thêm người thân hoặc bạn bè trước.',
+                                      'You do not have any trusted contacts yet. Add a friend or family member first.',
+                                    ),
+                                    style: const TextStyle(
+                                      color: Colors.black54,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...contacts.map((contact) {
+                                  final data =
+                                      contact.data();
+
+                                  final name =
+                                      (data['name'] ?? '')
+                                          .toString()
+                                          .trim();
+
+                                  final phone =
+                                      (data['phone'] ?? '')
+                                          .toString()
+                                          .trim();
+
+                                  final relationship =
+                                      (data['relationship'] ??
+                                              '')
+                                          .toString();
+
+                                  final isSelected =
+                                      selectedContactIds
+                                          .contains(
+                                    contact.id,
+                                  );
+
+                                  return CheckboxListTile(
+                                    value: isSelected,
+                                    enabled:
+                                        !isSharing &&
+                                            phone.isNotEmpty,
+                                    contentPadding:
+                                        EdgeInsets.zero,
+                                    dense: true,
+                                    activeColor:
+                                        const Color(
+                                      0xFFE91E63,
+                                    ),
+                                    controlAffinity:
+                                        ListTileControlAffinity
+                                            .leading,
+                                    title: Text(
+                                      name.isNotEmpty
+                                          ? name
+                                          : _tr(
+                                              'Không có tên',
+                                              'No name',
+                                            ),
+                                      style:
+                                          const TextStyle(
+                                        fontWeight:
+                                            FontWeight.w700,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      phone.isNotEmpty
+                                          ? phone
+                                          : _tr(
+                                              'Chưa có số điện thoại',
+                                              'No phone number',
+                                            ),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color:
+                                            phone.isNotEmpty
+                                                ? Colors
+                                                    .black54
+                                                : Colors.red,
+                                      ),
+                                    ),
+                                    onChanged: (value) {
+                                      setSheetState(() {
+                                        if (value == true) {
+                                          selectedContactIds
+                                              .add(
+                                            contact.id,
+                                          );
+
+                                          selectedContactData[
+                                              contact.id] = {
+                                            'contactId':
+                                                contact.id,
+                                            'name': name,
+                                            'phone': phone,
+                                            'relationship':
+                                                relationship,
+                                          };
+                                        } else {
+                                          selectedContactIds
+                                              .remove(
+                                            contact.id,
+                                          );
+
+                                          selectedContactData
+                                              .remove(
+                                            contact.id,
+                                          );
+                                        }
+                                      });
+                                    },
+                                  );
+                                }),
+
+                              const SizedBox(height: 8),
+
+                              SizedBox(
+                                width: double.infinity,
+                                child:
+                                    OutlinedButton.icon(
+                                  onPressed: isSharing
+                                      ? null
+                                      : () async {
+                                          await Navigator
+                                              .push(
+                                            this.context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  TrustedContactsPage(
+                                                languageCode:
+                                                    widget
+                                                        .languageCode,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                  icon: const Icon(
+                                    Icons
+                                        .manage_accounts_rounded,
+                                  ),
+                                  label: Text(
+                                    contacts.isEmpty
+                                        ? _tr(
+                                            'Thêm liên hệ an toàn',
+                                            'Add Trusted Contact',
+                                          )
+                                        : _tr(
+                                            'Quản lý liên hệ',
+                                            'Manage Contacts',
+                                          ),
+                                    style:
+                                        const TextStyle(
+                                      fontWeight:
+                                          FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: OutlinedButton
+                                      .styleFrom(
+                                    foregroundColor:
+                                        const Color(
+                                      0xFFE91E63,
+                                    ),
+                                    side:
+                                        const BorderSide(
+                                      color: Color(
+                                        0xFFFFC7DE,
+                                      ),
+                                    ),
+                                    padding:
+                                        const EdgeInsets
+                                            .symmetric(
+                                      vertical: 12,
+                                    ),
+                                    shape:
+                                        RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius
+                                              .circular(14),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: isSharing
+                            ? null
+                            : () async {
+                                final location =
+                                    _dateLocationController
+                                        .text
+                                        .trim();
+
+                                if (tempSelectedDate ==
+                                    null) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Vui lòng chọn ngày hẹn.',
+                                          'Please select the date.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (tempSelectedTime ==
+                                    null) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Vui lòng chọn giờ hẹn.',
+                                          'Please select the time.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (location.isEmpty) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Vui lòng nhập địa điểm hẹn.',
+                                          'Please enter the location.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (selectedContactData
+                                    .isEmpty) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Vui lòng chọn ít nhất một liên hệ an toàn.',
+                                          'Please select at least one trusted contact.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final scheduledAt =
+                                    _combineDateAndTime(
+                                  tempSelectedDate!,
+                                  tempSelectedTime!,
+                                );
+
+                                if (scheduledAt.isBefore(
+                                  DateTime.now(),
+                                )) {
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Thời gian hẹn phải ở trong tương lai.',
+                                          'The date must be in the future.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                FocusScope.of(context)
+                                    .unfocus();
+
+                                setSheetState(() {
+                                  isSharing = true;
+                                });
+
+                                try {
+                                  await _shareDatePlanBySms(
+                                    selectedDate:
+                                        tempSelectedDate!,
+                                    selectedTime:
+                                        tempSelectedTime!,
+                                    location: location,
+                                    selectedContacts:
+                                        selectedContactData
+                                            .values
+                                            .toList(),
+                                  );
+
+                                  _selectedDate =
+                                      tempSelectedDate;
+                                  _selectedTime =
+                                      tempSelectedTime;
+
+                                  if (!mounted) return;
+
+                                  Navigator.pop(
+                                    sheetContext,
+                                  );
+
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Kế hoạch đã được lưu. Hãy kiểm tra và gửi tin nhắn.',
+                                          'The plan was saved. Review and send the message.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  debugPrint(
+                                    'SHARE DATE PLAN ERROR: $e',
+                                  );
+
+                                  if (!mounted) return;
+
+                                  setSheetState(() {
+                                    isSharing = false;
+                                  });
+
+                                  ScaffoldMessenger.of(
+                                    this.context,
+                                  ).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        _tr(
+                                          'Không thể mở ứng dụng tin nhắn. Vui lòng thử lại.',
+                                          'Could not open the messaging app. Please try again.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: isSharing
+                            ? const SizedBox(
+                                width: 21,
+                                height: 21,
+                                child:
+                                    CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons
+                                    .send_to_mobile_rounded,
+                              ),
+                        label: Text(
+                          isSharing
+                              ? _tr(
+                                  'Đang chuẩn bị...',
+                                  'Preparing...',
+                                )
+                              : _tr(
+                                  'Chia sẻ kế hoạch',
+                                  'Share Date Plan',
+                                ),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor:
+                              const Color(0xFFE91E63),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor:
+                              const Color(0xFFF48FB1),
+                          padding:
+                              const EdgeInsets.symmetric(
+                            vertical: 15,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Row(
+                      crossAxisAlignment:
+                          CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.info_outline_rounded,
+                          size: 17,
+                          color: Colors.black45,
+                        ),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            _tr(
+                              'VietLove sẽ mở ứng dụng Tin nhắn. Bạn vẫn cần kiểm tra và bấm gửi.',
+                              'VietLove will open your messaging app. You still need to review and tap send.',
+                            ),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black45,
+                              height: 1.35,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
 
   @override
 void initState() {
@@ -111,6 +1920,7 @@ _isSendingVoiceNotifier.dispose();
   _audioRecorder.dispose();
   _audioPlayer.dispose();
   _messageController.dispose();
+  _dateLocationController.dispose();
   _scrollController.dispose();
   super.dispose();
 }
@@ -921,12 +2731,182 @@ void _showMessageOptions({
   );
 }
 
-  Widget _buildBubbleContent({
-    required String type,
-    required String text,
-    required String imageUrl,
-    required bool isMe,
-  }) {
+ Widget _buildBubbleContent({
+  required String type,
+  required String text,
+  required String imageUrl,
+  required bool isMe,
+  required String likedContentType,
+  required String likedContentText,
+  required int likedContentIndex,
+}) {
+  if (type == 'content_like') {
+  final normalizedContentType =
+      likedContentType.trim().toLowerCase();
+
+  final comment = text.trim();
+  final contentValue = likedContentText.trim();
+
+  final actionLabel = normalizedContentType == 'photo'
+      ? isMe
+          ? _tr(
+              'Bạn đã thích ảnh này',
+              'You liked this photo',
+            )
+          : _tr(
+              'Đã thích ảnh của bạn',
+              'Liked your photo',
+            )
+      : isMe
+          ? _tr(
+              'Bạn đã thích câu trả lời này',
+              'You liked this answer',
+            )
+          : _tr(
+              'Đã thích câu trả lời của bạn',
+              'Liked your answer',
+            );
+
+  return Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment:
+        isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.favorite_rounded,
+            size: 17,
+            color: isMe
+                ? Colors.white
+                : const Color(0xFFE91E63),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              actionLabel,
+              style: TextStyle(
+                color: isMe
+                    ? Colors.white
+                    : const Color(0xFFE91E63),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+
+      const SizedBox(height: 9),
+
+      if (normalizedContentType == 'photo' &&
+          contentValue.isNotEmpty)
+        FutureBuilder<String?>(
+          future: _resolveImageUrl(contentValue),
+          builder: (context, snapshot) {
+            final resolvedUrl = snapshot.data;
+
+            if (snapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const SizedBox(
+                width: 210,
+                height: 180,
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            if (resolvedUrl == null || resolvedUrl.isEmpty) {
+              return Container(
+                width: 210,
+                height: 120,
+                alignment: Alignment.center,
+                color: Colors.grey.shade200,
+                child: Text(
+                  _tr(
+                    'Không tải được ảnh',
+                    'Image failed to load',
+                  ),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              );
+            }
+
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Image.network(
+                resolvedUrl,
+                width: 210,
+                height: 210,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) {
+                  return Container(
+                    width: 210,
+                    height: 120,
+                    alignment: Alignment.center,
+                    color: Colors.grey.shade200,
+                    child: Text(
+                      _tr(
+                        'Không tải được ảnh',
+                        'Image failed to load',
+                      ),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+
+      if (normalizedContentType == 'prompt' &&
+          contentValue.isNotEmpty)
+        Container(
+          width: 220,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isMe
+                ? Colors.white.withOpacity(0.16)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isMe
+                  ? Colors.white.withOpacity(0.35)
+                  : const Color(0xFFFFC7DE),
+            ),
+          ),
+          child: Text(
+            contentValue,
+            style: TextStyle(
+              color: isMe ? Colors.white : Colors.black87,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              height: 1.35,
+            ),
+          ),
+        ),
+
+      if (comment.isNotEmpty) ...[
+        const SizedBox(height: 9),
+        Text(
+          comment,
+          style: TextStyle(
+            color: isMe ? Colors.white : Colors.black87,
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+          ),
+        ),
+      ],
+    ],
+  );
+}
     if (type == 'image' && imageUrl.isNotEmpty) {
       return FutureBuilder<String?>(
         future: _resolveImageUrl(imageUrl),
@@ -1029,8 +3009,8 @@ if (type == 'voice') {
                   }
                 },
           child: SizedBox(
-            width: 30,
-            height: 30,
+            width: 34,
+            height: 34,
             child: Center(
               child: Icon(
                 isPlaying ? Icons.pause : Icons.play_arrow,
@@ -1080,6 +3060,9 @@ if (type == 'voice') {
   required String text,
   required String type,
   required String imageUrl,
+  required String likedContentType,
+  required String likedContentText,
+  required int likedContentIndex,
   required String timeText,
   required String avatarUrl,
   required bool isRead,
@@ -1089,6 +3072,7 @@ if (type == 'voice') {
 }) {
   final isHeart = type == 'heart';
   final isImage = type == 'image';
+  final isContentLike = type == 'content_like';
 final displayText = isDeleted
     ? _tr('Tin nhắn đã được xóa', 'Message deleted')
     : text;
@@ -1106,11 +3090,17 @@ final displayImageUrl = isDeleted ? '' : imageUrl;
     children: [
       Container(
         constraints: const BoxConstraints(maxWidth: 270),
-        padding: isHeart
-            ? const EdgeInsets.symmetric(horizontal: 4, vertical: 2)
-            : isImage
-                ? const EdgeInsets.all(4)
-                : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+       padding: isHeart
+    ? const EdgeInsets.symmetric(
+        horizontal: 4,
+        vertical: 2,
+      )
+    : (isImage || isContentLike)
+        ? const EdgeInsets.all(6)
+        : const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 10,
+          ),
         decoration: isHeart
             ? null
             : BoxDecoration(
@@ -1139,6 +3129,12 @@ final displayImageUrl = isDeleted ? '' : imageUrl;
   text: displayText,
   imageUrl: displayImageUrl,
   isMe: isMe,
+  likedContentType:
+      isDeleted ? '' : likedContentType,
+  likedContentText:
+      isDeleted ? '' : likedContentText,
+  likedContentIndex:
+      isDeleted ? -1 : likedContentIndex,
 ),
       ),
       if (reactions.isNotEmpty)
@@ -1270,6 +3266,49 @@ final bubble = GestureDetector(
   ),
 ),
         actions: [
+          IconButton(
+  tooltip: _tr(
+    'Kế hoạch hẹn hò an toàn',
+    'Safe Date Plan',
+  ),
+  onPressed: _showDatePlanSheet,
+  icon: SizedBox(
+    width: 30,
+    height: 30,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Positioned(
+          left: 1,
+          bottom: 1,
+          child: Icon(
+            Icons.calendar_month_rounded,
+            size: 28,
+            color: Color(0xFF8A2F6A),
+          ),
+        ),
+        Positioned(
+          right: -1,
+          top: -2,
+          child: Container(
+            width: 15,
+            height: 15,
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFF7FB),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: const Icon(
+              Icons.favorite_rounded,
+              size: 13,
+              color: Color(0xFFE91E63),
+            ),
+          ),
+        ),
+      ],
+    ),
+  ),
+),
   PopupMenuButton<String>(
     icon: const Icon(Icons.more_vert),
     onSelected: (value) async {
@@ -1404,6 +3443,27 @@ final bubble = GestureDetector(
           final senderId = (data['senderId'] ?? '').toString();
           final text = (data['text'] ?? '').toString();
           final type = (data['type'] ?? 'text').toString();
+          final likedContentType =
+    (data['likedContentType'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+final likedContentText =
+    (data['likedContentText'] ?? '')
+        .toString()
+        .trim();
+
+final rawLikedContentIndex =
+    data['likedContentIndex'];
+
+final likedContentIndex =
+    rawLikedContentIndex is int
+        ? rawLikedContentIndex
+        : int.tryParse(
+              rawLikedContentIndex?.toString() ?? '',
+            ) ??
+            -1;
           final imageUrl = type == 'voice'
     ? (data['voiceUrl'] ?? '').toString()
     : (data['imageUrl'] ?? '').toString();
@@ -1435,6 +3495,9 @@ reactions: reactions,
   text: text,
   type: type,
   imageUrl: imageUrl,
+  likedContentType: likedContentType,
+likedContentText: likedContentText,
+likedContentIndex: likedContentIndex,
   timeText: _formatTime(timestamp),
   avatarUrl: avatarUrl,
   isRead: isMe ? isRead : false,
@@ -1699,7 +3762,6 @@ if (_pendingImageFile != null)
     ),
   ),
 ),
-const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: _messageController,

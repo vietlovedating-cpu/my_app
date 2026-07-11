@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'relationship_goal_page.dart';
 
 class HaveChildrenPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -24,6 +28,7 @@ class HaveChildrenPage extends StatefulWidget {
   const HaveChildrenPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -33,7 +38,6 @@ class HaveChildrenPage extends StatefulWidget {
     required this.minAgePreference,
     required this.maxAgePreference,
     required this.maritalStatus,
-
     this.relationshipGoals = const [],
     this.initialRelationshipGoals,
     this.initialPhotoUrls = const [],
@@ -47,6 +51,7 @@ class HaveChildrenPage extends StatefulWidget {
 
 class _HaveChildrenPageState extends State<HaveChildrenPage> {
   String? selectedOption;
+  bool isSaving = false;
 
   @override
   void initState() {
@@ -55,14 +60,31 @@ class _HaveChildrenPageState extends State<HaveChildrenPage> {
   }
 
   List<Map<String, String>> get _options => [
-        {'value': 'no', 'vi': 'Chưa có', 'en': 'No'},
-        {'value': 'yes', 'vi': 'Có con', 'en': 'Have children'},
-        {'value': 'want', 'vi': 'Muốn có', 'en': 'Want children'},
-        {'value': 'not_sure', 'vi': 'Chưa chắc', 'en': 'Not sure'},
+        {
+          'value': 'no',
+          'vi': 'Chưa có',
+          'en': 'No',
+        },
+        {
+          'value': 'yes',
+          'vi': 'Có con',
+          'en': 'Have children',
+        },
+        {
+          'value': 'want',
+          'vi': 'Muốn có',
+          'en': 'Want children',
+        },
+        {
+          'value': 'not_sure',
+          'vi': 'Chưa chắc',
+          'en': 'Not sure',
+        },
       ];
 
-  void _goNext() {
+  Future<void> _goNext() async {
     final isVi = widget.languageCode == 'vi';
+    final user = FirebaseAuth.instance.currentUser;
 
     if (selectedOption == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,31 +99,77 @@ class _HaveChildrenPageState extends State<HaveChildrenPage> {
       return;
     }
 
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RelationshipGoalPage(
-          languageCode: widget.languageCode,
-          selectedState: widget.selectedState,
-          firstName: widget.firstName,
-          address: widget.address,
-          gender: widget.gender,
-          datingPreference: widget.datingPreference,
-          age: widget.age,
-          minAgePreference: widget.minAgePreference,
-          maxAgePreference: widget.maxAgePreference,
-          maritalStatus: widget.maritalStatus,
-
-          // 👇 truyền thêm field mới
-          haveChildren: selectedOption!,
-
-          initialRelationshipGoals:
-              widget.initialRelationshipGoals ?? widget.relationshipGoals,
-          initialPhotoUrls: widget.initialPhotoUrls,
-          isEditingFromHome: widget.isEditingFromHome,
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isVi
+                ? 'Không tìm thấy tài khoản'
+                : 'User account not found',
+          ),
         ),
-      ),
-    );
+      );
+      return;
+    }
+
+
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set({
+        'haveChildren': selectedOption,
+        'onboardingStep': 'relationship_goal',
+        'haveChildrenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RelationshipGoalPage(
+            languageCode: widget.languageCode,
+            selectedCountry: widget.selectedCountry,
+            selectedState: widget.selectedState,
+            firstName: widget.firstName,
+            address: widget.address,
+            gender: widget.gender,
+            datingPreference: widget.datingPreference,
+            age: widget.age,
+            minAgePreference: widget.minAgePreference,
+            maxAgePreference: widget.maxAgePreference,
+            maritalStatus: widget.maritalStatus,
+
+            // Truyền thêm câu trả lời về con cái.
+            haveChildren: selectedOption!,
+
+            initialRelationshipGoals:
+                widget.initialRelationshipGoals ??
+                    widget.relationshipGoals,
+            initialPhotoUrls: widget.initialPhotoUrls,
+            isEditingFromHome: widget.isEditingFromHome,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        isSaving = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isVi
+                ? 'Không thể lưu thông tin con cái. Vui lòng thử lại.'
+                : 'Unable to save children information. Please try again.',
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildOptionCard({
@@ -115,12 +183,19 @@ class _HaveChildrenPageState extends State<HaveChildrenPage> {
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 18,
+        ),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFFE4EF) : Colors.white,
+          color: isSelected
+              ? const Color(0xFFFFE4EF)
+              : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? Colors.pink : const Color(0xFFFFD6E7),
+            color: isSelected
+                ? Colors.pink
+                : const Color(0xFFFFD6E7),
             width: 1.4,
           ),
         ),
@@ -131,12 +206,16 @@ class _HaveChildrenPageState extends State<HaveChildrenPage> {
                 title,
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: isSelected
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                 ),
               ),
             ),
             Icon(
-              isSelected ? Icons.favorite : Icons.favorite_border,
+              isSelected
+                  ? Icons.favorite
+                  : Icons.favorite_border,
               color: Colors.pink,
             ),
           ],
@@ -195,9 +274,13 @@ class _HaveChildrenPageState extends State<HaveChildrenPage> {
                 child: ListView(
                   children: _options.map((option) {
                     final value = option['value']!;
+
                     return _buildOptionCard(
-                      title: isVi ? option['vi']! : option['en']!,
-                      isSelected: selectedOption == value,
+                      title: isVi
+                          ? option['vi']!
+                          : option['en']!,
+                      isSelected:
+                          selectedOption == value,
                       onTap: () {
                         setState(() {
                           selectedOption = value;
@@ -212,21 +295,35 @@ class _HaveChildrenPageState extends State<HaveChildrenPage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _goNext,
+                 onPressed: _goNext,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.pink,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius:
+                          BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(
-                    isVi ? 'Tiếp theo →' : 'Next →',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 23,
+                          height: 23,
+                          child:
+                              CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          isVi
+                              ? 'Tiếp theo →'
+                              : 'Next →',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight:
+                                FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ],

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -34,6 +35,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   User? get currentUser => FirebaseAuth.instance.currentUser;
 
   StreamSubscription<User?>? _authSub;
+  Timer? _onlineTimer;
 
   bool _isProcessingAction = false;
   int _selectedBottomIndex = 0;
@@ -42,6 +44,12 @@ Set<String> _myContactEmails = {};
 bool _contactsLoaded = false;
   Map<String, dynamic>? currentUserData;
   String? _lastUid;
+  final AudioPlayer _voicePromptPlayer = AudioPlayer();
+
+bool _isVoicePromptPlaying = false;
+bool _isVoicePromptLoading = false;
+String? _playingVoicePromptUrl;
+Future<List<Map<String, dynamic>>>? _profilesFuture;
 
  String? selectedGenderFilter;
 int? selectedMinAgeFilter;
@@ -58,6 +66,10 @@ double? selectedDistanceKm;
   String? selectedSmokingFilter;
   String? selectedDrinkingFilter;
   String? selectedHaveChildrenFilter;
+  String? selectedIncomeFilter;
+
+  bool selectedPhotoVerifiedOnly = false;
+  bool selectedNewHereOnly = false;
 
   bool get isVi => widget.languageCode == 'vi';
   bool get isVipUser => _hasVipAccess(currentUserData);
@@ -98,7 +110,23 @@ final List<String> countryOptions = const [
 void initState() {
   super.initState();
   WidgetsBinding.instance.addObserver(this);
-  _setOnline(true);
+  _setOnline(true);_setOnline(true);
+
+_onlineTimer = Timer.periodic(
+  const Duration(minutes: 5),
+  (_) {
+    _setOnline(true);
+  },
+);
+_voicePromptPlayer.onPlayerComplete.listen((_) {
+  if (!mounted) return;
+
+  setState(() {
+    _isVoicePromptLoading = false;
+    _isVoicePromptPlaying = false;
+    _playingVoicePromptUrl = null;
+  });
+});
 
   _handleAuthChanged(FirebaseAuth.instance.currentUser);
   Future.delayed(const Duration(seconds: 1), () {
@@ -130,18 +158,29 @@ void initState() {
 
  @override
 void dispose() {
+  _onlineTimer?.cancel();
   _setOnline(false);
   WidgetsBinding.instance.removeObserver(this);
-  _authSub?.cancel();
-  super.dispose();
+ _authSub?.cancel();
+_voicePromptPlayer.dispose();
+super.dispose();
 }
 @override
 void didChangeAppLifecycleState(AppLifecycleState state) {
   if (state == AppLifecycleState.resumed) {
     _setOnline(true);
+
+    _onlineTimer?.cancel();
+    _onlineTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) {
+        _setOnline(true);
+      },
+    );
   } else if (state == AppLifecycleState.inactive ||
       state == AppLifecycleState.paused ||
       state == AppLifecycleState.detached) {
+    _onlineTimer?.cancel();
     _setOnline(false);
   }
 }
@@ -173,6 +212,11 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       selectedSmokingFilter = null;
       selectedDrinkingFilter = null;
       selectedHaveChildrenFilter = null;
+      selectedIncomeFilter = null;
+
+
+      selectedPhotoVerifiedOnly = false;
+      selectedNewHereOnly = false;
     });
 
     if (user == null) return;
@@ -210,27 +254,42 @@ selectedDistanceKm =
 
       if (selectedMinAgeFilter == 0) selectedMinAgeFilter = null;
       if (selectedMaxAgeFilter == 0) selectedMaxAgeFilter = null;
+
+      _profilesFuture = _loadProfiles();
     });
   }
 
   Future<void> _reloadCurrentUserData() async {
-    
-    final user = currentUser;
-    if (user == null) return;
+  final user = currentUser;
+  if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
+  final doc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
 
-    if (!mounted) return;
+  if (!mounted) return;
 
-    final data = doc.data() ?? {};
+  final data = doc.data() ?? {};
 
-    setState(() {
-      currentUserData = data;
-    });
-  }
+  final newFilterState =
+      (data['filterState'] ??
+              data['selectedStateKey'] ??
+              data['selectedState'] ??
+              '')
+          .toString()
+          .trim();
+
+  setState(() {
+    currentUserData = data;
+
+    selectedStateFilter =
+        newFilterState.isEmpty ? null : newFilterState;
+
+    selectedDistanceKm =
+        (data['maxDistanceKm'] as num?)?.toDouble();
+  });
+}
   Future<void> _setOnline(bool isOnline) async {
   try {
     final user = FirebaseAuth.instance.currentUser;
@@ -359,7 +418,7 @@ bool _shouldHideUserBecauseInMyContacts(Map<String, dynamic> profile) {
 
   return phoneMatched || emailMatched;
 }
-Future<Set<String>> _loadLikedMeIds() async {
+Future<Map<String, Map<String, dynamic>>> _loadLikedMeData() async {
   final user = currentUser;
   if (user == null) return {};
 
@@ -369,10 +428,20 @@ Future<Set<String>> _loadLikedMeIds() async {
       .collection('likedBy')
       .get();
 
-  return snapshot.docs
-      .map((doc) => doc.id.toString().trim())
-      .where((id) => id.isNotEmpty)
-      .toSet();
+  final result = <String, Map<String, dynamic>>{};
+
+  for (final doc in snapshot.docs) {
+    final uid = doc.id.toString().trim();
+
+    if (uid.isEmpty) continue;
+
+    result[uid] = {
+      'fromUserId': uid,
+      ...doc.data(),
+    };
+  }
+
+  return result;
 }
   Future<List<Map<String, dynamic>>> _loadProfiles() async {
   final user = currentUser;
@@ -380,8 +449,8 @@ Future<Set<String>> _loadLikedMeIds() async {
 
   final currentUid = user.uid;
 
-  final likedMeIds = await _loadLikedMeIds();
-
+  final likedMeData = await _loadLikedMeData();
+final likedMeIds = likedMeData.keys.toSet();
   final usersSnapshot =
       await FirebaseFirestore.instance.collection('users').get();
 
@@ -472,9 +541,13 @@ if (data['profileCompleted'] != true) {
     if (data['isDeleted'] == true) continue;
 
     final profile = {
-      'docId': doc.id,
-      ...data,
-    };
+  'docId': doc.id,
+  ...data,
+
+  // Dữ liệu lượt Like mà người này đã gửi cho mình.
+  if (likedMeData.containsKey(uid))
+    'incomingLike': likedMeData[uid],
+};
 
     // ẩn nếu người này có trong danh bạ của mình
     if (_shouldHideUserBecauseInMyContacts(profile)) continue;
@@ -484,65 +557,59 @@ if (data['profileCompleted'] != true) {
     profiles.add(profile);
   }
 
- profiles.sort((a, b) {
-  int scoreProfile(Map<String, dynamic> profile) {
-    int score = 0;
+// Thỉnh thoảng chèn profile thường vào danh sách ưu tiên
+final priorityProfiles = <Map<String, dynamic>>[];
+final regularProfiles = <Map<String, dynamic>>[];
 
-    final uid = (profile['uid'] ?? profile['docId'] ?? '').toString().trim();
+for (final profile in profiles) {
+  final uid =
+      (profile['uid'] ?? profile['docId'] ?? '')
+          .toString()
+          .trim();
 
-    // Người đã Like mình sẽ được ưu tiên hơn
-    if (likedMeIds.contains(uid)) {
-      score += 1000;
-    }
+  final isLikedMe = likedMeIds.contains(uid);
+  final isOnline = _isOnlineRecently(profile);
+  final isRecentlyActive = _isRecentlyActive(profile);
+  final compatibleScore = _mostCompatibleScore(profile);
 
-    // Người đang online ưu tiên nhẹ
-    if (profile['isOnline'] == true) {
-      score += 50;
-    }
+  final isPriorityProfile =
+      isLikedMe ||
+      isOnline ||
+      isRecentlyActive ||
+      compatibleScore >= 150;
 
-    // Profile có nhiều ảnh ưu tiên nhẹ
-    final photos = _extractPhotos(profile);
-    if (photos.length >= 3) {
-      score += 20;
-    } else if (photos.length >= 2) {
-      score += 10;
-    }
-
-    return score;
+  if (isPriorityProfile) {
+    priorityProfiles.add(profile);
+  } else {
+    regularProfiles.add(profile);
   }
+}
 
-  final scoreA = scoreProfile(a);
-  final scoreB = scoreProfile(b);
+// Xáo nhẹ nhóm người thường để mỗi lần không hiện giống nhau
+regularProfiles.shuffle(Random());
 
-  if (scoreA != scoreB) {
-    return scoreB.compareTo(scoreA);
+final mixedProfiles = <Map<String, dynamic>>[];
+
+int regularIndex = 0;
+
+for (int i = 0; i < priorityProfiles.length; i++) {
+  mixedProfiles.add(priorityProfiles[i]);
+
+  // Cứ 5 người ưu tiên thì chèn 1 người thường
+  if ((i + 1) % 5 == 0 &&
+      regularIndex < regularProfiles.length) {
+    mixedProfiles.add(regularProfiles[regularIndex]);
+    regularIndex++;
   }
+}
 
-  final myLat = double.tryParse((currentUserData?['lat'] ?? '').toString());
-  final myLng = double.tryParse((currentUserData?['lng'] ?? '').toString());
+// Thêm những profile thường còn lại xuống phía sau
+while (regularIndex < regularProfiles.length) {
+  mixedProfiles.add(regularProfiles[regularIndex]);
+  regularIndex++;
+}
 
-  final aLat = double.tryParse((a['lat'] ?? '').toString());
-  final aLng = double.tryParse((a['lng'] ?? '').toString());
-
-  final bLat = double.tryParse((b['lat'] ?? '').toString());
-  final bLng = double.tryParse((b['lng'] ?? '').toString());
-
-  if (myLat == null || myLng == null) return 0;
-
-  double distA = 999999;
-  double distB = 999999;
-
-  if (aLat != null && aLng != null) {
-    distA = _calculateDistanceKm(myLat, myLng, aLat, aLng);
-  }
-
-  if (bLat != null && bLng != null) {
-    distB = _calculateDistanceKm(myLat, myLng, bLat, bLng);
-  }
-
-  return distA.compareTo(distB);
-});
-
+return mixedProfiles;
 return profiles;
 }
 Future<List<Map<String, dynamic>>> _loadTopPicks() async {
@@ -598,7 +665,58 @@ Future<List<Map<String, dynamic>>> _loadTopPicks() async {
 
   return profiles.take(6).toList();
 }
+bool _isNewHere(Map<String, dynamic> profile) {
+  final createdAt = profile['createdAt'];
+
+  if (createdAt == null) return false;
+
+  DateTime createdDate;
+
+  if (createdAt is Timestamp) {
+    createdDate = createdAt.toDate();
+  } else if (createdAt is DateTime) {
+    createdDate = createdAt;
+  } else {
+    return false;
+  }
+
+  final now = DateTime.now();
+  final difference = now.difference(createdDate);
+
+  return !difference.isNegative &&
+      difference <= const Duration(days: 14);
+}
+bool _isOnlineRecently(Map<String, dynamic> profile) {
+  final lastSeen = profile['lastSeen'];
+
+  if (lastSeen is! Timestamp) {
+    return false;
+  }
+
+  final difference = DateTime.now().difference(lastSeen.toDate());
+
+  return !difference.isNegative &&
+      difference <= const Duration(minutes: 15);
+}
+
+bool _isRecentlyActive(Map<String, dynamic> profile) {
+  if (_isOnlineRecently(profile)) {
+    return false;
+  }
+
+  final lastSeen = profile['lastSeen'];
+
+  if (lastSeen is! Timestamp) {
+    return false;
+  }
+
+  final difference = DateTime.now().difference(lastSeen.toDate());
+
+  return !difference.isNegative &&
+      difference <= const Duration(days: 3);
+}
   bool _matchesFilters(Map<String, dynamic> profile) {
+    
   final profileGender = _normalizeGenderPreference(profile['gender']);
   final profileAge = _parseInt(profile['age']);
 
@@ -615,6 +733,7 @@ print('FILTER DEBUG => age=$profileAge min=$selectedMinAgeFilter max=$selectedMa
       profile['livingState'] ??
       '',
 );
+
 
   // FREE FILTERS: gender, age, state, distance
   if (selectedGenderFilter != null &&
@@ -699,6 +818,13 @@ if (selectedStateFilter == null ||
 
   // VIP FILTERS: chỉ VIP mới lọc các mục dưới đây
   if (isVipUser) {
+    if (selectedPhotoVerifiedOnly && profile['photoVerified'] != true) {
+  return false;
+}
+
+if (selectedNewHereOnly && !_isNewHere(profile)) {
+  return false;
+}
     if (selectedReligionFilter != null &&
         selectedReligionFilter!.isNotEmpty &&
         _normalizeString(profile['religion']) != selectedReligionFilter) {
@@ -744,6 +870,14 @@ if (selectedStateFilter == null ||
   if (selectedHeightFilter == '180+ cm' && heightCm < 180) {
     return false;
   }
+}
+if (selectedIncomeFilter != null &&
+    selectedIncomeFilter!.isNotEmpty &&
+    _normalizeString(
+          profile['annualIncome'] ?? profile['income'],
+        ) !=
+        _normalizeString(selectedIncomeFilter)) {
+  return false;
 }
     if (selectedResidentStatusFilter != null &&
         selectedResidentStatusFilter!.isNotEmpty &&
@@ -793,24 +927,260 @@ if (selectedStateFilter == null ||
     );
     if (mounted) setState(() {});
   }
+  Future<void> _createContentLikeMessagesAfterMatch({
+  required Map<String, dynamic> targetProfile,
+  required String currentComment,
+  required String currentContentType,
+  required int currentContentIndex,
+  required String currentContentText,
+}) async {
+  final user = currentUser;
+  if (user == null) return;
 
-  Future<void> _handleLike({
-    required Map<String, dynamic> targetProfile,
-  }) async {
-    final didMatch = await _saveSwipe(
-      targetProfile: targetProfile,
-      action: 'like',
-    );
+  final currentUid = user.uid;
 
-    if (!mounted) return;
+  final targetUid =
+      (targetProfile['uid'] ?? targetProfile['docId'] ?? '')
+          .toString()
+          .trim();
 
-    if (didMatch) {
-      await _showMatchDialog(targetProfile);
-    }
+  if (targetUid.isEmpty || targetUid == currentUid) return;
 
-    setState(() {});
+  final chatId = _chatIdFor(currentUid, targetUid);
+  final firestore = FirebaseFirestore.instance;
+
+  // Lấy lượt Like trước đó của User A dành cho User B.
+  final reverseSwipeId = '${targetUid}_$currentUid';
+
+  final reverseSwipeDoc = await firestore
+      .collection('swipes')
+      .doc(reverseSwipeId)
+      .get();
+
+  final reverseData = reverseSwipeDoc.data() ?? {};
+
+  final reverseAction =
+      (reverseData['action'] ?? '').toString().trim().toLowerCase();
+
+  final reverseContentType =
+      (reverseData['likedContentType'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+  final reverseContentIndex =
+      reverseData['likedContentIndex'];
+
+  final reverseContentText =
+      (reverseData['likedContentText'] ?? '')
+          .toString()
+          .trim();
+
+  final reverseComment =
+      (reverseData['likeComment'] ?? '')
+          .toString()
+          .trim();
+
+  final messagesRef = firestore
+      .collection('chats')
+      .doc(chatId)
+      .collection('messages');
+
+  // Tin nhắn/ngữ cảnh của User A, người Like trước.
+  if (reverseAction == 'like' &&
+      (reverseContentType == 'photo' ||
+          reverseContentType == 'prompt')) {
+    await messagesRef.doc('content_like_$targetUid').set({
+      'senderId': targetUid,
+      'receiverId': currentUid,
+      'text': reverseComment,
+      'type': 'content_like',
+      'likedContentType': reverseContentType,
+      'likedContentIndex': reverseContentIndex,
+      'likedContentText': reverseContentText,
+      'createdAt': FieldValue.serverTimestamp(),
+      'isRead': false,
+    }, SetOptions(merge: true));
   }
 
+  // Tin nhắn/comment hiện tại của User B.
+  if (currentContentType == 'photo' ||
+      currentContentType == 'prompt') {
+    await messagesRef.doc('content_like_$currentUid').set({
+      'senderId': currentUid,
+      'receiverId': targetUid,
+      'text': currentComment.trim(),
+      'type': 'content_like',
+      'likedContentType': currentContentType,
+      'likedContentIndex': currentContentIndex,
+      'likedContentText': currentContentText,
+      'createdAt': FieldValue.serverTimestamp(),
+      'isRead': false,
+    }, SetOptions(merge: true));
+  }
+
+  final previewText = currentComment.trim().isNotEmpty
+      ? currentComment.trim()
+      : reverseComment;
+
+  await firestore.collection('chats').doc(chatId).set({
+    'lastMessage': previewText,
+    'lastMessageType': 'content_like',
+    'lastSenderId': currentComment.trim().isNotEmpty
+        ? currentUid
+        : targetUid,
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+}
+Future<void> _handleContentLike({
+  required Map<String, dynamic> targetProfile,
+  required String contentType,
+  required int contentIndex,
+  required String contentText,
+}) async {
+  if (_isProcessingAction) return;
+
+  final commentController = TextEditingController();
+
+  final result = await showDialog<String?>(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        title: Text(
+          isVi ? 'Gửi lời nhắn cùng lượt thích' : 'Send a message with your like',
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        content: TextField(
+          controller: commentController,
+          maxLines: 4,
+          maxLength: 250,
+          decoration: InputDecoration(
+            hintText: isVi
+                ? 'Viết lời nhắn hoặc để trống...'
+                : 'Write a message or leave it blank...',
+            filled: true,
+            fillColor: const Color(0xFFFFF3F8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: Color(0xFFFFD5E6),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: Color(0xFFCC3D7A),
+                width: 1.3,
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+            },
+            child: Text(
+              isVi ? 'Huỷ' : 'Cancel',
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(
+                dialogContext,
+                commentController.text.trim(),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFCC3D7A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Text(
+              isVi ? 'Gửi Like' : 'Send Like',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+ if (result == null || !mounted) {
+  // Đợi dialog đóng hoàn toàn rồi mới dispose controller.
+  await Future<void>.delayed(
+    const Duration(milliseconds: 300),
+  );
+  commentController.dispose();
+  return;
+}
+
+// Navigator.pop có animation.
+// Không lưu Like và setState trong lúc dialog vẫn đang được tháo khỏi widget tree.
+await Future<void>.delayed(
+  const Duration(milliseconds: 300),
+);
+
+commentController.dispose();
+
+if (!mounted) return;
+
+final didMatch = await _saveSwipe(
+    targetProfile: targetProfile,
+    action: 'like',
+    likedContentType: contentType,
+    likedContentIndex: contentIndex,
+    likedContentText: contentText,
+    likeComment: result,
+  );
+
+  if (!mounted) return;
+
+  if (didMatch) {
+  await _createContentLikeMessagesAfterMatch(
+    targetProfile: targetProfile,
+    currentComment: result,
+    currentContentType: contentType,
+    currentContentIndex: contentIndex,
+    currentContentText: contentText,
+  );
+
+  await _showMatchDialog(targetProfile);
+}
+
+  if (mounted) {
+    setState(() {});
+  }
+}
+ Future<void> _handleLike({
+  required Map<String, dynamic> targetProfile,
+}) async {
+  final didMatch = await _saveSwipe(
+    targetProfile: targetProfile,
+    action: 'like',
+  );
+
+  if (!mounted) return;
+
+  if (didMatch) {
+    await _showMatchDialog(targetProfile);
+  }
+
+  setState(() {});
+}
   Future<void> _handleFlower({
     required Map<String, dynamic> targetProfile,
   }) async {
@@ -1041,11 +1411,17 @@ await _saveSwipe(
     setState(() {});
   }
 
-  Future<bool> _saveSwipe({
-    required Map<String, dynamic> targetProfile,
-    required String action,
-    String? flowerMessage,
-  }) async {
+ Future<bool> _saveSwipe({
+  required Map<String, dynamic> targetProfile,
+  required String action,
+  String? flowerMessage,
+
+  // Dùng cho Like trực tiếp ảnh hoặc prompt.
+  String? likedContentType,
+  int? likedContentIndex,
+  String? likedContentText,
+  String? likeComment,
+}) async {
     final user = currentUser;
     if (user == null || _isProcessingAction) return false;
 
@@ -1066,12 +1442,19 @@ await _saveSwipe(
       final docId = '${currentUid}_$targetUid';
 
       await FirebaseFirestore.instance.collection('swipes').doc(docId).set({
-        'fromUserId': currentUid,
-        'toUserId': targetUid,
-        'action': action,
-        'flowerMessage': flowerMessage ?? '',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+  'fromUserId': currentUid,
+  'toUserId': targetUid,
+  'action': action,
+  'flowerMessage': flowerMessage ?? '',
+
+  // Thông tin ảnh hoặc prompt được Like.
+  'likedContentType': likedContentType ?? '',
+  'likedContentIndex': likedContentIndex,
+  'likedContentText': likedContentText ?? '',
+  'likeComment': likeComment ?? '',
+
+  'createdAt': FieldValue.serverTimestamp(),
+});
       if (action == 'pass') {
   await FirebaseFirestore.instance
       .collection('users')
@@ -1099,11 +1482,21 @@ if (action == 'like') {
       .collection('likedBy')
       .doc(currentUid)
       .set({
+    // Giữ nguyên dữ liệu Like hiện tại.
     'uid': currentUid,
     'firstName': (currentUserData?['firstName'] ?? '').toString().trim(),
     'age': currentUserData?['age'],
     'photoUrl': (currentUserData?['mainPhotoUrl'] ?? '').toString().trim(),
-    'mainPhotoUrl': (currentUserData?['mainPhotoUrl'] ?? '').toString().trim(),
+    'mainPhotoUrl':
+        (currentUserData?['mainPhotoUrl'] ?? '').toString().trim(),
+
+    // Like thường sẽ để trống các field này.
+    // Like ảnh hoặc prompt sẽ lưu đầy đủ.
+    'likedContentType': likedContentType ?? '',
+    'likedContentIndex': likedContentIndex,
+    'likedContentText': likedContentText ?? '',
+    'likeComment': likeComment ?? '',
+
     'timestamp': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 }
@@ -1527,8 +1920,12 @@ Future<void> _sendMatchNotification(
     );
   }
 
-  Future<void> _openFilterSheet() async {
-    final result = await showModalBottomSheet<dynamic>(
+ Future<void> _openFilterSheet() async {
+  await _reloadCurrentUserData();
+
+  if (!mounted) return;
+
+  final result = await showModalBottomSheet<dynamic>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
@@ -1543,6 +1940,11 @@ Future<void> _sendMatchNotification(
           initialMinAge: selectedMinAgeFilter,
           initialMaxAge: selectedMaxAgeFilter,
           initialState: selectedStateFilter,
+          currentUserCountryCode:
+    (currentUserData?['countryCode'] ?? 'AU')
+        .toString()
+        .trim()
+        .toUpperCase(),
           initialDistanceKm: selectedDistanceKm,
           initialReligion: selectedReligionFilter,
           initialRelationshipGoal: selectedRelationshipGoalFilter,
@@ -1553,6 +1955,9 @@ Future<void> _sendMatchNotification(
           initialSmoking: selectedSmokingFilter,
           initialDrinking: selectedDrinkingFilter,
           initialHaveChildren: selectedHaveChildrenFilter,
+          initialIncome: selectedIncomeFilter,
+          initialPhotoVerifiedOnly: selectedPhotoVerifiedOnly,
+          initialNewHereOnly: selectedNewHereOnly,
           stateOptions: stateOptions,
           ageOptions: ageOptions,
           countryOptions: countryOptions,
@@ -1598,6 +2003,11 @@ if (selectedStateFilter!.isEmpty) {
               selectedSmokingFilter = null;
               selectedDrinkingFilter = null;
               selectedHaveChildrenFilter = null;
+              selectedIncomeFilter = null;
+
+
+              selectedPhotoVerifiedOnly = false;
+              selectedNewHereOnly = false;
             });
           },
         );
@@ -1652,6 +2062,9 @@ if (user != null) {
           selectedSmokingFilter = result.smoking;
           selectedDrinkingFilter = result.drinking;
           selectedHaveChildrenFilter = result.haveChildren;
+          selectedIncomeFilter = result.income;
+          selectedPhotoVerifiedOnly = result.photoVerifiedOnly;
+          selectedNewHereOnly = result.newHereOnly;
         } else {
           selectedReligionFilter = null;
           selectedRelationshipGoalFilter = null;
@@ -1662,6 +2075,10 @@ if (user != null) {
           selectedSmokingFilter = null;
           selectedDrinkingFilter = null;
           selectedHaveChildrenFilter = null;
+          selectedIncomeFilter = null;
+
+          selectedPhotoVerifiedOnly = false;
+          selectedNewHereOnly = false;
         }
       });
     }
@@ -2152,20 +2569,57 @@ double _degToRad(double degree) {
 }
 
   String _livingStateDisplay(Map<String, dynamic> profile) {
-    final candidates = [
-      profile['selectedState'],
-      profile['state'],
-      profile['livingState'],
-      profile['stateLiving'],
-    ];
+  final country =
+      (profile['selectedCountry'] ?? '').toString().trim();
 
-    for (final item in candidates) {
-      final value = (item ?? '').toString().trim();
-      if (value.isNotEmpty) return value;
+  final stateCandidates = [
+    profile['selectedState'],
+    profile['selectedStateKey'],
+    profile['state'],
+    profile['livingState'],
+    profile['stateLiving'],
+  ];
+
+  String state = '';
+
+  for (final item in stateCandidates) {
+    final value = (item ?? '').toString().trim();
+
+    if (value.isNotEmpty &&
+        value.toLowerCase() != 'other' &&
+        value.toLowerCase() != 'no_preference') {
+      state = value;
+      break;
+    }
+  }
+
+  final isAustralia =
+      country.toLowerCase() == 'australia';
+
+  if (isAustralia) {
+    // Australia chỉ hiện bang, ví dụ NSW hoặc Victoria.
+    if (state.isNotEmpty) {
+      return state;
     }
 
-    return '';
+    return country;
   }
+
+  // Nước khác: hiện State/Province + Country.
+  if (state.isNotEmpty && country.isNotEmpty) {
+    return '$state, $country';
+  }
+
+  if (state.isNotEmpty) {
+    return state;
+  }
+
+  if (country.isNotEmpty) {
+    return country;
+  }
+
+  return '';
+}
 
   String _buildBornDisplay(Map<String, dynamic> profile, bool isVi) {
     final country = (profile['countryOfBirth'] ?? '').toString().trim();
@@ -2201,7 +2655,154 @@ double _degToRad(double degree) {
 
     return _normalizeString(raw);
   }
+List<String> _extractRelationshipGoalKeys(
+  Map<String, dynamic> profile,
+) {
+  final dynamic raw =
+      profile['relationshipGoals'] ?? profile['relationshipGoal'];
 
+  if (raw is List) {
+    return raw
+        .map((item) => _normalizeString(item))
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  final value = _normalizeString(raw);
+
+  if (value.isEmpty) {
+    return [];
+  }
+
+  return [value];
+}
+int _mostCompatibleScore(Map<String, dynamic> profile) {
+  int score = 0;
+
+  final myGender = _normalizeGenderPreference(
+    currentUserData?['gender'],
+  );
+
+  final myPreference = _normalizeGenderPreference(
+    currentUserData?['datingPreference'] ??
+        currentUserData?['genderPreference'],
+  );
+
+  final profileGender = _normalizeGenderPreference(
+    profile['gender'],
+  );
+
+  final profilePreference = _normalizeGenderPreference(
+    profile['datingPreference'] ??
+        profile['genderPreference'],
+  );
+
+  // Hai bên đều đúng giới tính đang tìm
+  final iLikeThem =
+      myPreference == 'everyone' ||
+      myPreference == profileGender;
+
+  final theyLikeMe =
+      profilePreference == 'everyone' ||
+      profilePreference == myGender;
+
+  if (iLikeThem && theyLikeMe) {
+    score += 100;
+  } else {
+    // Không tương thích hai chiều thì không cộng điểm.
+    return 0;
+  }
+
+  // Tuổi của người này nằm trong độ tuổi mình muốn
+  final profileAge = _parseInt(profile['age']);
+
+  if (selectedMinAgeFilter != null &&
+      selectedMaxAgeFilter != null &&
+      profileAge >= selectedMinAgeFilter! &&
+      profileAge <= selectedMaxAgeFilter!) {
+    score += 30;
+  }
+
+  // Tuổi của mình nằm trong độ tuổi người kia muốn
+  final myAge = _parseInt(currentUserData?['age']);
+
+  final theirMinAge = _parseInt(
+    profile['minAgePreference'] ??
+        profile['preferredMinAge'],
+  );
+
+  final theirMaxAge = _parseInt(
+    profile['maxAgePreference'] ??
+        profile['preferredMaxAge'],
+  );
+
+  if (myAge > 0 &&
+      theirMinAge > 0 &&
+      theirMaxAge > 0 &&
+      myAge >= theirMinAge &&
+      myAge <= theirMaxAge) {
+    score += 30;
+  }
+
+  // Cùng mục tiêu mối quan hệ
+  final myGoals = _extractRelationshipGoalKeys(
+    currentUserData ?? {},
+  ).toSet();
+
+  final theirGoals =
+      _extractRelationshipGoalKeys(profile).toSet();
+
+  if (myGoals.isNotEmpty &&
+      theirGoals.isNotEmpty &&
+      myGoals.intersection(theirGoals).isNotEmpty) {
+    score += 40;
+  }
+
+  // Cùng khu vực/bang
+  final myState = _normalizeStateKey(
+    currentUserData?['selectedStateKey'] ??
+        currentUserData?['selectedState'] ??
+        currentUserData?['state'] ??
+        '',
+  );
+
+  final theirState = _normalizeStateKey(
+    profile['selectedStateKey'] ??
+        profile['selectedState'] ??
+        profile['state'] ??
+        '',
+  );
+
+  if (myState.isNotEmpty &&
+      theirState.isNotEmpty &&
+      myState == theirState) {
+    score += 25;
+  }
+
+  // Đã xác minh ảnh
+  if (profile['photoVerified'] == true) {
+    score += 20;
+  }
+
+  // Đang online hoặc mới hoạt động
+  if (_isOnlineRecently(profile)) {
+    score += 20;
+  } else if (_isRecentlyActive(profile)) {
+    score += 10;
+  }
+
+  // Profile có nhiều ảnh
+  final photos = _extractPhotos(profile);
+
+  if (photos.length >= 3) {
+    score += 15;
+  } else if (photos.length >= 2) {
+    score += 8;
+  }
+
+  return score;
+}
   String _translateProfileValue(String raw, bool isVi) {
     final value = _normalizeString(raw);
 
@@ -2340,7 +2941,79 @@ double _degToRad(double degree) {
     }
     return '';
   }
-
+  Widget _buildContentLikeButton({
+  required VoidCallback onTap,
+}) {
+  return Material(
+    color: Colors.white,
+    shape: const CircleBorder(),
+    elevation: 4,
+    child: InkWell(
+      onTap: _isProcessingAction ? null : onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 46,
+        height: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFFFFD5E6),
+          ),
+        ),
+        child: _isProcessingAction
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFFCC3D7A),
+                ),
+              )
+            : const Icon(
+                Icons.favorite_rounded,
+                color: Color(0xFFCC3D7A),
+                size: 25,
+              ),
+      ),
+    ),
+  );
+}
+Widget _buildSmallBadge({
+  required IconData icon,
+  required String text,
+  required Color bgColor,
+  required Color borderColor,
+  required Color textColor,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    decoration: BoxDecoration(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(color: borderColor),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: textColor,
+        ),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w900,
+            color: textColor,
+          ),
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildOnlineDot(bool isOnline) {
     return Container(
       width: 14,
@@ -2406,115 +3079,573 @@ double _degToRad(double degree) {
   );
 }
 
-  Widget _buildPhotoBlock(String imageUrl) {
-    return Container(
-      width: double.infinity,
-      height: 300,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        color: Colors.grey.shade200,
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFCC3D7A).withOpacity(0.10),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: imageUrl.isNotEmpty
-    ? CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: BoxFit.cover,
-        memCacheWidth: 900,
-        placeholder: (context, url) => const Center(
-          child: CircularProgressIndicator(color: Colors.pink),
-        ),
-        errorWidget: (context, url, error) {
-          return const Center(
-            child: Icon(
-              Icons.image_not_supported,
-              size: 48,
-              color: Colors.grey,
+  Widget _buildPhotoBlock({
+  required String imageUrl,
+  required Map<String, dynamic> targetProfile,
+  required int photoIndex,
+}) {
+  return Stack(
+    children: [
+      Container(
+        width: double.infinity,
+        height: 300,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          color: Colors.grey.shade200,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFCC3D7A).withOpacity(0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
-          );
-        },
-      )
-            : const Center(
-                child: Icon(
-                  Icons.image_not_supported,
-                  size: 48,
-                  color: Colors.grey,
-                ),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildPromptCard({
-    required String question,
-    required String answer,
-  }) {
-    if (question.trim().isEmpty && answer.trim().isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFFFFFFFF),
-            Color(0xFFFFF3F8),
           ],
         ),
-        border: Border.all(
-          color: const Color(0xFFFFD5E6),
-          width: 1.2,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: 300,
+            memCacheWidth: 900,
+            placeholder: (context, url) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFCC3D7A),
+                ),
+              );
+            },
+            errorWidget: (context, url, error) {
+              return const Center(
+                child: Icon(
+                  Icons.person,
+                  size: 70,
+                  color: Colors.grey,
+                ),
+              );
+            },
+          ),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFCC3D7A).withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 7),
+      ),
+
+      Positioned(
+        right: 16,
+        bottom: 16,
+        child: Material(
+          color: Colors.white,
+          shape: const CircleBorder(),
+          elevation: 5,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: _isProcessingAction
+                ? null
+                : () {
+                    _handleContentLike(
+                      targetProfile: targetProfile,
+                      contentType: 'photo',
+                      contentIndex: photoIndex,
+                      contentText: imageUrl,
+                    );
+                  },
+            child: Container(
+              width: 50,
+              height: 50,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFFFD5E6),
+                ),
+              ),
+              child: const Icon(
+                Icons.favorite_rounded,
+                color: Color(0xFFCC3D7A),
+                size: 27,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+Widget _buildIncomingLikeCard({
+  required Map<String, dynamic> profile,
+}) {
+  final rawIncomingLike = profile['incomingLike'];
+
+  if (rawIncomingLike is! Map) {
+    return const SizedBox.shrink();
+  }
+
+  final incomingLike =
+      Map<String, dynamic>.from(rawIncomingLike);
+
+  final contentType =
+      (incomingLike['likedContentType'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+  final contentText =
+      (incomingLike['likedContentText'] ?? '')
+          .toString()
+          .trim();
+
+  final comment =
+      (incomingLike['likeComment'] ?? '')
+          .toString()
+          .trim();
+
+  // Like thường không hiện khung đặc biệt.
+  if (contentType.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  // Chỉ nhận Like ảnh hoặc prompt.
+  if (contentType != 'photo' &&
+      contentType != 'prompt') {
+    return const SizedBox.shrink();
+  }
+
+  final firstName = _capitalizeName(
+    (profile['firstName'] ?? '').toString(),
+  );
+
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 18),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF5F9),
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: const Color(0xFFFFC9DE),
+        width: 1.2,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.08),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.favorite_rounded,
+              color: Color(0xFFCC3D7A),
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                contentType == 'photo'
+                    ? (isVi
+                        ? '$firstName đã thích ảnh của bạn'
+                        : '$firstName liked your photo')
+                    : (isVi
+                        ? '$firstName đã thích câu trả lời của bạn'
+                        : '$firstName liked your prompt'),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8B2E63),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        if (contentText.isNotEmpty) ...[
+          const SizedBox(height: 14),
+
+          if (contentType == 'photo')
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: CachedNetworkImage(
+                imageUrl: contentText,
+                width: 86,
+                height: 86,
+                fit: BoxFit.cover,
+                memCacheWidth: 300,
+                placeholder: (_, __) {
+                  return Container(
+                    width: 86,
+                    height: 86,
+                    alignment: Alignment.center,
+                    color: Colors.grey.shade200,
+                    child: const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFFCC3D7A),
+                      ),
+                    ),
+                  );
+                },
+                errorWidget: (_, __, ___) {
+                  return Container(
+                    width: 86,
+                    height: 86,
+                    alignment: Alignment.center,
+                    color: Colors.grey.shade200,
+                    child: const Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.grey,
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          if (contentType == 'prompt')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFFFD5E6),
+                ),
+              ),
+              child: Text(
+                contentText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  height: 1.45,
+                  color: Color(0xFF444444),
+                ),
+              ),
+            ),
+        ],
+
+        if (comment.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Text(
+              '“$comment”',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                fontStyle: FontStyle.italic,
+                color: Color(0xFF6D3152),
+                height: 1.45,
+              ),
+            ),
           ),
         ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (question.trim().isNotEmpty)
-            Text(
-              question,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-                color: Color(0xFF8B2E63),
-                height: 1.35,
-                letterSpacing: 0.1,
-              ),
-            ),
-          if (question.trim().isNotEmpty && answer.trim().isNotEmpty)
-            const SizedBox(height: 10),
-          if (answer.trim().isNotEmpty)
-            Text(
-              answer,
-              style: const TextStyle(
-                fontSize: 15.8,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF444444),
-                height: 1.55,
-              ),
-            ),
+      ],
+    ),
+  );
+}
+String _formatVoicePromptDuration(int seconds) {
+  final safeSeconds = seconds < 0 ? 0 : seconds;
+
+  final minutes =
+      (safeSeconds ~/ 60).toString().padLeft(2, '0');
+
+  final remainingSeconds =
+      (safeSeconds % 60).toString().padLeft(2, '0');
+
+  return '$minutes:$remainingSeconds';
+}
+
+Widget _buildVoicePromptCard({
+  required String audioUrl,
+  required int durationSeconds,
+}) {
+  final isPlaying =
+      _isVoicePromptPlaying &&
+      _playingVoicePromptUrl == audioUrl;
+
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(26),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFFFF3F8),
         ],
       ),
-    );
+      border: Border.all(
+        color: const Color(0xFFFFD5E6),
+        width: 1.2,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.08),
+          blurRadius: 16,
+          offset: const Offset(0, 7),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE4EF),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.mic_rounded,
+                color: Color(0xFFE91E63),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _label(
+                  'Hãy nghe tôi nói để hiểu rõ tôi hơn',
+                  'Listen to me to get to know me better',
+                ),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF8B2E63),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            InkWell(
+              onTap: _isVoicePromptLoading
+    ? null
+    : () async {
+                try {
+                  if (isPlaying) {
+                    await _voicePromptPlayer.pause();
+
+                    if (!mounted) return;
+
+                    setState(() {
+                      _isVoicePromptPlaying = false;
+                      _playingVoicePromptUrl = null;
+                    });
+
+                    return;
+                  }
+if (!mounted) return;
+
+setState(() {
+  _isVoicePromptLoading = true;
+});
+                  await _voicePromptPlayer.stop();
+
+                  await _voicePromptPlayer.play(
+                    UrlSource(audioUrl),
+                  );
+
+                  if (!mounted) return;
+
+                  setState(() {
+  _isVoicePromptLoading = false;
+  _isVoicePromptPlaying = true;
+  _playingVoicePromptUrl = audioUrl;
+});
+              } catch (e) {
+  debugPrint(
+    'PLAY HOME VOICE PROMPT ERROR: $e',
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    _isVoicePromptLoading = false;
+    _isVoicePromptPlaying = false;
+    _playingVoicePromptUrl = null;
+  });
+}
+              },
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFE91E63),
+                ),
+                child: _isVoicePromptLoading
+    ? const SizedBox(
+        width: 23,
+        height: 23,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: Colors.white,
+        ),
+      )
+    : Icon(
+        isPlaying
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded,
+        color: Colors.white,
+        size: 30,
+      ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                 Text(
+  _isVoicePromptLoading
+      ? _label('Đang tải...', 'Loading...')
+      : isPlaying
+          ? _label('Đang phát', 'Playing')
+          : _label(
+              'Bấm để nghe',
+              'Tap to listen',
+            ),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF4A2C40),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _formatVoicePromptDuration(
+                      durationSeconds,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF9A6380),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+  Widget _buildPromptCard({
+  required String question,
+  required String answer,
+
+  // Chỉ dùng khi prompt nằm trên Discover.
+  Map<String, dynamic>? targetProfile,
+  int? promptIndex,
+}) {
+  if (question.trim().isEmpty && answer.trim().isEmpty) {
+    return const SizedBox.shrink();
   }
+
+  final promptContent = [
+    if (question.trim().isNotEmpty) question.trim(),
+    if (answer.trim().isNotEmpty) answer.trim(),
+  ].join('\n');
+
+  return Stack(
+    children: [
+      Container(
+        width: double.infinity,
+
+        // Chừa thêm khoảng trống bên phải cho nút tim,
+        // các phần layout khác giữ nguyên.
+        padding: const EdgeInsets.fromLTRB(20, 20, 70, 20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(26),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFFFFFFF),
+              Color(0xFFFFF3F8),
+            ],
+          ),
+          border: Border.all(
+            color: const Color(0xFFFFD5E6),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFCC3D7A).withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (question.trim().isNotEmpty)
+              Text(
+                question,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF8B2E63),
+                  height: 1.35,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            if (question.trim().isNotEmpty &&
+                answer.trim().isNotEmpty)
+              const SizedBox(height: 10),
+            if (answer.trim().isNotEmpty)
+              Text(
+                answer,
+                style: const TextStyle(
+                  fontSize: 15.8,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF444444),
+                  height: 1.55,
+                ),
+              ),
+          ],
+        ),
+      ),
+
+      // Chỉ hiện khi đã truyền profile và số thứ tự prompt.
+      if (targetProfile != null && promptIndex != null)
+        Positioned(
+          right: 14,
+          bottom: 14,
+          child: _buildContentLikeButton(
+            onTap: () {
+              _handleContentLike(
+                targetProfile: targetProfile,
+                contentType: 'prompt',
+                contentIndex: promptIndex,
+                contentText: promptContent,
+              );
+            },
+          ),
+        ),
+    ],
+  );
+}
 
   Widget _buildInfoSlide({
     required List<_InfoItem> items,
@@ -2859,18 +3990,7 @@ double _degToRad(double degree) {
         firstName.isEmpty ? _label('Người dùng', 'User') : firstName;
 
     final String age = (profile['age'] ?? '').toString().trim();
-    final lastSeen = profile['lastSeen'] as Timestamp?;
-bool isOnline = false;
-
-if (lastSeen != null) {
-  final lastSeenTime = lastSeen.toDate();
-  final diff = DateTime.now().difference(lastSeenTime);
-
-  // nếu hoạt động trong 2 phút gần nhất → online
-  if (diff.inMinutes < 2) {
-    isOnline = true;
-  }
-}
+    
 String distanceText = '';
 
 final myLat = (currentUserData?['lat'] as num?)?.toDouble();
@@ -2973,6 +4093,9 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildIncomingLikeCard(
+  profile: profile,
+),
                 Center(
                   child: _buildMainCirclePhoto(
                     getPhoto(0).isNotEmpty
@@ -2998,7 +4121,7 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
           ),
         ),
       ),
-      if (isOnline) ...[
+      if (_isOnlineRecently(profile)) ...[
   const SizedBox(width: 10),
   _buildOnlineDot(true),
 ],
@@ -3006,52 +4129,54 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
   ),
 ),
                 const SizedBox(height: 22),
-                                if (profile['photoVerified'] == true) ...[
-                  const SizedBox(height: 8),
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE8F4FF),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFF2196F3),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.verified_rounded,
-                            size: 16,
-                            color: Color(0xFF1976D2),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            isVi ? 'Ảnh đã xác minh' : 'Photo Verified',
-                            style: const TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF1976D2),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                                if (_isNewHere(profile) || profile['photoVerified'] == true) ...[
+  const SizedBox(height: 8),
+  Center(
+    child: Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (_isNewHere(profile))
+          _buildSmallBadge(
+            icon: Icons.auto_awesome_rounded,
+            text: isVi ? 'Mới tham gia' : 'New here',
+            bgColor: const Color(0xFFFFF0F7),
+            borderColor: const Color(0xFFE91E63),
+            textColor: const Color(0xFFE91E63),
+          ),
+        if (profile['photoVerified'] == true)
+          _buildSmallBadge(
+            icon: Icons.verified_rounded,
+            text: isVi ? 'Ảnh đã xác minh' : 'Photo Verified',
+            bgColor: const Color(0xFFE8F4FF),
+            borderColor: const Color(0xFF2196F3),
+            textColor: const Color(0xFF1976D2),
+          ),
+      ],
+    ),
+  ),
+],
                 const SizedBox(height: 14),
-               _buildInfoSlide(
+              _buildInfoSlide(
   items: [
+    if (_isRecentlyActive(profile))
+      _InfoItem(
+        icon: Icons.access_time_rounded,
+        label: _label('Hoạt động', 'Activity'),
+        text: _label(
+          'Online gần đây',
+          'Recently online',
+        ),
+      ),
+
     if (age.isNotEmpty)
       _InfoItem(
         icon: Icons.cake_outlined,
         label: _label('Tuổi', 'Age'),
         text: age,
       ),
+  
       if (distanceText.isNotEmpty)
   _InfoItem(
     icon: Icons.location_on_outlined,
@@ -3074,15 +4199,44 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
 ),
                 if (getPhoto(1).isNotEmpty) ...[
                   const SizedBox(height: 18),
-                  _buildPhotoBlock(getPhoto(1)),
+                 _buildPhotoBlock(
+  imageUrl: getPhoto(1),
+  targetProfile: profile,
+  photoIndex: 1,
+),
                 ],
                 if (getPrompt(0)['question']!.isNotEmpty ||
                     getPrompt(0)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   _buildPromptCard(
-                    question: getPrompt(0)['question']!,
-                    answer: getPrompt(0)['answer']!,
-                  ),
+  question: getPrompt(0)['question'] ?? '',
+  answer: getPrompt(0)['answer'] ?? '',
+  targetProfile: profile,
+  promptIndex: 0,
+),
+if ((profile['voicePromptAudioUrl'] ?? '')
+    .toString()
+    .trim()
+    .isNotEmpty)
+  const SizedBox(height: 16),
+
+if ((profile['voicePromptAudioUrl'] ?? '')
+    .toString()
+    .trim()
+    .isNotEmpty)
+  _buildVoicePromptCard(
+    audioUrl: (profile['voicePromptAudioUrl'] ?? '')
+        .toString()
+        .trim(),
+    durationSeconds:
+        profile['voicePromptDuration'] is int
+            ? profile['voicePromptDuration'] as int
+            : int.tryParse(
+                  (profile['voicePromptDuration'] ?? '0')
+                      .toString(),
+                ) ??
+                0,
+  ),
                 ],
                 _buildInfoSlide(
                   items: [
@@ -3109,15 +4263,21 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
                 ),
                 if (getPhoto(2).isNotEmpty) ...[
                   const SizedBox(height: 18),
-                  _buildPhotoBlock(getPhoto(2)),
+                 _buildPhotoBlock(
+  imageUrl: getPhoto(2),
+  targetProfile: profile,
+  photoIndex: 2,
+),
                 ],
                 if (getPrompt(1)['question']!.isNotEmpty ||
                     getPrompt(1)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   _buildPromptCard(
-                    question: getPrompt(1)['question']!,
-                    answer: getPrompt(1)['answer']!,
-                  ),
+  question: getPrompt(1)['question'] ?? '',
+  answer: getPrompt(1)['answer'] ?? '',
+  targetProfile: profile,
+  promptIndex: 1,
+),
                 ],
                 _buildHorizontalCareerSlider(
                   isVi: isVi,
@@ -3127,15 +4287,21 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
                 ),
                 if (getPhoto(3).isNotEmpty) ...[
                   const SizedBox(height: 18),
-                  _buildPhotoBlock(getPhoto(3)),
+                 _buildPhotoBlock(
+  imageUrl: getPhoto(3),
+  targetProfile: profile,
+  photoIndex: 3,
+),
                 ],
                 if (getPrompt(2)['question']!.isNotEmpty ||
                     getPrompt(2)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  _buildPromptCard(
-                    question: getPrompt(2)['question']!,
-                    answer: getPrompt(2)['answer']!,
-                  ),
+                 _buildPromptCard(
+  question: getPrompt(2)['question'] ?? '',
+  answer: getPrompt(2)['answer'] ?? '',
+  targetProfile: profile,
+  promptIndex: 2,
+),
                 ],
                 _buildInfoSlide(
   items: [
@@ -3156,25 +4322,79 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
     ),
   ),
 
-    if (relationshipGoal.isNotEmpty)
-      _InfoItem(
-        icon: Icons.flag_circle_outlined,
-        label: _label('Mục tiêu hẹn hò', 'Relationship goal'),
-        text: relationshipGoal,
-      ),
   ],
 ),
+if (_extractRelationshipGoalKeys(profile).isNotEmpty)
+  Container(
+    width: double.infinity,
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(
+        color: const Color(0xFFFFD6E7),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _label(
+            '💕 Mục tiêu hẹn hò',
+            '💕 Relationship goals',
+          ),
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children:
+              _extractRelationshipGoalKeys(profile).map((goal) {
+            return Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEDF4),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                _translateProfileValue(goal, isVi),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF9C2859),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    ),
+  ),
                 if (getPhoto(4).isNotEmpty) ...[
                   const SizedBox(height: 18),
-                  _buildPhotoBlock(getPhoto(4)),
+                 _buildPhotoBlock(
+  imageUrl: getPhoto(4),
+  targetProfile: profile,
+  photoIndex: 4,
+),
                 ],
                 if (getPrompt(3)['question']!.isNotEmpty ||
                     getPrompt(3)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  _buildPromptCard(
-                    question: getPrompt(3)['question']!,
-                    answer: getPrompt(3)['answer']!,
-                  ),
+                 _buildPromptCard(
+  question: getPrompt(3)['question'] ?? '',
+  answer: getPrompt(3)['answer'] ?? '',
+  targetProfile: profile,
+  promptIndex: 3,
+),
                 ],
                 _buildInfoSlide(
                   items: [
@@ -3201,10 +4421,12 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
                 if (getPrompt(4)['question']!.isNotEmpty ||
                     getPrompt(4)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  _buildPromptCard(
-                    question: getPrompt(4)['question']!,
-                    answer: getPrompt(4)['answer']!,
-                  ),
+                 _buildPromptCard(
+  question: getPrompt(4)['question'] ?? '',
+  answer: getPrompt(4)['answer'] ?? '',
+  targetProfile: profile,
+  promptIndex: 4,
+),
                 ],
               ],
             ),
@@ -3663,8 +4885,8 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
 
   Widget _buildBody() {
     if (_selectedBottomIndex == 0) {
-      return FutureBuilder<List<Map<String, dynamic>>>(
-        future: _loadProfiles(),
+     return FutureBuilder<List<Map<String, dynamic>>>(
+  future: _profilesFuture ??= _loadProfiles(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(

@@ -15,6 +15,7 @@ import 'highest_education_page.dart';
 
 class UploadPhotosPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -32,6 +33,7 @@ class UploadPhotosPage extends StatefulWidget {
   const UploadPhotosPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -327,6 +329,7 @@ class _UploadPhotosPageState extends State<UploadPhotosPage> {
         MaterialPageRoute(
           builder: (_) => HighestEducationPage(
             languageCode: widget.languageCode,
+            selectedCountry: widget.selectedCountry,
             selectedState: widget.selectedState,
             firstName: widget.firstName,
             address: widget.address,

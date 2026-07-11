@@ -352,15 +352,18 @@ exports.sendGroupMessageNotification = onDocumentCreated(
       const messageType = (message.type || "text").toString();
 
       if (!groupId || !senderId) return;
-      const senderGroupRateLimitRef = db
-  .collection("group_notification_rate_limits")
-  .doc(`${groupId}_${senderId}`);
+      const senderMemberRef = db
+  .collection("groups")
+  .doc(groupId)
+  .collection("members")
+  .doc(senderId);
 
-const senderGroupRateLimitSnap = await senderGroupRateLimitRef.get();
+const senderMemberSnap = await senderMemberRef.get();
 const now = new Date();
 
-if (senderGroupRateLimitSnap.exists) {
-  const lastSentAt = senderGroupRateLimitSnap.data()?.lastSentAt?.toDate?.();
+if (senderMemberSnap.exists) {
+  const lastSentAt =
+    senderMemberSnap.data()?.lastGroupNotificationAt?.toDate?.();
 
   if (lastSentAt) {
     const diffSeconds = (now - lastSentAt) / 1000;
@@ -371,15 +374,7 @@ if (senderGroupRateLimitSnap.exists) {
     }
   }
 }
-
-await senderGroupRateLimitRef.set(
-  {
-    groupId,
-    senderId,
-    lastSentAt: admin.firestore.FieldValue.serverTimestamp(),
-  },
-  { merge: true }
-);
+      
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
 const latestMessages = await admin
@@ -402,6 +397,12 @@ if (
   console.log("Skip group notification - newer message exists");
   return;
 }
+await senderMemberRef.set(
+  {
+    lastGroupNotificationAt: admin.firestore.FieldValue.serverTimestamp(),
+  },
+  { merge: true }
+);
 
       const groupTitles = {
         weekend_coffee: "Weekend Coffee",
@@ -880,7 +881,7 @@ exports.sendSupportRequestEmail = onDocumentCreated(
       const userEmail = data.userEmail || "";
 
       await sgMail.send({
-        to: "vietlovedating@gmail.com",
+        to: "info@vietlovedating.com",
         from: "vietlovedating@gmail.com",
         replyTo: contactEmail,
         subject: "New Support Request - VietLove Dating",

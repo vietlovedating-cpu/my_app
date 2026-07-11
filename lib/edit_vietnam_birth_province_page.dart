@@ -2,23 +2,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'edit_vietnam_birth_province_page.dart';
-
-class EditCountryBornPage extends StatefulWidget {
+class EditVietnamBirthProvincePage extends StatefulWidget {
   final String languageCode;
 
-  const EditCountryBornPage({
+  const EditVietnamBirthProvincePage({
     super.key,
     required this.languageCode,
   });
 
   @override
-  State<EditCountryBornPage> createState() =>
-      _EditCountryBornPageState();
+  State<EditVietnamBirthProvincePage> createState() =>
+      _EditVietnamBirthProvincePageState();
 }
 
-class _EditCountryBornPageState extends State<EditCountryBornPage> {
-  String? _selectedCountry;
+class _EditVietnamBirthProvincePageState
+    extends State<EditVietnamBirthProvincePage> {
+  String? _selectedProvince;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -27,156 +26,79 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
 
   String _tr(String vi, String en) => isVi ? vi : en;
 
-  final List<String> _countries = const [
-    'Afghanistan',
-    'Albania',
-    'Algeria',
-    'Andorra',
-    'Angola',
-    'Argentina',
-    'Armenia',
-    'Australia',
-    'Austria',
-    'Azerbaijan',
-    'Bahrain',
-    'Bangladesh',
-    'Belarus',
-    'Belgium',
-    'Belize',
-    'Benin',
-    'Bhutan',
-    'Bolivia',
-    'Bosnia and Herzegovina',
-    'Botswana',
-    'Brazil',
-    'Brunei',
-    'Bulgaria',
-    'Burkina Faso',
-    'Burundi',
-    'Cambodia',
-    'Cameroon',
-    'Canada',
-    'Chad',
-    'Chile',
-    'China',
-    'Colombia',
-    'Congo',
-    'Costa Rica',
-    'Croatia',
-    'Cuba',
-    'Cyprus',
-    'Czech Republic',
-    'Denmark',
-    'Dominican Republic',
-    'Ecuador',
-    'Egypt',
-    'El Salvador',
-    'Estonia',
-    'Ethiopia',
-    'Fiji',
-    'Finland',
-    'France',
-    'Georgia',
-    'Germany',
-    'Ghana',
-    'Greece',
-    'Guatemala',
-    'Haiti',
-    'Honduras',
-    'Hong Kong',
-    'Hungary',
-    'Iceland',
-    'India',
-    'Indonesia',
-    'Iran',
-    'Iraq',
-    'Ireland',
-    'Israel',
-    'Italy',
-    'Jamaica',
-    'Japan',
-    'Jordan',
-    'Kazakhstan',
-    'Kenya',
-    'Kuwait',
-    'Kyrgyzstan',
-    'Laos',
-    'Latvia',
-    'Lebanon',
-    'Libya',
-    'Lithuania',
-    'Luxembourg',
-    'Macau',
-    'Madagascar',
-    'Malaysia',
-    'Maldives',
-    'Mali',
-    'Malta',
-    'Mexico',
-    'Moldova',
-    'Mongolia',
-    'Morocco',
-    'Myanmar',
-    'Nepal',
-    'Netherlands',
-    'New Zealand',
-    'Nigeria',
-    'North Korea',
-    'Norway',
-    'Oman',
-    'Pakistan',
-    'Panama',
-    'Paraguay',
-    'Peru',
-    'Philippines',
-    'Poland',
-    'Portugal',
-    'Qatar',
-    'Romania',
-    'Russia',
-    'Saudi Arabia',
-    'Serbia',
-    'Singapore',
-    'Slovakia',
-    'Slovenia',
-    'Somalia',
-    'South Africa',
-    'South Korea',
-    'Spain',
-    'Sri Lanka',
-    'Sudan',
-    'Sweden',
-    'Switzerland',
-    'Syria',
-    'Taiwan',
-    'Tajikistan',
-    'Tanzania',
-    'Thailand',
-    'Tunisia',
-    'Turkey',
-    'Turkmenistan',
-    'Uganda',
-    'Ukraine',
-    'United Arab Emirates',
-    'United Kingdom',
-    'United States',
-    'Uruguay',
-    'Uzbekistan',
-    'Venezuela',
-    'Vietnam',
-    'Yemen',
-    'Zambia',
-    'Zimbabwe',
-    'Other',
+  static const List<String> vietnamProvinces = [
+    'An Giang',
+    'Ba Ria - Vung Tau',
+    'Bac Giang',
+    'Bac Kan',
+    'Bac Lieu',
+    'Bac Ninh',
+    'Ben Tre',
+    'Binh Dinh',
+    'Binh Duong',
+    'Binh Phuoc',
+    'Binh Thuan',
+    'Ca Mau',
+    'Can Tho',
+    'Cao Bang',
+    'Da Nang',
+    'Dak Lak',
+    'Dak Nong',
+    'Dien Bien',
+    'Dong Nai',
+    'Dong Thap',
+    'Gia Lai',
+    'Ha Giang',
+    'Ha Nam',
+    'Ha Noi',
+    'Ha Tinh',
+    'Hai Duong',
+    'Hai Phong',
+    'Hau Giang',
+    'Ho Chi Minh City',
+    'Hoa Binh',
+    'Hung Yen',
+    'Khanh Hoa',
+    'Kien Giang',
+    'Kon Tum',
+    'Lai Chau',
+    'Lam Dong',
+    'Lang Son',
+    'Lao Cai',
+    'Long An',
+    'Nam Dinh',
+    'Nghe An',
+    'Ninh Binh',
+    'Ninh Thuan',
+    'Phu Tho',
+    'Phu Yen',
+    'Quang Binh',
+    'Quang Nam',
+    'Quang Ngai',
+    'Quang Ninh',
+    'Quang Tri',
+    'Soc Trang',
+    'Son La',
+    'Tay Ninh',
+    'Thai Binh',
+    'Thai Nguyen',
+    'Thanh Hoa',
+    'Thua Thien Hue',
+    'Tien Giang',
+    'Tra Vinh',
+    'Tuyen Quang',
+    'Vinh Long',
+    'Vinh Phuc',
+    'Yen Bai',
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentData();
+    _loadCurrentProvince();
   }
 
-  Future<void> _loadCurrentData() async {
+  Future<void> _loadCurrentProvince() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
 
@@ -191,16 +113,16 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
 
       final data = doc.data() ?? {};
 
-      final currentCountry =
-          (data['countryOfBirth'] ?? data['countryBorn'] ?? '')
+      final currentProvince =
+          (data['vietnamBirthProvince'] ?? '')
               .toString()
               .trim();
 
-      if (_countries.contains(currentCountry)) {
-        _selectedCountry = currentCountry;
+      if (vietnamProvinces.contains(currentProvince)) {
+        _selectedProvince = currentProvince;
       }
     } catch (e) {
-      debugPrint('Load country born error: $e');
+      debugPrint('Load Vietnam birth province error: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -211,41 +133,20 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
   }
 
   Future<void> _save() async {
-    final selectedCountry = _selectedCountry?.trim() ?? '';
+    final selectedProvince = _selectedProvince?.trim() ?? '';
 
-    if (selectedCountry.isEmpty) {
+    if (selectedProvince.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
           content: Text(
             _tr(
-              'Vui lòng chọn nơi sinh',
-              'Please choose country of birth',
+              'Vui lòng chọn tỉnh/thành phố',
+              'Please select a province/city',
             ),
           ),
         ),
       );
-      return;
-    }
-
-    final isVietnam = selectedCountry.toLowerCase() == 'vietnam';
-
-    if (isVietnam) {
-      final result = await Navigator.push<Map<String, dynamic>>(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EditVietnamBirthProvincePage(
-            languageCode: widget.languageCode,
-          ),
-        ),
-      );
-
-      if (!mounted) return;
-
-      if (result != null) {
-        Navigator.pop(context, result);
-      }
-
       return;
     }
 
@@ -264,22 +165,20 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
           .collection('users')
           .doc(user.uid)
           .set({
-        'countryBorn': selectedCountry,
-        'countryOfBirth': selectedCountry,
-
-        // Nếu trước đó sinh tại Vietnam thì xóa tỉnh cũ.
-        'vietnamBirthProvince': FieldValue.delete(),
+        'countryBorn': 'Vietnam',
+        'countryOfBirth': 'Vietnam',
+        'vietnamBirthProvince': selectedProvince,
       }, SetOptions(merge: true));
 
       if (!mounted) return;
 
       Navigator.pop(context, {
-        'countryBorn': selectedCountry,
-        'countryOfBirth': selectedCountry,
-        'vietnamBirthProvince': '',
+        'countryBorn': 'Vietnam',
+        'countryOfBirth': 'Vietnam',
+        'vietnamBirthProvince': selectedProvince,
       });
     } catch (e) {
-      debugPrint('Save country born error: $e');
+      debugPrint('Save Vietnam birth province error: $e');
 
       if (!mounted) return;
 
@@ -311,6 +210,19 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
       child: Column(
         children: [
+          Text(
+            _tr(
+              'Bạn sinh ra ở tỉnh/thành nào của Việt Nam?',
+              'Which province/city in Vietnam were you born in?',
+            ),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 28),
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -321,20 +233,20 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
               ),
             ),
             child: DropdownButtonFormField<String>(
-              value: _selectedCountry,
+              value: _selectedProvince,
               isExpanded: true,
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: _tr(
-                  'Chọn nơi sinh',
-                  'Choose country of birth',
+                  'Chọn tỉnh/thành',
+                  'Select province/city',
                 ),
               ),
-              items: _countries.map((country) {
+              items: vietnamProvinces.map((province) {
                 return DropdownMenuItem<String>(
-                  value: country,
+                  value: province,
                   child: Text(
-                    country,
+                    province,
                     overflow: TextOverflow.ellipsis,
                   ),
                 );
@@ -343,7 +255,7 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
                   ? null
                   : (value) {
                       setState(() {
-                        _selectedCountry = value;
+                        _selectedProvince = value;
                       });
                     },
             ),
@@ -374,9 +286,7 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
                       ),
                     )
                   : Text(
-                      _selectedCountry == 'Vietnam'
-                          ? _tr('Tiếp theo', 'Next')
-                          : _tr('Lưu', 'Save'),
+                      _tr('Lưu', 'Save'),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
@@ -399,7 +309,10 @@ class _EditCountryBornPageState extends State<EditCountryBornPage> {
         foregroundColor: const Color(0xFF7A2E6E),
         centerTitle: true,
         title: Text(
-          _tr('Sửa nơi sinh', 'Edit country of birth'),
+          _tr(
+            'Sửa tỉnh/thành nơi sinh',
+            'Edit birth province',
+          ),
           style: const TextStyle(
             fontWeight: FontWeight.w900,
             color: Color(0xFF7A2E6E),

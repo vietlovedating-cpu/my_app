@@ -115,7 +115,7 @@ My issue is:
   Future<void> _openEmailApp() async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'vietlovedating@gmail.com',
+      path: 'info@vietlovedating.com',
       queryParameters: {
         'subject': _supportEmailSubject(),
         'body': _supportEmailBody(),
@@ -365,7 +365,7 @@ My issue is:
             _buildActionCard(
               icon: Icons.email_outlined,
               title: _tr('Email hỗ trợ', 'Email Support'),
-              subtitle: 'vietlovedating@gmail.com',
+              subtitle: 'info@vietlovedating.com',
               onTap: _openEmailApp,
             ),
             _buildActionCard(

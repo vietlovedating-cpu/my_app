@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:country_picker/country_picker.dart';
 
 class EditLiveInPage extends StatefulWidget {
   final String languageCode;
@@ -32,30 +33,18 @@ class _EditLiveInPageState extends State<EditLiveInPage> {
     'Tasmania (TAS)',
      'Other',
   ];
-  final List<String> _countries = const [
-  'Australia',
-  'Vietnam',
-  'New Zealand',
-  'United States',
-  'Canada',
-  'United Kingdom',
-  'Singapore',
-  'Japan',
-  'South Korea',
-  'China',
-  'India',
-  'Thailand',
-  'Malaysia',
-  'Philippines',
-  'Indonesia',
-  'Other',
-];
-
+late final List<String> _countries;
   @override
-  void initState() {
-    super.initState();
-    _loadCurrentData();
-  }
+void initState() {
+  super.initState();
+
+  _countries = CountryService()
+      .getAll()
+      .map((country) => country.name)
+      .toList();
+
+  _loadCurrentData();
+}
 
   String? _matchState(dynamic raw) {
     final value = (raw ?? '').toString().trim().toLowerCase();
@@ -96,26 +85,42 @@ String _normalizeStateKey(String value) {
   return v;
 }
   Future<void> _loadCurrentData() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
 
-      final data = doc.data() ?? {};
-      _selectedState = _matchState(
-  data['selectedState'],
-);
-    } catch (_) {
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    final data = doc.data() ?? {};
+
+    final savedCountry =
+        (data['selectedCountry'] ?? '').toString().trim();
+
+    final savedState = _matchState(
+      data['selectedState'],
+    );
+
+    if (savedCountry.isNotEmpty &&
+    savedCountry.toLowerCase() != 'australia') {
+  _selectedState = 'Other';
+
+  _selectedCountry = _countries.contains(savedCountry)
+      ? savedCountry
+      : null;
+} else {
+  _selectedState = savedState;
+  _selectedCountry = null;
+}
+  } catch (_) {
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
+}
 
   Future<void> _save() async {
     if (_selectedState == null || _selectedState!.isEmpty) {
@@ -160,9 +165,9 @@ await FirebaseFirestore.instance
   'selectedStateKey': _selectedState == 'Other'
       ? 'other'
       : _normalizeStateKey(_selectedState!),
-  'selectedCountry': _selectedState == 'Other'
-      ? _selectedCountry!
-      : '',
+ 'selectedCountry': _selectedState == 'Other'
+    ? _selectedCountry!
+    : 'Australia',
   'onboardingStep': 'current_location',
 }, SetOptions(merge: true));
 

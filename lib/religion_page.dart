@@ -3,6 +3,7 @@ import 'resident_status_page.dart';
 
 class ReligionPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -24,6 +25,7 @@ class ReligionPage extends StatefulWidget {
   const ReligionPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -86,6 +88,7 @@ class _ReligionPageState extends State<ReligionPage> {
       MaterialPageRoute(
         builder: (_) => ResidentStatusPage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

@@ -3,6 +3,7 @@ import 'drinking_page.dart';
 
 class SmokingPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -27,6 +28,7 @@ class SmokingPage extends StatefulWidget {
   const SmokingPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -75,6 +77,7 @@ class _SmokingPageState extends State<SmokingPage> {
       MaterialPageRoute(
         builder: (_) => DrinkingPage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

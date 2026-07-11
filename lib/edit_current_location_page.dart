@@ -397,7 +397,7 @@ class _EditCurrentLocationPageState extends State<EditCurrentLocationPage> {
               ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(height: 30),
           SizedBox(
             width: double.infinity,
             height: 54,
@@ -451,7 +451,15 @@ class _EditCurrentLocationPageState extends State<EditCurrentLocationPage> {
           ),
         ),
       ),
-      body: _buildBody(),
+     body: SafeArea(
+  child: SingleChildScrollView(
+    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+    padding: EdgeInsets.only(
+      bottom: MediaQuery.of(context).viewInsets.bottom,
+    ),
+    child: _buildBody(),
+  ),
+),
     );
   }
 }

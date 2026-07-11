@@ -4,6 +4,7 @@ import 'vietnam_birth_province_page.dart';
 
 class CountryOfBirthPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -23,6 +24,7 @@ class CountryOfBirthPage extends StatefulWidget {
   const CountryOfBirthPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -213,6 +215,7 @@ class _CountryOfBirthPageState extends State<CountryOfBirthPage> {
         MaterialPageRoute(
           builder: (_) => VietnamBirthProvincePage(
             languageCode: widget.languageCode,
+             selectedCountry: widget.selectedCountry,
             selectedState: widget.selectedState,
             firstName: widget.firstName,
             address: widget.address,
@@ -238,6 +241,7 @@ class _CountryOfBirthPageState extends State<CountryOfBirthPage> {
         MaterialPageRoute(
           builder: (_) => ReligionPage(
             languageCode: widget.languageCode,
+            selectedCountry: widget.selectedCountry,
             selectedState: widget.selectedState,
             firstName: widget.firstName,
             address: widget.address,

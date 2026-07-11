@@ -5,17 +5,22 @@ import 'package:flutter/material.dart';
 import 'message_page.dart';
 import 'likes_and_views_hub_page.dart';
 
-class MessagesListPage extends StatelessWidget {
+class MessagesListPage extends StatefulWidget {
   final String languageCode;
 
   const MessagesListPage({
     super.key,
     required this.languageCode,
   });
+  @override
+State<MessagesListPage> createState() => _MessagesListPageState();
+}
+class _MessagesListPageState extends State<MessagesListPage> {
 
-  bool get isVi => languageCode == 'vi';
+  bool get isVi => widget.languageCode == 'vi';
 
   String _tr(String vi, String en) => isVi ? vi : en;
+  final Map<String, Future<Map<String, String>>> _userInfoCache = {};
 
   Future<String?> _resolveImageUrl(String raw) async {
     final value = raw.trim();
@@ -143,6 +148,20 @@ class MessagesListPage extends StatelessWidget {
       };
     }
   }
+  Future<Map<String, String>> _getCachedOtherUserInfo({
+  required String otherUserId,
+  required String fallbackName,
+  required String fallbackPhoto,
+}) {
+  return _userInfoCache.putIfAbsent(
+    otherUserId,
+    () => _getOtherUserInfo(
+      otherUserId: otherUserId,
+      fallbackName: fallbackName,
+      fallbackPhoto: fallbackPhoto,
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +195,7 @@ class MessagesListPage extends StatelessWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => LikesAndViewsHubPage(
-                    languageCode: languageCode,
+                    languageCode: widget.languageCode,
                   ),
                 ),
               );
@@ -241,8 +260,9 @@ final docs = allDocs.where((doc) {
                 );
               }
 
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
+             return ListView.separated(
+  physics: const ClampingScrollPhysics(),
+  padding: const EdgeInsets.all(16),
                 itemCount: docs.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
@@ -290,11 +310,11 @@ final docs = allDocs.where((doc) {
                           updatedAt.toDate().isAfter(myLastReadAt.toDate()));
 
                   return FutureBuilder<Map<String, String>>(
-                    future: _getOtherUserInfo(
-                      otherUserId: otherUserId,
-                      fallbackName: fallbackName,
-                      fallbackPhoto: fallbackPhoto,
-                    ),
+                    future: _getCachedOtherUserInfo(
+  otherUserId: otherUserId,
+  fallbackName: fallbackName,
+  fallbackPhoto: fallbackPhoto,
+),
                     builder: (context, userSnapshot) {
                       final userInfo = userSnapshot.data ??
                           {
@@ -303,9 +323,9 @@ final docs = allDocs.where((doc) {
                             'photo': fallbackPhoto,
                           };
 
-                      if (userInfo['deleted'] == 'true') {
-                        return const SizedBox.shrink();
-                      }
+                     if (userInfo['deleted'] == 'true') {
+  return const SizedBox(height: 82);
+}
 
                       final otherName = (userInfo['name'] ?? '').trim();
                       final otherPhoto = (userInfo['photo'] ?? '').trim();
@@ -328,7 +348,7 @@ final docs = allDocs.where((doc) {
                             context,
                             MaterialPageRoute(
                               builder: (_) => MessagePage(
-                                languageCode: languageCode,
+                                languageCode: widget.languageCode,
                                 chatId: chatId,
                                 otherUserId: otherUserId,
                                 otherUserName: otherName.isNotEmpty

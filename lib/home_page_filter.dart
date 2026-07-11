@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:country_state_city/country_state_city.dart' as csc;
 
 class HomePageFilterResult {
   final String? gender;
@@ -16,6 +17,9 @@ class HomePageFilterResult {
   final String? smoking;
   final String? drinking;
   final String? haveChildren;
+  final String? income;
+  final bool photoVerifiedOnly;
+  final bool newHereOnly;
 
   const HomePageFilterResult({
     required this.gender,
@@ -32,6 +36,9 @@ class HomePageFilterResult {
     required this.smoking,
     required this.drinking,
     required this.haveChildren,
+    required this.income,
+    required this.photoVerifiedOnly,
+    required this.newHereOnly,
   });
 }
 
@@ -43,6 +50,7 @@ class HomePageFilterSheet extends StatefulWidget {
   final int? initialMinAge;
   final int? initialMaxAge;
   final String? initialState;
+  final String currentUserCountryCode;
   final double? initialDistanceKm;
 
   final String? initialReligion;
@@ -54,6 +62,9 @@ class HomePageFilterSheet extends StatefulWidget {
   final String? initialSmoking;
   final String? initialDrinking;
   final String? initialHaveChildren;
+  final String? initialIncome;
+  final bool initialPhotoVerifiedOnly;
+  final bool initialNewHereOnly;
 
   final List<String> stateOptions;
   final List<int> ageOptions;
@@ -73,6 +84,7 @@ class HomePageFilterSheet extends StatefulWidget {
     required this.initialMinAge,
     required this.initialMaxAge,
     required this.initialState,
+    required this.currentUserCountryCode,
     required this.initialDistanceKm,
     required this.initialReligion,
     required this.initialRelationshipGoal,
@@ -83,6 +95,9 @@ class HomePageFilterSheet extends StatefulWidget {
     required this.initialSmoking,
     required this.initialDrinking,
     required this.initialHaveChildren,
+    required this.initialIncome,
+    required this.initialPhotoVerifiedOnly,
+    required this.initialNewHereOnly,
     required this.stateOptions,
     required this.ageOptions,
     required this.countryOptions,
@@ -101,8 +116,12 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   late int? tempMinAge;
   late int? tempMaxAge;
   late String? tempState;
-  late String? tempCountry;
-  late double tempDistanceKm;
+
+List<csc.State> availableStates = [];
+
+bool isLoadingStates = false;
+
+late double tempDistanceKm;
 
   late String? tempReligion;
   late String? tempGoal;
@@ -113,10 +132,67 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   late String? tempSmoking;
   late String? tempDrinking;
   late String? tempHaveChildren;
+  late String? tempIncome;
+  late bool tempPhotoVerifiedOnly;
+  late bool tempNewHereOnly;
 
   bool get isVi => widget.isVi;
 
   String _label(String vi, String en) => widget.labelBuilder(vi, en);
+  
+Future<void> _loadStatesForCountry(
+  String countryCode, {
+  bool keepCurrentState = false,
+}) async {
+  final oldState = tempState;
+
+  setState(() {
+    isLoadingStates = true;
+    availableStates = [];
+
+    if (!keepCurrentState) {
+      tempState = null;
+    }
+  });
+
+  try {
+    final states = await csc.getStatesOfCountry(
+      countryCode.toUpperCase(),
+    );
+
+    states.sort(
+      (a, b) => a.name.toLowerCase().compareTo(
+            b.name.toLowerCase(),
+          ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      availableStates = states;
+
+      if (keepCurrentState &&
+          oldState != null &&
+          states.any((state) => state.name == oldState)) {
+        tempState = oldState;
+      } else if (keepCurrentState) {
+        tempState = null;
+      }
+
+      isLoadingStates = false;
+    });
+  } catch (e) {
+    debugPrint('Load states error: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      availableStates = [];
+      tempState = null;
+      isLoadingStates = false;
+    });
+  }
+}
 
   @override
   void initState() {
@@ -125,13 +201,8 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     tempGender = widget.initialGender?.toLowerCase();
     tempMinAge = widget.initialMinAge;
     tempMaxAge = widget.initialMaxAge;
-    if ((widget.initialState ?? '').startsWith('Other - ')) {
-  tempState = 'Other';
-  tempCountry = widget.initialState!.replaceFirst('Other - ', '').trim();
-} else {
-  tempState = widget.initialState;
-  tempCountry = null;
-}
+    tempState = widget.initialState;
+
     tempDistanceKm = widget.initialDistanceKm ?? 200;
 
     tempReligion = widget.initialReligion;
@@ -143,6 +214,13 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
     tempSmoking = widget.initialSmoking;
     tempDrinking = widget.initialDrinking;
     tempHaveChildren = widget.initialHaveChildren;
+    tempIncome = widget.initialIncome;
+    tempPhotoVerifiedOnly = widget.initialPhotoVerifiedOnly;
+    tempNewHereOnly = widget.initialNewHereOnly;
+   _loadStatesForCountry(
+  widget.currentUserCountryCode,
+  keepCurrentState: true,
+);
   }
 
   void _apply() {
@@ -152,9 +230,7 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
         gender: tempGender,
         minAge: tempMinAge,
         maxAge: tempMaxAge,
-        state: tempState == 'Other' && tempCountry != null
-    ? 'Other - $tempCountry'
-    : tempState,
+        state: tempState,
         height: tempHeight,
         distanceKm: tempDistanceKm,
         religion: widget.isVipUser ? tempReligion : null,
@@ -165,6 +241,11 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
         smoking: widget.isVipUser ? tempSmoking : null,
         drinking: widget.isVipUser ? tempDrinking : null,
         haveChildren: widget.isVipUser ? tempHaveChildren : null,
+        income: widget.isVipUser ? tempIncome : null,
+        photoVerifiedOnly:
+    widget.isVipUser ? tempPhotoVerifiedOnly : false,
+newHereOnly:
+    widget.isVipUser ? tempNewHereOnly : false,
       ),
     );
   }
@@ -324,66 +405,80 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
               ),
 
               const SizedBox(height: 18),
-              _sheetTitle(_label('', '')),
-              DropdownButtonFormField<String>(
-                value: widget.stateOptions.contains(tempState) ? tempState : '',
-                decoration: InputDecoration(
-                  labelText: _label('Bang / Tiểu bang', 'State'),
-                  filled: true,
-                  fillColor: Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                items: widget.stateOptions.map((state) {
-                  return DropdownMenuItem<String>(
-                    value: state,
-                    child: Text(
-  state.isEmpty
-      ? _label('Không chọn', 'No preference')
-      : state,
-  overflow: TextOverflow.ellipsis,
-  maxLines: 1,
-),
-                  );
-                }).toList(),
-                onChanged: (value) {
-  setState(() {
-    tempState = (value == null || value.trim().isEmpty) ? null : value;
-
-    if (tempState != 'Other') {
-      tempCountry = null;
-    }
-  });
-},
-),
-if (tempState == 'Other') ...[
-  const SizedBox(height: 12),
+              _sheetTitle(_label('Khu vực', 'Location')),
+if (isLoadingStates)
+  const LinearProgressIndicator()
+else if (availableStates.isEmpty)
+  Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 16,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: Colors.grey.shade300,
+      ),
+    ),
+    child: Text(
+      _label(
+        'Không có danh sách bang hoặc tỉnh cho quốc gia này',
+        'No state or province list is available for this country',
+      ),
+      style: const TextStyle(
+        color: Colors.black54,
+      ),
+    ),
+  )
+else
   DropdownButtonFormField<String>(
-    value: widget.countryOptions.contains(tempCountry)
-        ? tempCountry
+    value: availableStates.any(
+      (state) => state.name == tempState,
+    )
+        ? tempState
         : null,
+    isExpanded: true,
     decoration: InputDecoration(
-      labelText: _label('Quốc gia', 'Country'),
+      labelText: _label(
+        'Bang / Tỉnh',
+        'State / Province',
+      ),
       filled: true,
       fillColor: Colors.grey.shade50,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
       ),
     ),
-    items: widget.countryOptions.map((country) {
-      return DropdownMenuItem<String>(
-        value: country,
-        child: Text(country),
-      );
-    }).toList(),
+    items: [
+      DropdownMenuItem<String>(
+        value: null,
+        child: Text(
+          _label(
+            'Không chọn',
+            'No preference',
+          ),
+        ),
+      ),
+      ...availableStates.map((state) {
+        return DropdownMenuItem<String>(
+          value: state.name,
+          child: Text(
+            state.name,
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        );
+      }),
+    ],
     onChanged: (value) {
       setState(() {
-        tempCountry = value;
+        tempState = value;
       });
     },
   ),
-],
+
               const SizedBox(height: 18),
 
               if (widget.isVipUser) ...[
@@ -463,6 +558,27 @@ _dropdownBox(
 ),
                 const SizedBox(height: 12),
                 _dropdownBox(
+  title: _label('Thu nhập hằng năm', 'Annual Income'),
+  value: tempIncome,
+  items: const [
+    '',
+    'under_40k',
+    '40_59k',
+    '60_79k',
+    '80_99k',
+    '100_119k',
+    '120_149k',
+    '150_plus',
+    'prefer_not_to_say',
+  ],
+  onChanged: (value) {
+    setState(() {
+      tempIncome = value == null || value.isEmpty ? null : value;
+    });
+  },
+),
+const SizedBox(height: 12),
+                _dropdownBox(
                   title: _label('Tình trạng cư trú', 'Resident status'),
                   value: tempResident,
                   items: const [
@@ -535,6 +651,26 @@ _dropdownBox(
                     });
                   },
                 ),
+                  _switchTile(
+  title: _label('Ảnh đã xác minh', 'Photo Verified'),
+  value: tempPhotoVerifiedOnly,
+  onChanged: (value) {
+    setState(() {
+      tempPhotoVerifiedOnly = value;
+    });
+  },
+),
+const SizedBox(height: 12),
+_switchTile(
+  title: _label('Mới tham gia', 'New here'),
+  value: tempNewHereOnly,
+  onChanged: (value) {
+    setState(() {
+      tempNewHereOnly = value;
+    });
+  },
+),
+const SizedBox(height: 12),
               ] else ...[
                 _vipLockedTile(_label('Tôn giáo', 'Religion')),
                 _vipLockedTile(_label('Mục tiêu hẹn hò', 'Relationship goal')),
@@ -545,6 +681,9 @@ _dropdownBox(
                 _vipLockedTile(_label('Hút thuốc', 'Smoking')),
                 _vipLockedTile(_label('Uống rượu', 'Drinking')),
                 _vipLockedTile(_label('Có con', 'Have children')),
+                _vipLockedTile(_label('Thu nhập hằng năm', 'Annual Income')),
+                 _vipLockedTile(_label('Ảnh đã xác minh', 'Photo Verified')),
+                _vipLockedTile(_label('Mới tham gia', 'New here')),
               ],
 
               const SizedBox(height: 22),
@@ -660,7 +799,33 @@ _dropdownBox(
       ),
     );
   }
-
+Widget _switchTile({
+  required String title,
+  required bool value,
+  required ValueChanged<bool> onChanged,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.grey.shade50,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: Colors.grey.shade300),
+    ),
+    child: SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Colors.black87,
+        ),
+      ),
+      value: value,
+      activeColor: const Color(0xFFE91E63),
+      onChanged: onChanged,
+    ),
+  );
+}
   Widget _dropdownBox({
     required String title,
     required String? value,

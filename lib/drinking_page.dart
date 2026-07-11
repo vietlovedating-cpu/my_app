@@ -3,6 +3,7 @@ import 'profile_complete_page.dart';
 
 class DrinkingPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -28,6 +29,7 @@ class DrinkingPage extends StatefulWidget {
   const DrinkingPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -125,6 +127,7 @@ class _DrinkingPageState extends State<DrinkingPage> {
       MaterialPageRoute(
         builder: (_) => ProfileCompletePage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

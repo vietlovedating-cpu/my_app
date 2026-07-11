@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'prompt_data.dart';
 import 'edit_profile_page.dart';
 import 'support_help_page.dart';
@@ -10,6 +11,7 @@ import 'account_page.dart';
 import 'notification_settings_page.dart';
 import 'privacy_profile_page.dart';
 import 'photo_verification_page.dart';
+import 'utils/profile_health.dart';
 
 class MyProfilePage extends StatefulWidget {
   final String languageCode;
@@ -32,22 +34,40 @@ class _MyProfilePageState extends State<MyProfilePage> {
 
   StreamSubscription<User?>? _authSub;
   String? _lastUid;
+  Future<Map<String, dynamic>?>? _profileFuture;
 
-  @override
-  void initState() {
-    super.initState();
+  final AudioPlayer _voicePromptPlayer = AudioPlayer();
 
-    _lastUid = FirebaseAuth.instance.currentUser?.uid;
+  bool _isVoicePromptPlaying = false;
+  String? _playingVoicePromptUrl;
+  bool _isVoicePromptLoading = false;
 
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
-      final newUid = user?.uid;
-      if (_lastUid != newUid && mounted) {
-        setState(() {
-          _lastUid = newUid;
-        });
-      }
+ @override
+void initState() {
+  super.initState();
+
+  _lastUid = FirebaseAuth.instance.currentUser?.uid;
+  _profileFuture = _loadMyProfile();
+
+  _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+    final newUid = user?.uid;
+
+    if (_lastUid != newUid && mounted) {
+      setState(() {
+        _lastUid = newUid;
+      });
+    }
+  });
+
+  _voicePromptPlayer.onPlayerComplete.listen((_) {
+    if (!mounted) return;
+
+    setState(() {
+      _isVoicePromptPlaying = false;
+      _playingVoicePromptUrl = null;
     });
-  }
+  });
+}
 
   @override
   void didUpdateWidget(covariant MyProfilePage oldWidget) {
@@ -57,11 +77,12 @@ class _MyProfilePageState extends State<MyProfilePage> {
     }
   }
 
-  @override
-  void dispose() {
-    _authSub?.cancel();
-    super.dispose();
-  }
+ @override
+void dispose() {
+  _authSub?.cancel();
+  _voicePromptPlayer.dispose();
+  super.dispose();
+}
 
   Future<Map<String, dynamic>?> _loadMyProfile() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -381,7 +402,28 @@ class _MyProfilePageState extends State<MyProfilePage> {
 
     return prompts;
   }
+List<String> _extractRelationshipGoalKeys(
+  Map<String, dynamic> profile,
+) {
+  final dynamic raw =
+      profile['relationshipGoals'] ?? profile['relationshipGoal'];
 
+  if (raw is List) {
+    return raw
+        .map((item) => _normalize(item.toString()))
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+  final value = _normalize((raw ?? '').toString());
+
+  if (value.isEmpty) {
+    return [];
+  }
+
+  return [value];
+}
   String _translateProfileValue(String raw, bool isVi) {
     final value = _normalize(raw);
 
@@ -588,21 +630,80 @@ class _MyProfilePageState extends State<MyProfilePage> {
   }
 
   String _livingStateDisplay(Map<String, dynamic> profile) {
-  final candidates = [
-    profile['selectedState'],
-    profile['state'],
-    profile['livingState'],
-    profile['stateLiving'],
-  ];
+  final country =
+      (profile['selectedCountry'] ??
+              profile['country'] ??
+              '')
+          .toString()
+          .trim();
 
-  for (final item in candidates) {
-    final value = (item ?? '').toString().trim();
+ final stateCandidates = [
+  profile['selectedStateKey'],
+  profile['filterState'],
+  profile['stateProvince'],
+  profile['province'],
+  profile['customState'],
+  profile['otherState'],
+  profile['selectedState'],
+  profile['state'],
+  profile['livingState'],
+  profile['stateLiving'],
+];
 
-    // Chỉ hiện state nếu user đã chọn state thật sự
-    if (value.isNotEmpty) return value;
+  String state = '';
+
+  for (final item in stateCandidates) {
+    String value = (item ?? '').toString().trim();
+
+    if (value.isEmpty) continue;
+
+    final lowerValue = value.toLowerCase();
+
+    if (lowerValue == 'other' ||
+        lowerValue == 'no_preference') {
+      continue;
+    }
+
+    // Xóa chữ "Other -" ở phía trước.
+    if (lowerValue.startsWith('other -')) {
+      value = value.substring(7).trim();
+    } else if (lowerValue.startsWith('other:')) {
+      value = value.substring(6).trim();
+    }
+
+    if (value.isNotEmpty) {
+      state = value;
+      break;
+    }
   }
 
-  // Không lấy address nữa để tránh lộ full address
+  final normalizedCountry = country.toLowerCase();
+  final normalizedState = state.toLowerCase();
+
+  final isAustralia =
+      normalizedCountry == 'australia' ||
+      normalizedCountry == 'úc';
+
+  // Australia: chỉ hiện bang.
+  if (isAustralia) {
+    if (state.isNotEmpty) return state;
+    return country;
+  }
+
+  // Nếu state giống country thì chỉ hiện country một lần.
+  if (normalizedState.isNotEmpty &&
+      normalizedState == normalizedCountry) {
+    return country;
+  }
+
+  // Nước khác: hiện Tỉnh/Bang, Quốc gia.
+  if (state.isNotEmpty && country.isNotEmpty) {
+    return '$state, $country';
+  }
+
+  if (state.isNotEmpty) return state;
+  if (country.isNotEmpty) return country;
+
   return '';
 }
 
@@ -756,7 +857,208 @@ class _MyProfilePageState extends State<MyProfilePage> {
       ),
     );
   }
+  String _formatVoicePromptDuration(int seconds) {
+  final safeSeconds = seconds < 0 ? 0 : seconds;
 
+  final minutes =
+      (safeSeconds ~/ 60).toString().padLeft(2, '0');
+
+  final remainingSeconds =
+      (safeSeconds % 60).toString().padLeft(2, '0');
+
+  return '$minutes:$remainingSeconds';
+}
+Widget _buildVoicePromptCard({
+  required String audioUrl,
+  required int durationSeconds,
+  required bool isVi,
+}) {
+  final isPlaying =
+      _isVoicePromptPlaying &&
+      _playingVoicePromptUrl == audioUrl;
+
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(26),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFFFF3F8),
+        ],
+      ),
+      border: Border.all(
+        color: const Color(0xFFFFD5E6),
+        width: 1.2,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.08),
+          blurRadius: 16,
+          offset: const Offset(0, 7),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE4EF),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: const Icon(
+                Icons.mic_rounded,
+                color: Color(0xFFE91E63),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _tr(
+  isVi,
+  'Hãy nghe tôi nói để hiểu rõ tôi hơn nhé',
+  'Listen to me to get to know me better',
+),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF8B2E63),
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+
+        Row(
+          children: [
+            InkWell(
+             onTap: _isVoicePromptLoading
+    ? null
+    : () async {
+        try {
+          // Nếu đang phát thì bấm để Pause.
+          if (isPlaying) {
+            await _voicePromptPlayer.pause();
+
+            if (!mounted) return;
+
+            setState(() {
+              _isVoicePromptLoading = false;
+              _isVoicePromptPlaying = false;
+              _playingVoicePromptUrl = null;
+            });
+
+            return;
+          }
+
+          // Bắt đầu tải audio và khóa nút.
+          if (!mounted) return;
+
+          setState(() {
+            _isVoicePromptLoading = true;
+          });
+
+          await _voicePromptPlayer.stop();
+
+          await _voicePromptPlayer.play(
+            UrlSource(audioUrl),
+          );
+
+          if (!mounted) return;
+
+          // Audio đã sẵn sàng và bắt đầu phát.
+          setState(() {
+            _isVoicePromptLoading = false;
+            _isVoicePromptPlaying = true;
+            _playingVoicePromptUrl = audioUrl;
+          });
+        } catch (e) {
+          debugPrint('PLAY MY VOICE PROMPT ERROR: $e');
+
+          if (!mounted) return;
+
+          // Nếu lỗi thì mở lại nút cho user thử lại.
+          setState(() {
+            _isVoicePromptLoading = false;
+            _isVoicePromptPlaying = false;
+            _playingVoicePromptUrl = null;
+          });
+        }
+      },
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFFE91E63),
+                ),
+                child: _isVoicePromptLoading
+    ? const SizedBox(
+        width: 24,
+        height: 24,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          valueColor: AlwaysStoppedAnimation<Color>(
+            Colors.white,
+          ),
+        ),
+      )
+    : Icon(
+        isPlaying
+            ? Icons.pause_rounded
+            : Icons.play_arrow_rounded,
+        color: Colors.white,
+        size: 30,
+      ),
+              ),
+            ),
+
+            const SizedBox(width: 14),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isPlaying
+                        ? _tr(isVi, 'Đang phát', 'Playing')
+                        : _tr(isVi, 'Bấm để nghe', 'Tap to listen'),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF4A2C40),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    _formatVoicePromptDuration(durationSeconds),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF9A6380),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildInfoCard({
     required List<_InfoItem> items,
   }) {
@@ -971,7 +1273,108 @@ class _MyProfilePageState extends State<MyProfilePage> {
       ),
     );
   }
+Future<void> _showPhotoRejectedDialog({
+  required Map<String, dynamic> profile,
+  required bool isVi,
+}) async {
+  final reason =
+      (profile['photoVerificationRejectReason'] ?? '').toString();
 
+  String reasonText;
+
+  switch (reason) {
+    case 'photo_not_match':
+      reasonText = isVi
+          ? 'Ảnh selfie xác minh không khớp với ảnh hồ sơ của bạn.'
+          : 'Your verification selfie does not match your profile photos.';
+      break;
+
+    case 'face_not_clear':
+      reasonText = isVi
+          ? 'Khuôn mặt trong ảnh xác minh không rõ.'
+          : 'Your face is not clear in the verification photo.';
+      break;
+
+    case 'multiple_people':
+      reasonText = isVi
+          ? 'Ảnh xác minh có nhiều hơn một người.'
+          : 'More than one person appears in the verification photo.';
+      break;
+
+    default:
+  reasonText = isVi
+      ? 'Ảnh xác minh của bạn không khớp hoặc không rõ so với ảnh hồ sơ. Vui lòng chụp lại ảnh xác minh và đảm bảo ảnh hồ sơ của bạn có khuôn mặt rõ ràng.'
+      : 'Your verification photo does not match or is unclear compared with your profile photos. Please take the verification photo again and make sure your profile photos clearly show your face.';
+  }
+
+  await showDialog(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
+        title: Text(
+          isVi
+              ? 'Ảnh chưa được xác minh'
+              : 'Photo not verified',
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: Text(
+          '$reasonText\n\n${isVi ? 'Vui lòng chụp lại ảnh selfie rõ mặt, đủ ánh sáng và không dùng bộ lọc.' : 'Please take another clear selfie in good lighting without filters.'}',
+          style: const TextStyle(
+            fontSize: 15,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+            },
+            child: Text(
+              isVi ? 'Để sau' : 'Not now',
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PhotoVerificationPage(
+                    languageCode: widget.languageCode,
+                  ),
+                ),
+              );
+
+              if (result == true && mounted) {
+                setState(() {});
+              }
+            },
+            icon: const Icon(
+              Icons.camera_alt_rounded,
+              color: Colors.white,
+            ),
+            label: Text(
+              isVi ? 'Chụp lại ảnh' : 'Retake photo',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE91E63),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
   Widget _buildHeader({
     required Map<String, dynamic> profile,
     required bool isVi,
@@ -1013,6 +1416,17 @@ InkWell(
   onTap: profile['photoVerificationStatus'] == 'pending'
     ? null
     : () async {
+        final status =
+            (profile['photoVerificationStatus'] ?? '').toString();
+
+        if (status == 'rejected') {
+          _showPhotoRejectedDialog(
+            profile: profile,
+            isVi: isVi,
+          );
+          return;
+        }
+
         final result = await Navigator.push(
           context,
           MaterialPageRoute(
@@ -1096,10 +1510,264 @@ Text(
       ],
     );
   }
+Widget _buildProfileHealthCard({
+  required ProfileHealthResult profileHealth,
+  required bool isVi,
+}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(24),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFFFEFF6),
+        ],
+      ),
+      border: Border.all(
+        color: const Color(0xFFFFCFE1),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.08),
+          blurRadius: 16,
+          offset: const Offset(0, 7),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(
+              Icons.auto_awesome_rounded,
+              color: Color(0xFFE91E63),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _tr(
+                  isVi,
+                  'Mức độ hoàn thiện hồ sơ',
+                  'Profile strength',
+                ),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF7A2E6E),
+                ),
+              ),
+            ),
+            Text(
+              '${profileHealth.score}%',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFFE91E63),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: profileHealth.score / 100,
+            minHeight: 9,
+            backgroundColor: const Color(0xFFFFDCE9),
+            valueColor: const AlwaysStoppedAnimation<Color>(
+              Color(0xFFE91E63),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _tr(
+            isVi,
+            'Hoàn thiện hồ sơ để tăng khả năng Match.',
+            'Complete your profile to improve your chances of matching.',
+          ),
+          style: const TextStyle(
+            fontSize: 14.5,
+            height: 1.4,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6F5362),
+          ),
+        ),
+        if (profileHealth.suggestions.isNotEmpty) ...[
+  const SizedBox(height: 14),
 
+  ...profileHealth.suggestions.take(3).map((suggestion) {
+    String text;
+    IconData icon;
+
+    if (suggestion == 'add_1_photo') {
+      text = _tr(isVi, 'Thêm 1 ảnh nữa.', 'Add 1 more photo.');
+      icon = Icons.add_a_photo_outlined;
+    } else if (suggestion.startsWith('add_more_photos:')) {
+      final count =
+          int.tryParse(suggestion.split(':').last) ?? 1;
+
+      text = _tr(
+        isVi,
+        'Thêm $count ảnh nữa.',
+        'Add $count more photos.',
+      );
+
+      icon = Icons.add_a_photo_outlined;
+    } else if (suggestion == 'answer_1_prompt') {
+      text = _tr(
+        isVi,
+        'Trả lời thêm 1 câu hỏi.',
+        'Answer 1 more prompt.',
+      );
+
+      icon = Icons.chat_bubble_outline_rounded;
+    } else if (suggestion.startsWith('answer_more_prompts:')) {
+      final count =
+          int.tryParse(suggestion.split(':').last) ?? 1;
+
+      text = _tr(
+        isVi,
+        'Trả lời thêm $count câu hỏi.',
+        'Answer $count more prompts.',
+      );
+
+      icon = Icons.chat_bubble_outline_rounded;
+    } else if (suggestion == 'add_voice_prompt') {
+      text = _tr(
+        isVi,
+        'Thêm Voice Prompt để mọi người hiểu bạn hơn.',
+        'Add a Voice Prompt so people can know you better.',
+      );
+
+      icon = Icons.mic_none_rounded;
+    } else if (suggestion == 'add_bio') {
+      text = _tr(
+        isVi,
+        'Thêm phần giới thiệu về bản thân.',
+        'Add a short bio about yourself.',
+      );
+
+      icon = Icons.edit_note_rounded;
+    } else if (suggestion == 'bio_too_short' ||
+        suggestion == 'bio_could_be_longer') {
+      text = _tr(
+        isVi,
+        'Bio của bạn đang hơi ngắn.',
+        'Your bio is a little short.',
+      );
+
+      icon = Icons.edit_note_rounded;
+    } else if (suggestion == 'verify_photo') {
+      text = _tr(
+        isVi,
+        'Xác minh ảnh để tăng độ tin cậy.',
+        'Verify your photo to build trust.',
+      );
+
+      icon = Icons.verified_outlined;
+    } else if (suggestion == 'add_living_location') {
+      text = _tr(
+        isVi,
+        'Thêm nơi bạn đang sống.',
+        'Add where you currently live.',
+      );
+
+      icon = Icons.location_on_outlined;
+    } else if (suggestion == 'add_height') {
+      text = _tr(
+        isVi,
+        'Thêm chiều cao.',
+        'Add your height.',
+      );
+
+      icon = Icons.height_rounded;
+    } else if (suggestion == 'add_education') {
+      text = _tr(
+        isVi,
+        'Thêm trình độ học vấn.',
+        'Add your education.',
+      );
+
+      icon = Icons.school_outlined;
+    } else if (suggestion == 'add_occupation') {
+      text = _tr(
+        isVi,
+        'Thêm nghề nghiệp.',
+        'Add your occupation.',
+      );
+
+      icon = Icons.work_outline_rounded;
+    } else if (suggestion == 'add_relationship_goal') {
+      text = _tr(
+        isVi,
+        'Thêm mục tiêu hẹn hò.',
+        'Add your relationship goal.',
+      );
+
+      icon = Icons.favorite_border_rounded;
+    } else {
+      text = '';
+      icon = Icons.info_outline_rounded;
+    }
+
+    if (text.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            icon,
+            size: 19,
+            color: const Color(0xFFCC3D7A),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.35,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF5F4654),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }),
+],
+      ],
+    ),
+  );
+}
   Widget _buildMyProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
     final prompts = _extractPrompts(profile, isVi);
+    final profileHealthData = <String, dynamic>{
+  ...profile,
+
+  // Dùng danh sách ảnh đã được My Profile đọc và loại ảnh trùng.
+  'photos': photos,
+
+  // Chuyển prompt hiện tại về đúng dạng mà profile_health.dart đang đọc.
+  for (int i = 0; i < prompts.length && i < 5; i++)
+    'prompt${i + 1}Answer':
+        (prompts[i]['answer'] ?? '').toString().trim(),
+};
+
+final profileHealth = calculateProfileHealth(profileHealthData);
+    
 
     String getPhoto(int index) {
       if (index < 0 || index >= photos.length) return '';
@@ -1162,11 +1830,19 @@ Text(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(
-            profile: profile,
-            isVi: isVi,
-            photos: photos,
-          ),
-          const SizedBox(height: 22),
+  profile: profile,
+  isVi: isVi,
+  photos: photos,
+),
+
+const SizedBox(height: 18),
+
+_buildProfileHealthCard(
+  profileHealth: profileHealth,
+  isVi: isVi,
+),
+
+const SizedBox(height: 22),
 
           if (getPhoto(1).isNotEmpty) _buildPhotoBlock(getPhoto(1)),
           if (getPhoto(1).isNotEmpty && getPrompt(0)['question']!.isNotEmpty)
@@ -1178,6 +1854,28 @@ Text(
               question: getPrompt(0)['question'] ?? '',
               answer: getPrompt(0)['answer'] ?? '',
             ),
+            if ((profile['voicePromptAudioUrl'] ?? '')
+    .toString()
+    .trim()
+    .isNotEmpty)
+  const SizedBox(height: 16),
+
+if ((profile['voicePromptAudioUrl'] ?? '')
+    .toString()
+    .trim()
+    .isNotEmpty)
+  _buildVoicePromptCard(
+    audioUrl: (profile['voicePromptAudioUrl'] ?? '')
+        .toString()
+        .trim(),
+    durationSeconds: profile['voicePromptDuration'] is int
+        ? profile['voicePromptDuration'] as int
+        : int.tryParse(
+              (profile['voicePromptDuration'] ?? '0').toString(),
+            ) ??
+            0,
+    isVi: isVi,
+  ),
 
           if ((bornDisplay.isNotEmpty || religion.isNotEmpty))
             const SizedBox(height: 18),
@@ -1235,7 +1933,7 @@ Text(
               answer: getPrompt(2)['answer'] ?? '',
             ),
 
-          if (maritalStatus.isNotEmpty || relationshipGoal.isNotEmpty)
+        if (maritalStatus.isNotEmpty || haveChildren.isNotEmpty)
             const SizedBox(height: 18),
           _buildInfoCard(
             items: [
@@ -1251,15 +1949,64 @@ Text(
     label: isVi ? 'Con cái' : 'Children',
     text: haveChildren,
   ),
-              if (relationshipGoal.isNotEmpty)
-                _InfoItem(
-                  icon: Icons.favorite_rounded,
-                  label: _tr(isVi, 'Mục tiêu mối quan hệ', 'Relationship goal'),
-                  text: relationshipGoal,
-                ),
+             
             ],
           ),
-
+          if (_extractRelationshipGoalKeys(profile).isNotEmpty)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: const Color(0xFFFFD6E7),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _tr(
+                      isVi,
+                      '💕 Mục tiêu hẹn hò',
+                      '💕 Relationship goals',
+                    ),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        _extractRelationshipGoalKeys(profile).map((goal) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFEDF4),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _translateProfileValue(goal, isVi),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF9C2859),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
           if (getPhoto(4).isNotEmpty) const SizedBox(height: 18),
           if (getPhoto(4).isNotEmpty) _buildPhotoBlock(getPhoto(4)),
 
@@ -1318,7 +2065,7 @@ Text(
 
   Widget _buildBody() {
     return FutureBuilder<Map<String, dynamic>?>(
-      future: _loadMyProfile(),
+      future: _profileFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(

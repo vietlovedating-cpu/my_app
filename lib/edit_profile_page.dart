@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'edit_full_name_page.dart';
+import 'edit_voice_prompt_page.dart';
 import 'edit_age_page.dart';
 import 'edit_gender_page.dart';
-import 'edit_live_in_page.dart';
 import 'edit_height_page.dart';
 import 'edit_country_born_page.dart';
 import 'edit_vietnam_birth_city_page.dart';
@@ -20,6 +20,7 @@ import 'edit_relationship_goal_page.dart';
 import 'edit_current_location_page.dart';
 import 'edit_prompt_question_answer_page.dart';
 import 'edit_upload_photos_page.dart';
+import 'edit_place_you_call_home_page.dart';
 
 class EditProfilePage extends StatelessWidget {
   final String languageCode;
@@ -48,20 +49,38 @@ class EditProfilePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <_EditMenuItem>[
       _EditMenuItem(
-        icon: Icons.person_outline,
-        title: _tr('Họ tên', 'Full name'),
-        onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => EditFullNamePage(languageCode: languageCode),
-            ),
-          );
-        },
+  icon: Icons.person_outline,
+  title: _tr('Họ tên', 'Full name'),
+  onTap: () async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditFullNamePage(
+          languageCode: languageCode,
+        ),
       ),
-      _EditMenuItem(
-        icon: Icons.cake_outlined,
-        title: _tr('Tuổi', 'Age'),
+    );
+  },
+),
+
+_EditMenuItem(
+  icon: Icons.mic_none_rounded,
+  title: _tr('Giọng nói Prompt', 'Voice Prompt'),
+  onTap: () async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditVoicePromptPage(
+          languageCode: languageCode,
+        ),
+      ),
+    );
+  },
+),
+
+_EditMenuItem(
+  icon: Icons.cake_outlined,
+  title: _tr('Tuổi', 'Age'),
         onTap: () async {
           await Navigator.push(
             context,
@@ -83,19 +102,21 @@ class EditProfilePage extends StatelessWidget {
           );
         },
       ),
-
-      _EditMenuItem(
-  icon: Icons.home_outlined,
-  title: _tr('Sống tại', 'Live in'),
+_EditMenuItem(
+  icon: Icons.public_outlined,
+  title: _tr('Nơi bạn gọi là quê hương', 'Place you call home'),
   onTap: () async {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => EditLiveInPage(languageCode: languageCode),
+        builder: (_) => EditPlaceYouCallHomePage(
+          languageCode: languageCode,
+        ),
       ),
     );
   },
 ),
+     
 _EditMenuItem(
   icon: Icons.height,
   title: _tr('Chiều cao', 'Height'),
@@ -120,18 +141,7 @@ _EditMenuItem(
     );
   },
 ),
-_EditMenuItem(
-  icon: Icons.location_city_outlined,
-  title: _tr('Thành phố sinh ở Việt Nam', 'Vietnam city of birth'),
-  onTap: () async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EditVietnamBirthCityPage(languageCode: languageCode),
-      ),
-    );
-  },
-),
+
       _EditMenuItem(
   icon: Icons.work_outline,
   title: _tr('Công việc', 'Occupation'),

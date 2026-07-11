@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'age_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DatingPreferencePage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -17,6 +20,7 @@ class DatingPreferencePage extends StatefulWidget {
   const DatingPreferencePage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -35,12 +39,93 @@ class DatingPreferencePage extends StatefulWidget {
 
 class _DatingPreferencePageState extends State<DatingPreferencePage> {
   String? selectedPreference;
+  bool isSaving = false;
 
   @override
   void initState() {
     super.initState();
     selectedPreference = widget.initialDatingPreference;
   }
+  Future<void> _saveAndContinue() async {
+  final isVi = widget.languageCode == 'vi';
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (selectedPreference == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Vui lòng chọn đối tượng hẹn hò'
+              : 'Please choose who you want to date',
+        ),
+      ),
+    );
+    return;
+  }
+
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không tìm thấy tài khoản'
+              : 'User account not found',
+        ),
+      ),
+    );
+    return;
+  }
+
+
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'datingPreference': selectedPreference,
+      'onboardingStep': 'age',
+      'datingPreferenceUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgePage(
+          languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
+          selectedState: widget.selectedState,
+          firstName: widget.firstName,
+          address: widget.address,
+          gender: widget.gender,
+          datingPreference: selectedPreference!,
+          initialAge: widget.initialAge,
+          initialMinAge: widget.initialMinAge,
+          initialMaxAge: widget.initialMaxAge,
+          isEditingFromHome: widget.isEditingFromHome,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      isSaving = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không thể lưu lựa chọn. Vui lòng thử lại.'
+              : 'Unable to save your preference. Please try again.',
+        ),
+      ),
+    );
+  }
+}
 
   Widget _buildOptionButton({
     required String label,
@@ -232,42 +317,7 @@ class _DatingPreferencePageState extends State<DatingPreferencePage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: () {
-                    if (selectedPreference == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          content: Text(
-                            isVi
-                                ? 'Vui lòng chọn đối tượng hẹn hò'
-                                : 'Please choose who you want to date',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AgePage(
-                          languageCode: widget.languageCode,
-                          selectedState: widget.selectedState,
-                          firstName: widget.firstName,
-                          address: widget.address,
-                          gender: widget.gender,
-                          datingPreference: selectedPreference!,
-                          initialAge: widget.initialAge,
-                          initialMinAge: widget.initialMinAge,
-                          initialMaxAge: widget.initialMaxAge,
-                          isEditingFromHome: widget.isEditingFromHome,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: _saveAndContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.pink,
                     foregroundColor: Colors.white,
@@ -276,14 +326,23 @@ class _DatingPreferencePageState extends State<DatingPreferencePage> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),
-                  child: Text(
-                    isVi ? 'Tiếp theo →' : 'Next →',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
+                  child: isSaving
+    ? const SizedBox(
+        width: 23,
+        height: 23,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.4,
+          color: Colors.white,
+        ),
+      )
+    : Text(
+        isVi ? 'Tiếp theo →' : 'Next →',
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
                 ),
               ),
             ],

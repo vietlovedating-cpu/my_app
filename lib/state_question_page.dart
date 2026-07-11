@@ -19,70 +19,8 @@ class StateQuestionPage extends StatefulWidget {
 
 class _StateQuestionPageState extends State<StateQuestionPage> {
   String? selectedState;
-  String? selectedCountry;
 
-static const List<String> countries = [
-  'Afghanistan',
-  'Albania',
-  'Algeria',
-  'Argentina',
-  'Australia',
-  'Austria',
-  'Bangladesh',
-  'Belgium',
-  'Brazil',
-  'Brunei',
-  'Cambodia',
-  'Canada',
-  'Chile',
-  'China',
-  'Colombia',
-  'Croatia',
-  'Czech Republic',
-  'Denmark',
-  'Egypt',
-  'Finland',
-  'France',
-  'Germany',
-  'Greece',
-  'Hong Kong',
-  'Hungary',
-  'India',
-  'Indonesia',
-  'Ireland',
-  'Israel',
-  'Italy',
-  'Japan',
-  'Laos',
-  'Malaysia',
-  'Mexico',
-  'Myanmar',
-  'Nepal',
-  'Netherlands',
-  'New Zealand',
-  'Norway',
-  'Pakistan',
-  'Philippines',
-  'Poland',
-  'Portugal',
-  'Russia',
-  'Singapore',
-  'South Africa',
-  'South Korea',
-  'Spain',
-  'Sri Lanka',
-  'Sweden',
-  'Switzerland',
-  'Taiwan',
-  'Thailand',
-  'Turkey',
-  'Ukraine',
-  'United Arab Emirates',
-  'United Kingdom',
-  'United States',
-  'Vietnam',
-  'Other',
-];
+
   String _normalizeStateKey(dynamic value) {
   final v = (value ?? '').toString().trim().toLowerCase();
 
@@ -99,20 +37,18 @@ static const List<String> countries = [
 }
 
   final List<String> states = const [
-    'New South Wales (NSW)',
-    'Victoria (VIC)',
-    'Queensland (QLD)',
-    'South Australia (SA)',
-    'Western Australia (WA)',
-    'Tasmania (TAS)',
-     'Other',
-  ];
+  'New South Wales (NSW)',
+  'Victoria (VIC)',
+  'Queensland (QLD)',
+  'South Australia (SA)',
+  'Western Australia (WA)',
+  'Tasmania (TAS)',
+];
 
   @override
   Widget build(BuildContext context) {
     final isVi = widget.languageCode == 'vi';
-    final bool isEnabled =
-    selectedState != null && (selectedState != 'Other' || selectedCountry != null);
+    final bool isEnabled = selectedState != null;
 
     return Scaffold(
       body: Container(
@@ -238,52 +174,7 @@ static const List<String> countries = [
                         ),
                         icon: const Icon(Icons.keyboard_arrow_down_rounded),
                       ),
-                      if (selectedState == 'Other') ...[
-  const SizedBox(height: 16),
-  DropdownButtonFormField<String>(
-    value: selectedCountry,
-    isExpanded: true,
-    hint: Text(
-      isVi ? 'Chọn quốc gia' : 'Select country',
-    ),
-    items: countries.map((country) {
-      return DropdownMenuItem<String>(
-        value: country,
-        child: Text(country),
-      );
-    }).toList(),
-    onChanged: (value) {
-      setState(() {
-        selectedCountry = value;
-      });
-    },
-    decoration: InputDecoration(
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 18,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(
-          color: Color(0xFFFFD6E7),
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(
-          color: Color(0xFFE91E63),
-          width: 1.5,
-        ),
-      ),
-    ),
-  ),
-],
+                  
                       const SizedBox(height: 20),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -310,15 +201,13 @@ static const List<String> countries = [
         final user = FirebaseAuth.instance.currentUser;
 
         if (user != null) {
-          final stateToSave =
-    selectedState == 'Other' ? selectedCountry! : selectedState!;
+          final stateToSave = selectedState!;
 
 await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
   'selectedState': stateToSave,
   'selectedStateLower': stateToSave.toLowerCase(),
-  'selectedStateKey':
-      selectedState == 'Other' ? 'other' : _normalizeStateKey(stateToSave),
-  'selectedCountry': selectedState == 'Other' ? selectedCountry! : '',
+ 'selectedStateKey': _normalizeStateKey(stateToSave),
+'selectedCountry': 'Australia',
   'onboardingStep': 'current_location',
 }, SetOptions(merge: true));
         }
@@ -331,6 +220,7 @@ await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                                 builder: (_) => CurrentLocationPage(
                                   languageCode: widget.languageCode,
                                   selectedState: selectedState!,
+                                  selectedCountry: 'Australia',
                                   firstName: widget.firstName,
                                 ),
                               ),

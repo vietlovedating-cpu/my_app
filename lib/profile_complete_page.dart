@@ -6,6 +6,7 @@ import 'prompt_intro_page.dart';
 
 class ProfileCompletePage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -32,6 +33,7 @@ class ProfileCompletePage extends StatefulWidget {
   const ProfileCompletePage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -110,10 +112,6 @@ class _ProfileCompletePageState extends State<ProfileCompletePage>
 
   /// Basic
   'firstName': widget.firstName,
-  'selectedState': widget.selectedState,
-  'selectedStateLower': widget.selectedState.trim().toLowerCase(),
-  'address': widget.address,
-  'gender': widget.gender,
   'genderLower': widget.gender.trim().toLowerCase(),
   'datingPreference': widget.datingPreference,
   'datingPreferenceLower': widget.datingPreference.trim().toLowerCase(),

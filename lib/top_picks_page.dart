@@ -868,53 +868,215 @@ final homeFeedUserIds = homeFeedSnapshot.docs
       });
     }
 
-    int scoreProfile(Map<String, dynamic> profile) {
+    bool isOnlineRecently(Map<String, dynamic> profile) {
+  final lastSeen = profile['lastSeen'];
+
+  if (lastSeen is! Timestamp) {
+    return false;
+  }
+
+  final difference =
+      DateTime.now().difference(lastSeen.toDate());
+
+  return !difference.isNegative &&
+      difference <= const Duration(minutes: 15);
+}
+
+bool isRecentlyActive(Map<String, dynamic> profile) {
+  if (isOnlineRecently(profile)) {
+    return false;
+  }
+
+  final lastSeen = profile['lastSeen'];
+
+  if (lastSeen is! Timestamp) {
+    return false;
+  }
+
+  final difference =
+      DateTime.now().difference(lastSeen.toDate());
+
+  return !difference.isNegative &&
+      difference <= const Duration(days: 3);
+}
+
+final myGender = _normalizeGenderPreference(
+  currentUserData['gender'],
+);
+
+final myAge = _parseInt(
+  currentUserData['age'],
+);
+
+int scoreProfile(Map<String, dynamic> profile) {
   int score = 0;
 
-  final uid = (profile['uid'] ?? profile['docId'] ?? '').toString().trim();
+  final uid =
+      (profile['uid'] ?? profile['docId'] ?? '')
+          .toString()
+          .trim();
 
-  if (likedMeIds.contains(uid)) {
-    score += 1000;
+  final profileGender = _normalizeGenderPreference(
+    profile['gender'],
+  );
+
+  final profilePreference = _normalizeGenderPreference(
+    profile['datingPreference'] ??
+        profile['genderPreference'],
+  );
+
+  /*
+   * Tương thích giới tính hai chiều.
+   *
+   * Những profile cũ chưa có preference vẫn được tính,
+   * tránh loại oan user cũ.
+   */
+  final iLikeThem =
+      selectedGenderFilter.isEmpty ||
+      selectedGenderFilter == 'everyone' ||
+      selectedGenderFilter == profileGender;
+
+  final theyLikeMe =
+      profilePreference.isEmpty ||
+      profilePreference == 'everyone' ||
+      profilePreference == myGender;
+
+  if (iLikeThem && theyLikeMe) {
+    score += 80;
+  } else {
+    // Không tương thích hai chiều thì giảm mạnh.
+    score -= 100;
+  }
+
+
+  final profileAge = _parseInt(
+    profile['age'],
+  );
+
+  // Tuổi người kia đúng range mình chọn.
+  if (selectedMinAgeFilter > 0 &&
+      selectedMaxAgeFilter > 0 &&
+      profileAge >= selectedMinAgeFilter &&
+      profileAge <= selectedMaxAgeFilter) {
+    score += 35;
+  }
+
+  // Tuổi mình đúng range người kia muốn.
+  final theirMinAge = _parseInt(
+    profile['minAgePreference'] ??
+        profile['preferredMinAge'],
+  );
+
+  final theirMaxAge = _parseInt(
+    profile['maxAgePreference'] ??
+        profile['preferredMaxAge'],
+  );
+
+  if (myAge > 0 &&
+      theirMinAge > 0 &&
+      theirMaxAge > 0 &&
+      myAge >= theirMinAge &&
+      myAge <= theirMaxAge) {
+    score += 35;
   }
 
   final profileState = _normalizeString(
-        profile['selectedState'] ?? profile['state'],
-      );
+    profile['selectedState'] ??
+        profile['selectedStateKey'] ??
+        profile['state'],
+  );
 
-      final profileAge = _parseInt(profile['age']);
-      final photos = _extractPhotos(profile);
-      final relationshipGoal = _extractRelationshipGoalKey(profile);
+  // Cùng khu vực.
+  if (myState.isNotEmpty &&
+      profileState.isNotEmpty &&
+      profileState == myState) {
+    score += 25;
+  }
 
-      if (myState.isNotEmpty && profileState == myState) {
-        score += 30;
-      }
+  final relationshipGoal =
+      _extractRelationshipGoalKey(profile);
 
-      if (selectedMinAgeFilter > 0 &&
-          selectedMaxAgeFilter > 0 &&
-          profileAge >= selectedMinAgeFilter &&
-          profileAge <= selectedMaxAgeFilter) {
-        score += 25;
-      }
+  // Cùng mục tiêu quan hệ.
+  if (myGoal.isNotEmpty &&
+      relationshipGoal.isNotEmpty &&
+      relationshipGoal == myGoal) {
+    score += 40;
+  }
 
-      if (photos.length >= 3) {
-        score += 20;
-      } else if (photos.length >= 2) {
-        score += 10;
-      }
+  // Đang online hoặc mới hoạt động.
+  if (isOnlineRecently(profile)) {
+    score += 50;
+  } else if (isRecentlyActive(profile)) {
+    score += 25;
+  }
 
-      if (profile['isOnline'] == true) {
-        score += 10;
-      }
+  // Đã xác minh ảnh.
+  if (profile['photoVerified'] == true) {
+    score += 35;
+  }
 
-      if (myGoal.isNotEmpty && relationshipGoal == myGoal) {
-        score += 15;
-      }
+  // Profile có nhiều ảnh.
+  final photos = _extractPhotos(profile);
 
-      return score;
-    }
+  if (photos.length >= 3) {
+    score += 20;
+  } else if (photos.length >= 2) {
+    score += 10;
+  }
 
-    profiles.sort((a, b) => scoreProfile(b).compareTo(scoreProfile(a)));
-    return profiles.take(_dailyTopPicksLimit).toList();
+  return score;
+}
+
+// Chia thành 2 nhóm:
+//
+// 1. Người chưa Like mình:
+//    ưu tiên dùng cho Top Picks để tránh trùng Who Likes Me.
+//
+// 2. Người đã Like mình:
+//    chỉ dùng làm dự phòng khi không đủ 10 người mới.
+final freshProfiles = <Map<String, dynamic>>[];
+final likedMeProfiles = <Map<String, dynamic>>[];
+
+for (final profile in profiles) {
+  final uid =
+      (profile['uid'] ?? profile['docId'] ?? '')
+          .toString()
+          .trim();
+
+  if (likedMeIds.contains(uid)) {
+    likedMeProfiles.add(profile);
+  } else {
+    freshProfiles.add(profile);
+  }
+}
+
+// Xếp cả hai nhóm theo độ phù hợp.
+freshProfiles.sort(
+  (a, b) => scoreProfile(b).compareTo(scoreProfile(a)),
+);
+
+likedMeProfiles.sort(
+  (a, b) => scoreProfile(b).compareTo(scoreProfile(a)),
+);
+
+final result = <Map<String, dynamic>>[];
+
+// Lấy người mới trước.
+result.addAll(
+  freshProfiles.take(_dailyTopPicksLimit),
+);
+
+// Nếu chưa đủ 10 người mới,
+// mới lấy người đã nằm trong Who Likes Me để bổ sung.
+if (result.length < _dailyTopPicksLimit) {
+  final needed = _dailyTopPicksLimit - result.length;
+
+  result.addAll(
+    likedMeProfiles.take(needed),
+  );
+}
+
+return result;
   }
 
   Widget _buildOnlineDot(bool isOnline) {

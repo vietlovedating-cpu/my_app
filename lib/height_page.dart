@@ -3,6 +3,7 @@ import 'country_of_birth_page.dart';
 
 class HeightPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -21,6 +22,7 @@ class HeightPage extends StatefulWidget {
   const HeightPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -50,6 +52,7 @@ class _HeightPageState extends State<HeightPage> {
       MaterialPageRoute(
         builder: (_) => CountryOfBirthPage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

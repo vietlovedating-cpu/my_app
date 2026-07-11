@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'intro_question_page.dart';
+import 'package:country_picker/country_picker.dart';
 
 class PhoneVerificationPage extends StatefulWidget {
   final String languageCode;
@@ -24,29 +25,18 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
 
-  String selectedCode = '+61';
-
-  final List<Map<String, String>> countryCodes = [
-  {'code': '+61', 'name': 'Australia'},
-  {'code': '+84', 'name': 'Vietnam'},
-  {'code': '+64', 'name': 'New Zealand'},
-  {'code': '+1', 'name': 'United States'},
-  {'code': '+1', 'name': 'Canada'},
-  {'code': '+44', 'name': 'United Kingdom'},
-  {'code': '+65', 'name': 'Singapore'},
-  {'code': '+60', 'name': 'Malaysia'},
-  {'code': '+66', 'name': 'Thailand'},
-  {'code': '+62', 'name': 'Indonesia'},
-  {'code': '+63', 'name': 'Philippines'},
-  {'code': '+81', 'name': 'Japan'},
-  {'code': '+82', 'name': 'South Korea'},
-  {'code': '+91', 'name': 'India'},
-  {'code': '+33', 'name': 'France'},
-  {'code': '+49', 'name': 'Germany'},
-  {'code': '+39', 'name': 'Italy'},
-  {'code': '+34', 'name': 'Spain'},
-  {'code': '+31', 'name': 'Netherlands'},
-];
+  Country selectedCountry = Country(
+  phoneCode: '61',
+  countryCode: 'AU',
+  e164Sc: 0,
+  geographic: true,
+  level: 1,
+  name: 'Australia',
+  example: '412345678',
+  displayName: 'Australia (AU) [+61]',
+  displayNameNoCountryCode: 'Australia (AU)',
+  e164Key: '61-AU-0',
+);
 
   String? _verificationId;
   int? _resendToken;
@@ -57,13 +47,9 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
 
   bool get isVi => widget.languageCode == 'vi';
 
-  String get selectedCountryName {
-    final country = countryCodes.firstWhere(
-      (item) => item['code'] == selectedCode,
-      orElse: () => {'code': '+61', 'name': 'Australia'},
-    );
-    return country['name'] ?? '';
-  }
+ String get selectedCountryName {
+  return selectedCountry.name;
+}
 
   String get fullPhoneNumber {
     String phone = _phoneController.text.trim();
@@ -72,7 +58,7 @@ class _PhoneVerificationPageState extends State<PhoneVerificationPage> {
       phone = phone.substring(1);
     }
 
-    return '$selectedCode$phone';
+   return '+${selectedCountry.phoneCode}$phone';
   }
 
   @override
@@ -348,38 +334,63 @@ await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                 ),
                 const SizedBox(height: 8),
 
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF7FA),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFD8C3B5)),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: selectedCode,
-                      isExpanded: true,
-                      items: countryCodes.map((country) {
-                        final code = country['code']!;
-                        final name = country['name']!;
-                        return DropdownMenuItem<String>(
-                          value: code,
-                          child: Text(
-                            '$code $name',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            selectedCode = value;
-                          });
-                        }
-                      },
-                    ),
-                  ),
-                ),
+                InkWell(
+  onTap: () {
+    showCountryPicker(
+      context: context,
+      showPhoneCode: true,
+      countryListTheme: CountryListThemeData(
+        borderRadius: BorderRadius.circular(20),
+        inputDecoration: InputDecoration(
+          labelText: isVi ? 'Tìm quốc gia' : 'Search country',
+          hintText: isVi
+              ? 'Nhập tên quốc gia'
+              : 'Enter country name',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      onSelect: (Country country) {
+        setState(() {
+          selectedCountry = country;
+        });
+      },
+    );
+  },
+  borderRadius: BorderRadius.circular(14),
+  child: Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 14,
+      vertical: 16,
+    ),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7FA),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(
+        color: const Color(0xFFD8C3B5),
+      ),
+    ),
+    child: Row(
+      children: [
+        Text(
+          selectedCountry.flagEmoji,
+          style: const TextStyle(fontSize: 24),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            '+${selectedCountry.phoneCode} '
+            '${selectedCountry.name}',
+            style: const TextStyle(fontSize: 16),
+          ),
+        ),
+        const Icon(Icons.arrow_drop_down),
+      ],
+    ),
+  ),
+),
 
                 const SizedBox(height: 16),
 
@@ -460,9 +471,9 @@ await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                 const SizedBox(height: 14),
 
                 Text(
-                  isVi
-                      ? 'Mã đã chọn: $selectedCode $selectedCountryName'
-                      : 'Selected: $selectedCode $selectedCountryName',
+  isVi
+      ? 'Mã đã chọn: +${selectedCountry.phoneCode} $selectedCountryName'
+      : 'Selected: +${selectedCountry.phoneCode} $selectedCountryName',
                   style: const TextStyle(
                     fontSize: 14,
                     color: Colors.black54,

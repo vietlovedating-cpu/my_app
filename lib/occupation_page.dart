@@ -3,6 +3,7 @@ import 'annual_income_page.dart';
 
 class OccupationPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -19,6 +20,7 @@ class OccupationPage extends StatefulWidget {
   const OccupationPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -103,6 +105,7 @@ class _OccupationPageState extends State<OccupationPage> {
       MaterialPageRoute(
         builder: (_) => AnnualIncomePage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

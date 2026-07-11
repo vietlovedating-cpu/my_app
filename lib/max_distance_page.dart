@@ -3,6 +3,7 @@ import 'smoking_page.dart';
 
 class MaxDistancePage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -26,6 +27,7 @@ class MaxDistancePage extends StatefulWidget {
   const MaxDistancePage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -60,6 +62,7 @@ class _MaxDistancePageState extends State<MaxDistancePage> {
       MaterialPageRoute(
         builder: (_) => SmokingPage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

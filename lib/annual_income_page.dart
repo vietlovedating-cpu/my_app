@@ -3,6 +3,7 @@ import 'height_page.dart';
 
 class AnnualIncomePage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -20,6 +21,7 @@ class AnnualIncomePage extends StatefulWidget {
   const AnnualIncomePage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -174,6 +176,7 @@ class _AnnualIncomePageState extends State<AnnualIncomePage> {
                       MaterialPageRoute(
                         builder: (_) => HeightPage(
                           languageCode: widget.languageCode,
+                          selectedCountry: widget.selectedCountry,
                           selectedState: widget.selectedState,
                           firstName: widget.firstName,
                           address: widget.address,

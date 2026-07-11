@@ -3,18 +3,23 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'gender_page.dart';
 import 'app_overflow_wrapper.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 
 class CurrentLocationPage extends StatefulWidget {
   final String languageCode;
   final String selectedState;
+  final String selectedCountry;
   final String firstName;
 
   const CurrentLocationPage({
-    super.key,
-    required this.languageCode,
-    required this.selectedState,
-    required this.firstName,
-  });
+  super.key,
+  required this.languageCode,
+  required this.selectedState,
+  required this.selectedCountry,
+  required this.firstName,
+});
 
   @override
   State<CurrentLocationPage> createState() => _CurrentLocationPageState();
@@ -22,19 +27,32 @@ class CurrentLocationPage extends StatefulWidget {
 
 class _CurrentLocationPageState extends State<CurrentLocationPage> {
   late TextEditingController _addressController;
+  late TextEditingController _cityController;
+late TextEditingController _stateProvinceController;
   bool _isLoadingLocation = false;
+  String detectedCity = '';
+String detectedState = '';
+String detectedCountry = '';
+double? detectedLat;
+double? detectedLng;
+  
 
   @override
-  void initState() {
-    super.initState();
-    _addressController = TextEditingController();
-  }
+void initState() {
+  super.initState();
+
+  _addressController = TextEditingController();
+  _cityController = TextEditingController();
+  _stateProvinceController = TextEditingController();
+}
 
   @override
-  void dispose() {
-    _addressController.dispose();
-    super.dispose();
-  }
+void dispose() {
+  _addressController.dispose();
+  _cityController.dispose();
+  _stateProvinceController.dispose();
+  super.dispose();
+}
 
   Future<void> _getCurrentLocation() async {
     final isVi = widget.languageCode == 'vi';
@@ -104,6 +122,18 @@ class _CurrentLocationPageState extends State<CurrentLocationPage> {
 
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
+        final isAustralia =
+    widget.selectedCountry.trim().toLowerCase() == 'australia';
+
+detectedCity = place.locality ?? '';
+detectedCountry = place.country ?? widget.selectedCountry;
+
+if (!isAustralia) {
+  detectedState = place.administrativeArea ?? '';
+}
+
+detectedLat = position.latitude;
+detectedLng = position.longitude;
 
         final addressParts = [
           place.street,
@@ -117,8 +147,10 @@ class _CurrentLocationPageState extends State<CurrentLocationPage> {
         final fullAddress = addressParts.join(', ');
 
         setState(() {
-          _addressController.text = fullAddress;
-        });
+  _cityController.text = detectedCity;
+  _stateProvinceController.text = detectedState;
+  _addressController.text = fullAddress;
+});
 
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -164,6 +196,8 @@ class _CurrentLocationPageState extends State<CurrentLocationPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isAustralia =
+    widget.selectedCountry.trim().toLowerCase() == 'australia';
     final isVi = widget.languageCode == 'vi';
 
     return Scaffold(
@@ -214,107 +248,103 @@ class _CurrentLocationPageState extends State<CurrentLocationPage> {
 
             const SizedBox(height: 20),
 
-            Autocomplete<String>(
-  optionsBuilder: (TextEditingValue textEditingValue) {
-    final query = textEditingValue.text.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return const Iterable<String>.empty();
-    }
-
-    const sampleAddresses = <String>[
-      'Sydney NSW, Australia',
-      'Parramatta NSW, Australia',
-      'Chatswood NSW, Australia',
-      'Bankstown NSW, Australia',
-      'Cabramatta NSW, Australia',
-      'Melbourne VIC, Australia',
-      'Brisbane QLD, Australia',
-      'Perth WA, Australia',
-    ];
-
-    return sampleAddresses.where(
-      (item) => item.toLowerCase().contains(query),
-    );
-  },
-  onSelected: (String selection) {
-    _addressController.text = selection;
-  },
-  fieldViewBuilder: (
-    context,
-    textEditingController,
-    focusNode,
-    onFieldSubmitted,
-  ) {
-    textEditingController.value = _addressController.value;
-
-    textEditingController.addListener(() {
-      _addressController.value = textEditingController.value;
-    });
-
-    return TextField(
-      controller: textEditingController,
-      focusNode: focusNode,
+            Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
+    Text(
+      isVi ? 'Quốc gia' : 'Country',
+      style: const TextStyle(
+        fontSize: 15,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+    const SizedBox(height: 8),
+    TextFormField(
+      initialValue: widget.selectedCountry,
+      enabled: false,
       decoration: InputDecoration(
-        prefixIcon: const Icon(Icons.location_on),
-        hintText: isVi
-            ? 'Tìm theo địa chỉ...'
-            : 'Search by name or address...',
+        prefixIcon: const Icon(Icons.public),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: Colors.grey.shade100,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(
-            color: Color(0xFFFFD6E7),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(
-            color: Colors.pink,
-            width: 1.5,
-          ),
+      ),
+    ),
+
+    const SizedBox(height: 18),
+
+    if (!isAustralia) ...[
+      Text(
+        isVi ? 'Thành phố' : 'City',
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
         ),
       ),
-    );
-  },
-  optionsViewBuilder: (context, onSelected, options) {
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Material(
-        elevation: 4,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: MediaQuery.of(context).size.width - 40,
-          constraints: const BoxConstraints(maxHeight: 220),
-          decoration: BoxDecoration(
-            color: Colors.white,
+      const SizedBox(height: 8),
+      TextField(
+        controller: _cityController,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.location_city),
+          hintText: isVi
+              ? 'Ví dụ: Ho Chi Minh City'
+              : 'Example: Ho Chi Minh City',
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            itemCount: options.length,
-            itemBuilder: (context, index) {
-              final option = options.elementAt(index);
-              return ListTile(
-                dense: true,
-                title: Text(
-                  option,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: () => onSelected(option),
-              );
-            },
+        ),
+      ),
+      const SizedBox(height: 18),
+      Text(
+        isVi ? 'Bang hoặc tỉnh' : 'State or Province',
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _stateProvinceController,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.map_outlined),
+          hintText: isVi
+              ? 'Ví dụ: California'
+              : 'Example: California',
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
-    );
-  },
+    ],
+
+    if (isAustralia) ...[
+      Text(
+        isVi ? 'Bang đã chọn' : 'Selected state',
+        style: const TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextFormField(
+        initialValue: widget.selectedState,
+        enabled: false,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.map_outlined),
+          filled: true,
+          fillColor: Colors.grey.shade100,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    ],
+  ],
 ),
 
             const SizedBox(height: 20),
@@ -365,8 +395,14 @@ class _CurrentLocationPageState extends State<CurrentLocationPage> {
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: () {
-                  final address = _addressController.text.trim();
+                onPressed: () async {
+                 final city = _cityController.text.trim();
+final stateProvince = _stateProvinceController.text.trim();
+final isAustralia =
+    widget.selectedCountry.trim().toLowerCase() == 'australia';
+final address = isAustralia
+    ? widget.selectedState
+    : '$city, $stateProvince, ${widget.selectedCountry}';
 
                   if (address.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -380,12 +416,79 @@ class _CurrentLocationPageState extends State<CurrentLocationPage> {
                     );
                     return;
                   }
+final user = FirebaseAuth.instance.currentUser;
 
+if (user == null) {
+  return;
+}
+
+final stateToSave =
+    isAustralia ? widget.selectedState : stateProvince;
+
+final cityToSave =
+    isAustralia ? detectedCity : city;
+
+// Nước khác Australia phải nhập City và State/Province.
+if (!isAustralia && (city.isEmpty || stateProvince.isEmpty)) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isVi
+            ? 'Vui lòng nhập thành phố và bang hoặc tỉnh'
+            : 'Please enter your city and state or province',
+      ),
+    ),
+  );
+  return;
+}
+
+final locationText = isAustralia
+    ? '${widget.selectedState}, ${widget.selectedCountry}'
+    : '$city, $stateProvince, ${widget.selectedCountry}';
+
+// Nếu user tự nhập thay vì bấm GPS,
+// app tự tìm lat/lng từ City + State + Country.
+if (!isAustralia && (detectedLat == null || detectedLng == null)) {
+  try {
+    final locations = await locationFromAddress(locationText);
+
+    if (locations.isNotEmpty) {
+      detectedLat = locations.first.latitude;
+      detectedLng = locations.first.longitude;
+    }
+  } catch (e) {
+    debugPrint('Unable to detect coordinates: $e');
+  }
+}
+
+await FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid)
+    .set({
+  'selectedCountry': widget.selectedCountry,
+
+  'selectedState': stateToSave,
+  'selectedStateKey': stateToSave,
+  'state': stateToSave,
+  'stateLiving': stateToSave,
+
+  'city': cityToSave,
+
+  'address': locationText,
+  'currentLocation': locationText,
+
+  if (detectedLat != null) 'lat': detectedLat,
+  if (detectedLng != null) 'lng': detectedLng,
+
+  'onboardingStep': 'gender',
+  'locationUpdatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => GenderPage(
                         languageCode: widget.languageCode,
+                        selectedCountry: widget.selectedCountry,
                         selectedState: widget.selectedState,
                         firstName: widget.firstName,
                         address: address,

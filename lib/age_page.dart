@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'age_range_page.dart';
 
 class AgePage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -21,6 +25,7 @@ class AgePage extends StatefulWidget {
   const AgePage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -41,12 +46,78 @@ class AgePage extends StatefulWidget {
 
 class _AgePageState extends State<AgePage> {
   double selectedAge = 25.0;
+  bool isSaving = false;
 
-  @override
-  void initState() {
-    super.initState();
-    selectedAge = (widget.initialAge ?? 25).toDouble();
+  Future<void> _saveAndContinue() async {
+  final isVi = widget.languageCode == 'vi';
+  final user = FirebaseAuth.instance.currentUser;
+
+  if (user == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không tìm thấy tài khoản'
+              : 'User account not found',
+        ),
+      ),
+    );
+    return;
   }
+
+ 
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'age': selectedAge.round(),
+      'onboardingStep': 'age_range',
+      'ageUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AgeRangePage(
+          languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
+          selectedState: widget.selectedState,
+          firstName: widget.firstName,
+          address: widget.address,
+          gender: widget.gender,
+          datingPreference: widget.datingPreference,
+          age: selectedAge.round(),
+          initialMinAge: widget.initialMinAge,
+          initialMaxAge: widget.initialMaxAge,
+          initialMaritalStatus: widget.initialMaritalStatus,
+          relationshipGoals: widget.relationshipGoals,
+          initialPhotoUrls: widget.initialPhotoUrls,
+          isEditingFromHome: widget.isEditingFromHome,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    setState(() {
+      isSaving = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không thể lưu tuổi. Vui lòng thử lại.'
+              : 'Unable to save your age. Please try again.',
+        ),
+      ),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -126,28 +197,7 @@ class _AgePageState extends State<AgePage> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AgeRangePage(
-                          languageCode: widget.languageCode,
-                          selectedState: widget.selectedState,
-                          firstName: widget.firstName,
-                          address: widget.address,
-                          gender: widget.gender,
-                          datingPreference: widget.datingPreference,
-                          age: selectedAge.round(),
-                          initialMinAge: widget.initialMinAge,
-                          initialMaxAge: widget.initialMaxAge,
-                          initialMaritalStatus: widget.initialMaritalStatus,
-                          relationshipGoals: widget.relationshipGoals,
-                          initialPhotoUrls: widget.initialPhotoUrls,
-                          isEditingFromHome: widget.isEditingFromHome,
-                        ),
-                      ),
-                    );
-                  },
+                onPressed: _saveAndContinue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.pink,
                     foregroundColor: Colors.white,
@@ -155,13 +205,22 @@ class _AgePageState extends State<AgePage> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(
-                    isVi ? 'Tiếp theo →' : 'Next →',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: isSaving
+    ? const SizedBox(
+        width: 23,
+        height: 23,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.4,
+          color: Colors.white,
+        ),
+      )
+    : Text(
+        isVi ? 'Tiếp theo →' : 'Next →',
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
                 ),
               ),
             ],

@@ -3,6 +3,7 @@ import 'max_distance_page.dart';
 
 class ResidentStatusPage extends StatefulWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -25,6 +26,7 @@ class ResidentStatusPage extends StatefulWidget {
   const ResidentStatusPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -106,6 +108,7 @@ class _ResidentStatusPageState extends State<ResidentStatusPage> {
       MaterialPageRoute(
         builder: (_) => MaxDistancePage(
           languageCode: widget.languageCode,
+          selectedCountry: widget.selectedCountry,
           selectedState: widget.selectedState,
           firstName: widget.firstName,
           address: widget.address,

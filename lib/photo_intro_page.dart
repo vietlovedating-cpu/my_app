@@ -3,6 +3,7 @@ import 'upload_photos_page.dart';
 
 class PhotoIntroPage extends StatelessWidget {
   final String languageCode;
+  final String selectedCountry;
   final String selectedState;
   final String firstName;
   final String address;
@@ -20,6 +21,7 @@ class PhotoIntroPage extends StatelessWidget {
   const PhotoIntroPage({
     super.key,
     required this.languageCode,
+    required this.selectedCountry,
     required this.selectedState,
     required this.firstName,
     required this.address,
@@ -108,6 +110,7 @@ class PhotoIntroPage extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (_) => UploadPhotosPage(
                           languageCode: languageCode,
+                          selectedCountry: selectedCountry,
                           selectedState: selectedState,
                           firstName: firstName,
                           address: address,
