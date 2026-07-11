@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'group_chat_page.dart';
 import 'group_data.dart';
 import 'group_detail_page.dart';
+import 'speed_dating_page.dart';
 
 class GroupPage extends StatelessWidget {
   final String languageCode;
@@ -170,8 +171,105 @@ class GroupPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            Expanded(
-              child: GridView.builder(
+
+Padding(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+  child: GestureDetector(
+    onTap: () {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SpeedDatingPage(
+            languageCode: languageCode,
+          ),
+        ),
+      );
+    },
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 18,
+        vertical: 18,
+      ),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Color(0xFFE86E8D),
+            Color(0xFFFF91AC),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.10),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.22),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.favorite_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _label(
+                    'VietLove Speed Dating',
+                    'VietLove Speed Dating',
+                  ),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _label(
+                    'Gặp gỡ trực tiếp người Việt độc thân tại Úc',
+                    'Meet Vietnamese singles in Australia',
+                  ),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    height: 1.35,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.arrow_forward_ios_rounded,
+            size: 18,
+            color: Colors.white,
+          ),
+        ],
+      ),
+    ),
+  ),
+),
+
+const SizedBox(height: 20),
+
+Expanded(
+  child: GridView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                 itemCount: kDatingGroups.length,
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(

@@ -618,6 +618,108 @@ class BlockedListPage extends StatelessWidget {
 
   String _tr(String vi, String en) => isVi ? vi : en;
 
+  Future<List<Map<String, dynamic>>> _loadVisibleBlockedUsers(
+    List<Map<String, dynamic>> blockedItems,
+  ) async {
+    final results = await Future.wait(
+      blockedItems.map((item) async {
+        final uid = (item['uid'] ?? '').toString().trim();
+
+        if (uid.isEmpty) {
+          return null;
+        }
+
+        try {
+          final userSnapshot = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .get();
+
+          // Document user không còn tồn tại.
+          if (!userSnapshot.exists) {
+            return null;
+          }
+
+          final userData = userSnapshot.data() ?? {};
+
+          final firstName =
+              (userData['firstName'] ?? '').toString().trim();
+
+          final surname =
+              (userData['surname'] ?? '').toString().trim();
+
+          final name = '$firstName $surname'.trim();
+
+          final photoUrl = (userData['mainPhotoUrl'] ??
+                  userData['photoUrl'] ??
+                  userData['profileImageUrl'] ??
+                  '')
+              .toString()
+              .trim();
+
+          final isDeletedAccount =
+              userData['accountDeleted'] == true ||
+              userData['deleted'] == true ||
+              userData['isDeleted'] == true ||
+              userData['accountStatus'] == 'deleted';
+
+          // Không hiện tài khoản đã xóa hoặc document trống.
+          if (isDeletedAccount || (name.isEmpty && photoUrl.isEmpty)) {
+            return null;
+          }
+
+          return <String, dynamic>{
+            ...item,
+            'name': name,
+            'photoUrl': photoUrl,
+          };
+        } catch (e) {
+          debugPrint('LOAD BLOCKED USER ERROR: $uid | $e');
+          return null;
+        }
+      }),
+    );
+
+    return results.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<void> _unblockUser({
+    required String currentUid,
+    required Map<String, dynamic> item,
+  }) async {
+    final batch = FirebaseFirestore.instance.batch();
+
+    final camelDocIds =
+        List<String>.from(item['camelDocIds'] ?? <String>[]);
+
+    final snakeDocIds =
+        List<String>.from(item['snakeDocIds'] ?? <String>[]);
+
+    // Xóa trong blockedUsers.
+    for (final docId in camelDocIds) {
+      final ref = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUid)
+          .collection('blockedUsers')
+          .doc(docId);
+
+      batch.delete(ref);
+    }
+
+    // Xóa trong blocked_users.
+    for (final docId in snakeDocIds) {
+      final ref = FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUid)
+          .collection('blocked_users')
+          .doc(docId);
+
+      batch.delete(ref);
+    }
+
+    await batch.commit();
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -652,109 +754,275 @@ class BlockedListPage extends StatelessWidget {
         child: currentUser == null
             ? Center(
                 child: Text(
-                  _tr('Bạn chưa đăng nhập.', 'You are not signed in.'),
+                  _tr(
+                    'Bạn chưa đăng nhập.',
+                    'You are not signed in.',
+                  ),
                 ),
               )
             : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-  stream: FirebaseFirestore.instance
-      .collection('users')
-      .doc(currentUser.uid)
-      .collection('blocked_users')
-      .snapshots(),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(currentUser.uid)
+                    .collection('blockedUsers')
+                    .snapshots(),
+                builder: (context, camelSnapshot) {
+                  if (camelSnapshot.connectionState ==
+                          ConnectionState.waiting &&
+                      !camelSnapshot.hasData) {
                     return const Center(
-                      child: CircularProgressIndicator(color: Colors.pink),
-                    );
-                  }
-
-                  final blockedUsers = snapshot.data!.docs;
-
-if (blockedUsers.isEmpty) {
-                    return Center(
-                      child: Text(
-                        _tr(
-                          'Bạn chưa chặn ai.',
-                          'You have not blocked anyone.',
-                        ),
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF7A2E6E),
-                        ),
+                      child: CircularProgressIndicator(
+                        color: Colors.pink,
                       ),
                     );
                   }
 
-                  return ListView.builder(
-                    padding: const EdgeInsets.all(18),
-                    itemCount: blockedUsers.length,
-                    itemBuilder: (context, index) {
-                      final blockedData = blockedUsers[index].data();
-final uid = (blockedData['uid'] ?? '').toString().trim();
-
-return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-  future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
-  builder: (context, userSnapshot) {
-    final userData = userSnapshot.data?.data() ?? {};
-
-    final firstName = (userData['firstName'] ?? '').toString();
-final surname = (userData['surname'] ?? '').toString();
-
-final name = ('$firstName $surname').trim();
-
-    final photoUrl = (userData['mainPhotoUrl'] ??
-            userData['photoUrl'] ??
-            userData['profileImageUrl'] ??
-            '')
-        .toString();
-
-    return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(22),
-                          color: Colors.white.withOpacity(0.9),
-                          border: Border.all(color: const Color(0xFFFFD5E6)),
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            radius: 24,
-                            backgroundColor: Colors.pink.shade50,
-                            backgroundImage:
-                                photoUrl.isNotEmpty ? NetworkImage(photoUrl) : null,
-                            child: photoUrl.isEmpty
-                                ? const Icon(Icons.person, color: Colors.grey)
-                                : null,
+                  return StreamBuilder<
+                      QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(currentUser.uid)
+                        .collection('blocked_users')
+                        .snapshots(),
+                    builder: (context, snakeSnapshot) {
+                      if (snakeSnapshot.connectionState ==
+                              ConnectionState.waiting &&
+                          !snakeSnapshot.hasData) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.pink,
                           ),
-                          title: Text(
-                            name.isEmpty
-                                ? _tr('Người dùng', 'User')
-                                : name,
+                        );
+                      }
+
+                      final merged =
+                          <String, Map<String, dynamic>>{};
+
+                      final camelDocs =
+                          camelSnapshot.data?.docs ?? [];
+
+                      for (final doc in camelDocs) {
+                        final data = doc.data();
+
+                        final uid = (data['userId'] ??
+                                data['uid'] ??
+                                doc.id)
+                            .toString()
+                            .trim();
+
+                        if (uid.isEmpty) continue;
+
+                        final item = merged.putIfAbsent(
+                          uid,
+                          () => <String, dynamic>{
+                            'uid': uid,
+                            'camelDocIds': <String>[],
+                            'snakeDocIds': <String>[],
+                          },
+                        );
+
+                        (item['camelDocIds'] as List<String>)
+                            .add(doc.id);
+                      }
+
+                      final snakeDocs =
+                          snakeSnapshot.data?.docs ?? [];
+
+                      for (final doc in snakeDocs) {
+                        final data = doc.data();
+
+                        final uid = (data['uid'] ??
+                                data['userId'] ??
+                                doc.id)
+                            .toString()
+                            .trim();
+
+                        if (uid.isEmpty) continue;
+
+                        final item = merged.putIfAbsent(
+                          uid,
+                          () => <String, dynamic>{
+                            'uid': uid,
+                            'camelDocIds': <String>[],
+                            'snakeDocIds': <String>[],
+                          },
+                        );
+
+                        (item['snakeDocIds'] as List<String>)
+                            .add(doc.id);
+                      }
+
+                      final blockedItems =
+                          merged.values.toList();
+
+                      if (blockedItems.isEmpty) {
+                        return Center(
+                          child: Text(
+                            _tr(
+                              'Bạn chưa chặn ai.',
+                              'You have not blocked anyone.',
+                            ),
                             style: const TextStyle(
-                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF7A2E6E),
                             ),
                           ),
-                          trailing: TextButton(
-  onPressed: () async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(currentUser.uid)
-        .collection('blocked_users')
-        .doc(blockedUsers[index].id)
-        .delete();
-  },
-  child: Text(
-    _tr('Bỏ chặn', 'Unblock'),
-    style: const TextStyle(
-      color: Colors.red,
-      fontWeight: FontWeight.w800,
-    ),
-  ),
-),
+                        );
+                      }
+
+                      return FutureBuilder<
+                          List<Map<String, dynamic>>>(
+                        future: _loadVisibleBlockedUsers(
+                          blockedItems,
                         ),
+                        builder: (context, userSnapshot) {
+                          if (userSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Center(
+                              child: CircularProgressIndicator(
+                                color: Colors.pink,
+                              ),
+                            );
+                          }
+
+                          final visibleUsers =
+                              userSnapshot.data ?? [];
+
+                          if (visibleUsers.isEmpty) {
+                            return Center(
+                              child: Text(
+                                _tr(
+                                  'Bạn chưa chặn ai.',
+                                  'You have not blocked anyone.',
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF7A2E6E),
+                                ),
+                              ),
+                            );
+                          }
+
+                          return ListView.builder(
+                            padding: const EdgeInsets.all(18),
+                            itemCount: visibleUsers.length,
+                            itemBuilder: (context, index) {
+                              final item =
+                                  visibleUsers[index];
+
+                              final name =
+                                  (item['name'] ?? '')
+                                      .toString()
+                                      .trim();
+
+                              final photoUrl =
+                                  (item['photoUrl'] ?? '')
+                                      .toString()
+                                      .trim();
+
+                              return Container(
+                                margin: const EdgeInsets.only(
+                                  bottom: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(22),
+                                  color:
+                                      Colors.white.withOpacity(0.9),
+                                  border: Border.all(
+                                    color:
+                                        const Color(0xFFFFD5E6),
+                                  ),
+                                ),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    radius: 24,
+                                    backgroundColor:
+                                        Colors.pink.shade50,
+                                    backgroundImage:
+                                        photoUrl.isNotEmpty
+                                            ? NetworkImage(
+                                                photoUrl,
+                                              )
+                                            : null,
+                                    child: photoUrl.isEmpty
+                                        ? const Icon(
+                                            Icons.person,
+                                            color: Colors.grey,
+                                          )
+                                        : null,
+                                  ),
+                                  title: Text(
+                                    name,
+                                    style: const TextStyle(
+                                      fontWeight:
+                                          FontWeight.w800,
+                                    ),
+                                  ),
+                                  trailing: TextButton(
+                                    onPressed: () async {
+                                      try {
+                                        await _unblockUser(
+                                          currentUid:
+                                              currentUser.uid,
+                                          item: item,
+                                        );
+
+                                        if (!context.mounted) {
+                                          return;
+                                        }
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              _tr(
+                                                'Đã bỏ chặn người dùng.',
+                                                'User unblocked.',
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      } catch (e) {
+                                        if (!context.mounted) {
+                                          return;
+                                        }
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              _tr(
+                                                'Không thể bỏ chặn.',
+                                                'Could not unblock user.',
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Text(
+                                      _tr(
+                                        'Bỏ chặn',
+                                        'Unblock',
+                                      ),
+                                      style: const TextStyle(
+                                        color: Colors.red,
+                                        fontWeight:
+                                            FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
                       );
-  },
-);
                     },
                   );
                 },

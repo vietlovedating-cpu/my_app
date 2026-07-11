@@ -2127,6 +2127,12 @@ final isRecentlyActive = _isRecentlyActive(p);
                     const SizedBox(height: 22),
                     _buildInfoSlide(
                       items: [
+                         if (isRecentlyActive)
+  _InfoItem(
+    icon: Icons.access_time_rounded,
+    label: _tr('Hoạt động', 'Activity'),
+    text: _tr('Online gần đây', 'Recently online'),
+  ),
                         if (age.isNotEmpty)
                           _InfoItem(
                             icon: Icons.cake_outlined,
@@ -2145,12 +2151,7 @@ final isRecentlyActive = _isRecentlyActive(p);
                             label: _tr('Bang đang sống', 'State living'),
                             text: livingState,
                           ),
-                          if (isRecentlyActive)
-  _InfoItem(
-    icon: Icons.access_time_rounded,
-    label: _tr('Hoạt động', 'Activity'),
-    text: _tr('Online gần đây', 'Recently online'),
-  ),
+                        
                       ],
                     ),
                     if (getPhoto(1).isNotEmpty) ...[

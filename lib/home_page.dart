@@ -595,8 +595,8 @@ int regularIndex = 0;
 for (int i = 0; i < priorityProfiles.length; i++) {
   mixedProfiles.add(priorityProfiles[i]);
 
-  // Cứ 5 người ưu tiên thì chèn 1 người thường
-  if ((i + 1) % 5 == 0 &&
+  // Cứ 3 người ưu tiên thì chèn 1 người thường
+  if ((i + 1) % 3 == 0 &&
       regularIndex < regularProfiles.length) {
     mixedProfiles.add(regularProfiles[regularIndex]);
     regularIndex++;

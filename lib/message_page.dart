@@ -7,12 +7,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'view_other_profile_page.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
-import 'trusted_contacts_page.dart';
-import 'package:flutter_sms/flutter_sms.dart';
+
 
 class MessagePage extends StatefulWidget {
   final String languageCode;
@@ -47,9 +47,11 @@ TimeOfDay? _selectedTime;
   final ImagePicker _imagePicker = ImagePicker();
 
   
-  bool _isSendingImage = false;
+ final ValueNotifier<bool> _isSendingImageNotifier =
+    ValueNotifier<bool>(false);
 
-File? _pendingImageFile;
+final ValueNotifier<File?> _pendingImageFileNotifier =
+    ValueNotifier<File?>(null);
 
 final AudioRecorder _audioRecorder = AudioRecorder();
 final AudioPlayer _audioPlayer = AudioPlayer();
@@ -125,11 +127,10 @@ DateTime _combineDateAndTime(
   );
 }
 
-Future<void> _shareDatePlanBySms({
+Future<void> _shareDatePlanLink({
   required DateTime selectedDate,
   required TimeOfDay selectedTime,
   required String location,
-  required List<Map<String, dynamic>> selectedContacts,
 }) async {
   final currentUser = FirebaseAuth.instance.currentUser;
 
@@ -142,48 +143,18 @@ Future<void> _shareDatePlanBySms({
     selectedTime,
   );
 
-  final contactCopies = selectedContacts.map((contact) {
-    return {
-      'contactId':
-          (contact['contactId'] ?? '').toString(),
-      'name': (contact['name'] ?? '').toString(),
-      'phone': (contact['phone'] ?? '').toString(),
-      'relationship':
-          (contact['relationship'] ?? '').toString(),
-    };
-  }).toList();
+  final firestore = FirebaseFirestore.instance;
 
-  final datePlanReference = FirebaseFirestore.instance
-    .collection('users')
-    .doc(currentUser.uid)
-    .collection('datePlans')
-    .doc(widget.chatId);
+  // Tạo mã chia sẻ ngẫu nhiên, không dùng chatId trong đường link.
+  final sharedPlanReference =
+      firestore.collection('sharedDatePlans').doc();
 
-  await datePlanReference.set({
-  'datePlanId': widget.chatId,
-  'ownerId': currentUser.uid,
-  'ownerName': _currentUserName,
-  'chatId': widget.chatId,
+  final shareToken = sharedPlanReference.id;
 
-  'partnerId': widget.otherUserId,
-  'partnerName': _effectiveOtherUserName,
-  'partnerPhotoUrl': _effectiveOtherUserPhotoUrl,
-
-  'scheduledAt': Timestamp.fromDate(scheduledAt),
-  'location': location,
-
-  'selectedContacts': contactCopies,
-
-  'status': 'scheduled',
-  'shareMethod': 'sms',
-
-  'createdAt': FieldValue.serverTimestamp(),
-  'updatedAt': FieldValue.serverTimestamp(),
-  'shareOpenedAt': FieldValue.serverTimestamp(),
-
-  'safeConfirmedAt': null,
-  'cancelledAt': null,
-}, SetOptions(merge: true));
+  /*
+   * QUAN TRỌNG:
+   * Thay https://vietlovedating.com bằng domain thật của chị.
+   */
 
   final ownerName = _currentUserName.trim().isNotEmpty
       ? _currentUserName.trim()
@@ -192,51 +163,108 @@ Future<void> _shareDatePlanBySms({
   final partnerName =
       _effectiveOtherUserName.trim().isNotEmpty
           ? _effectiveOtherUserName.trim()
-          : _tr('một người dùng VietLove', 'a VietLove user');
+          : _tr(
+              'một người dùng VietLove',
+              'a VietLove user',
+            );
 
-  final message = isVi
+final shareUrl =
+    'https://date.vietlovedating.com/?token=$shareToken';
+  // Lưu kế hoạch riêng của user như logic cũ.
+  final privateDatePlanReference = firestore
+      .collection('users')
+      .doc(currentUser.uid)
+      .collection('datePlans')
+      .doc(widget.chatId);
+
+  await privateDatePlanReference.set({
+    'datePlanId': widget.chatId,
+    'ownerId': currentUser.uid,
+    'ownerName': ownerName,
+    'chatId': widget.chatId,
+
+    'partnerId': widget.otherUserId,
+    'partnerName': partnerName,
+    'partnerPhotoUrl': _effectiveOtherUserPhotoUrl,
+
+    'scheduledAt': Timestamp.fromDate(scheduledAt),
+    'location': location,
+
+    'shareToken': shareToken,
+    'sharedDatePlanId': shareToken,
+    'shareUrl': shareUrl,
+    'shareMethod': 'link',
+
+    'status': 'scheduled',
+
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+    'shareOpenedAt': FieldValue.serverTimestamp(),
+
+    'safeConfirmedAt': null,
+    'cancelledAt': null,
+  }, SetOptions(merge: true));
+
+  // Lưu bản an toàn để trang web đọc.
+  // Không lưu chat, số điện thoại hoặc thông tin nhạy cảm.
+  await sharedPlanReference.set({
+    'shareToken': shareToken,
+    'sharedDatePlanId': shareToken,
+    'ownerId': currentUser.uid,
+
+    'ownerName': ownerName,
+    'ownerPhotoUrl': _currentUserPhotoUrl,
+
+    'partnerName': partnerName,
+    'partnerPhotoUrl': _effectiveOtherUserPhotoUrl,
+
+    'scheduledAt': Timestamp.fromDate(scheduledAt),
+    'location': location,
+
+    'status': 'scheduled',
+    'isShareEnabled': true,
+
+    'createdAt': FieldValue.serverTimestamp(),
+    'updatedAt': FieldValue.serverTimestamp(),
+    'expiresAt': Timestamp.fromDate(
+      scheduledAt.add(const Duration(days: 2)),
+    ),
+  });
+
+  final shareMessage = isVi
       ? '''
 VietLove Dating – Kế hoạch hẹn hò an toàn
 
-$ownerName sắp gặp: $partnerName
+$ownerName sắp gặp $partnerName.
 
 Ngày: ${_formatDatePlanDate(selectedDate)}
 Giờ: ${_formatDatePlanTime(selectedTime)}
 Địa điểm: $location
 
-Mã kế hoạch an toàn: ${datePlanReference.id}
-
-Vui lòng liên hệ với $ownerName sau buổi hẹn để bảo đảm họ đã về nhà an toàn.
+Xem kế hoạch:
+$shareUrl
 '''
       : '''
 VietLove Dating – Safe Date Plan
 
-$ownerName is meeting: $partnerName
+$ownerName is meeting $partnerName.
 
 Date: ${_formatDatePlanDate(selectedDate)}
 Time: ${_formatDatePlanTime(selectedTime)}
 Location: $location
 
-Safety plan ID: ${datePlanReference.id}
-
-Please check in with $ownerName after the date to make sure they arrived home safely.
+View the date plan:
+$shareUrl
 ''';
 
-  final recipients = selectedContacts
-      .map(
-        (contact) =>
-            (contact['phone'] ?? '').toString().trim(),
-      )
-      .where((phone) => phone.isNotEmpty)
-      .toList();
-
-  if (recipients.isEmpty) {
-    throw Exception('No valid phone number selected');
-  }
-
-  await sendSMS(
-    message: message.trim(),
-    recipients: recipients,
+  await SharePlus.instance.share(
+    ShareParams(
+      text: shareMessage.trim(),
+      subject: _tr(
+        'Kế hoạch hẹn hò an toàn',
+        'Safe Date Plan',
+      ),
+    ),
   );
 }
 Future<void> _openDatePlan() async {
@@ -865,32 +893,50 @@ Future<void> _updateDatePlanStatus({
   required String status,
   Map<String, dynamic>? additionalData,
 }) async {
-  final currentUser =
-      FirebaseAuth.instance.currentUser;
+  final currentUser = FirebaseAuth.instance.currentUser;
 
   if (currentUser == null) {
     throw Exception('User is not signed in');
   }
 
-  await FirebaseFirestore.instance
+  final privatePlanReference = FirebaseFirestore.instance
       .collection('users')
       .doc(currentUser.uid)
       .collection('datePlans')
-      .doc(widget.chatId)
-      .set({
+      .doc(widget.chatId);
+
+  final privatePlanSnapshot =
+      await privatePlanReference.get();
+
+  final shareToken = (privatePlanSnapshot.data()?['shareToken'] ?? '')
+      .toString()
+      .trim();
+
+  final updateData = <String, dynamic>{
     'status': status,
     'updatedAt': FieldValue.serverTimestamp(),
-    if (additionalData != null)
-      ...additionalData,
-  }, SetOptions(merge: true));
+    if (additionalData != null) ...additionalData,
+  };
+
+  await privatePlanReference.set(
+    updateData,
+    SetOptions(merge: true),
+  );
+
+  if (shareToken.isNotEmpty) {
+    await FirebaseFirestore.instance
+        .collection('sharedDatePlans')
+        .doc(shareToken)
+        .set(
+      updateData,
+      SetOptions(merge: true),
+    );
+  }
 }
   void _showDatePlanSheet() {
   DateTime? tempSelectedDate = _selectedDate;
   TimeOfDay? tempSelectedTime = _selectedTime;
 
-  final Set<String> selectedContactIds = {};
-  final Map<String, Map<String, dynamic>>
-      selectedContactData = {};
 
   bool isSharing = false;
 
@@ -961,8 +1007,8 @@ Future<void> _updateDatePlanStatus({
                         Expanded(
                           child: Text(
                             _tr(
-                              'Chia sẻ kế hoạch hẹn hò',
-                              'Share Date Plan',
+                              'Tạo kế hoạch hẹn hò',
+                              'Create Date Plan',
                             ),
                             style: const TextStyle(
                               fontSize: 20,
@@ -989,10 +1035,10 @@ Future<void> _updateDatePlanStatus({
                     const SizedBox(height: 10),
 
                     Text(
-                      _tr(
-                        'Chia sẻ thời gian và địa điểm với người thân hoặc bạn bè mà bạn tin tưởng.',
-                        'Share the time and location with a trusted friend or family member.',
-                      ),
+                     _tr(
+  'Tạo kế hoạch hẹn hò và chia sẻ bằng Messenger, WhatsApp, Zalo hoặc bất kỳ ứng dụng nào bạn muốn.',
+  'Create your date plan and share it via Messenger, WhatsApp, or any app you prefer.',
+),
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.black54,
@@ -1317,331 +1363,8 @@ Future<void> _updateDatePlanStatus({
                       ),
                     ),
 
+                
                     const SizedBox(height: 22),
-
-                    StreamBuilder<
-                        QuerySnapshot<
-                            Map<String, dynamic>>>(
-                      stream: FirebaseAuth
-                                  .instance.currentUser ==
-                              null
-                          ? null
-                          : FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(
-                                FirebaseAuth.instance
-                                    .currentUser!.uid,
-                              )
-                              .collection(
-                                'trustedContacts',
-                              )
-                              .orderBy(
-                                'createdAt',
-                                descending: false,
-                              )
-                              .snapshots(),
-                      builder: (context, snapshot) {
-                        final contacts =
-                            snapshot.data?.docs ?? [];
-
-                        return Container(
-                          padding:
-                              const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color:
-                                const Color(0xFFFFF7FB),
-                            borderRadius:
-                                BorderRadius.circular(18),
-                            border: Border.all(
-                              color:
-                                  const Color(0xFFFFD5E6),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.shield_rounded,
-                                    color:
-                                        Color(0xFFE91E63),
-                                  ),
-                                  const SizedBox(width: 9),
-                                  Expanded(
-                                    child: Text(
-                                      _tr(
-                                        'Liên hệ an toàn',
-                                        'Trusted Contacts',
-                                      ),
-                                      style:
-                                          const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight:
-                                            FontWeight.w800,
-                                      ),
-                                    ),
-                                  ),
-                                  if (selectedContactIds
-                                      .isNotEmpty)
-                                    Container(
-                                      padding: const EdgeInsets
-                                          .symmetric(
-                                        horizontal: 9,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFFFFE4EF,
-                                        ),
-                                        borderRadius:
-                                            BorderRadius
-                                                .circular(999),
-                                      ),
-                                      child: Text(
-                                        selectedContactIds
-                                            .length
-                                            .toString(),
-                                        style:
-                                            const TextStyle(
-                                          color: Color(
-                                            0xFFE91E63,
-                                          ),
-                                          fontWeight:
-                                              FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-
-                              const SizedBox(height: 10),
-
-                              if (snapshot
-                                      .connectionState ==
-                                  ConnectionState.waiting)
-                                const Center(
-                                  child: Padding(
-                                    padding:
-                                        EdgeInsets.all(14),
-                                    child:
-                                        CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  ),
-                                )
-                              else if (snapshot.hasError)
-                                Padding(
-                                  padding:
-                                      const EdgeInsets.all(
-                                    10,
-                                  ),
-                                  child: Text(
-                                    _tr(
-                                      'Không thể tải liên hệ an toàn.',
-                                      'Could not load trusted contacts.',
-                                    ),
-                                    style: const TextStyle(
-                                      color: Colors.red,
-                                    ),
-                                  ),
-                                )
-                              else if (contacts.isEmpty)
-                                Padding(
-                                  padding: const EdgeInsets
-                                      .symmetric(
-                                    vertical: 10,
-                                  ),
-                                  child: Text(
-                                    _tr(
-                                      'Bạn chưa có liên hệ an toàn. Hãy thêm người thân hoặc bạn bè trước.',
-                                      'You do not have any trusted contacts yet. Add a friend or family member first.',
-                                    ),
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                )
-                              else
-                                ...contacts.map((contact) {
-                                  final data =
-                                      contact.data();
-
-                                  final name =
-                                      (data['name'] ?? '')
-                                          .toString()
-                                          .trim();
-
-                                  final phone =
-                                      (data['phone'] ?? '')
-                                          .toString()
-                                          .trim();
-
-                                  final relationship =
-                                      (data['relationship'] ??
-                                              '')
-                                          .toString();
-
-                                  final isSelected =
-                                      selectedContactIds
-                                          .contains(
-                                    contact.id,
-                                  );
-
-                                  return CheckboxListTile(
-                                    value: isSelected,
-                                    enabled:
-                                        !isSharing &&
-                                            phone.isNotEmpty,
-                                    contentPadding:
-                                        EdgeInsets.zero,
-                                    dense: true,
-                                    activeColor:
-                                        const Color(
-                                      0xFFE91E63,
-                                    ),
-                                    controlAffinity:
-                                        ListTileControlAffinity
-                                            .leading,
-                                    title: Text(
-                                      name.isNotEmpty
-                                          ? name
-                                          : _tr(
-                                              'Không có tên',
-                                              'No name',
-                                            ),
-                                      style:
-                                          const TextStyle(
-                                        fontWeight:
-                                            FontWeight.w700,
-                                      ),
-                                    ),
-                                    subtitle: Text(
-                                      phone.isNotEmpty
-                                          ? phone
-                                          : _tr(
-                                              'Chưa có số điện thoại',
-                                              'No phone number',
-                                            ),
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color:
-                                            phone.isNotEmpty
-                                                ? Colors
-                                                    .black54
-                                                : Colors.red,
-                                      ),
-                                    ),
-                                    onChanged: (value) {
-                                      setSheetState(() {
-                                        if (value == true) {
-                                          selectedContactIds
-                                              .add(
-                                            contact.id,
-                                          );
-
-                                          selectedContactData[
-                                              contact.id] = {
-                                            'contactId':
-                                                contact.id,
-                                            'name': name,
-                                            'phone': phone,
-                                            'relationship':
-                                                relationship,
-                                          };
-                                        } else {
-                                          selectedContactIds
-                                              .remove(
-                                            contact.id,
-                                          );
-
-                                          selectedContactData
-                                              .remove(
-                                            contact.id,
-                                          );
-                                        }
-                                      });
-                                    },
-                                  );
-                                }),
-
-                              const SizedBox(height: 8),
-
-                              SizedBox(
-                                width: double.infinity,
-                                child:
-                                    OutlinedButton.icon(
-                                  onPressed: isSharing
-                                      ? null
-                                      : () async {
-                                          await Navigator
-                                              .push(
-                                            this.context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  TrustedContactsPage(
-                                                languageCode:
-                                                    widget
-                                                        .languageCode,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                  icon: const Icon(
-                                    Icons
-                                        .manage_accounts_rounded,
-                                  ),
-                                  label: Text(
-                                    contacts.isEmpty
-                                        ? _tr(
-                                            'Thêm liên hệ an toàn',
-                                            'Add Trusted Contact',
-                                          )
-                                        : _tr(
-                                            'Quản lý liên hệ',
-                                            'Manage Contacts',
-                                          ),
-                                    style:
-                                        const TextStyle(
-                                      fontWeight:
-                                          FontWeight.w700,
-                                    ),
-                                  ),
-                                  style: OutlinedButton
-                                      .styleFrom(
-                                    foregroundColor:
-                                        const Color(
-                                      0xFFE91E63,
-                                    ),
-                                    side:
-                                        const BorderSide(
-                                      color: Color(
-                                        0xFFFFC7DE,
-                                      ),
-                                    ),
-                                    padding:
-                                        const EdgeInsets
-                                            .symmetric(
-                                      vertical: 12,
-                                    ),
-                                    shape:
-                                        RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius
-                                              .circular(14),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-
-                    const SizedBox(height: 20),
 
                     SizedBox(
                       width: double.infinity,
@@ -1704,22 +1427,7 @@ Future<void> _updateDatePlanStatus({
                                   return;
                                 }
 
-                                if (selectedContactData
-                                    .isEmpty) {
-                                  ScaffoldMessenger.of(
-                                    this.context,
-                                  ).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        _tr(
-                                          'Vui lòng chọn ít nhất một liên hệ an toàn.',
-                                          'Please select at least one trusted contact.',
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                  return;
-                                }
+              
 
                                 final scheduledAt =
                                     _combineDateAndTime(
@@ -1752,39 +1460,36 @@ Future<void> _updateDatePlanStatus({
                                   isSharing = true;
                                 });
 
-                                try {
-                                  await _shareDatePlanBySms(
-                                    selectedDate:
-                                        tempSelectedDate!,
-                                    selectedTime:
-                                        tempSelectedTime!,
-                                    location: location,
-                                    selectedContacts:
-                                        selectedContactData
-                                            .values
-                                            .toList(),
-                                  );
+                               try {
+  final selectedDate = tempSelectedDate!;
+  final selectedTime = tempSelectedTime!;
 
-                                  _selectedDate =
-                                      tempSelectedDate;
-                                  _selectedTime =
-                                      tempSelectedTime;
 
-                                  if (!mounted) return;
+  _selectedDate = selectedDate;
+  _selectedTime = selectedTime;
 
-                                  Navigator.pop(
-                                    sheetContext,
-                                  );
+  Navigator.pop(sheetContext);
 
-                                  ScaffoldMessenger.of(
-                                    this.context,
-                                  ).showSnackBar(
+  await Future.delayed(
+    const Duration(milliseconds: 350),
+  );
+
+ await _shareDatePlanLink(
+  selectedDate: selectedDate,
+  selectedTime: selectedTime,
+  location: location,
+);
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(
+    this.context,
+  ).showSnackBar(
                                     SnackBar(
                                       content: Text(
                                         _tr(
-                                          'Kế hoạch đã được lưu. Hãy kiểm tra và gửi tin nhắn.',
-                                          'The plan was saved. Review and send the message.',
-                                        ),
+  'Kế hoạch đã được tạo và mở bảng chia sẻ.',
+  'The plan was created and the share menu was opened.',
+),
                                       ),
                                     ),
                                   );
@@ -1795,19 +1500,17 @@ Future<void> _updateDatePlanStatus({
 
                                   if (!mounted) return;
 
-                                  setSheetState(() {
-                                    isSharing = false;
-                                  });
+          
 
                                   ScaffoldMessenger.of(
                                     this.context,
                                   ).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        _tr(
-                                          'Không thể mở ứng dụng tin nhắn. Vui lòng thử lại.',
-                                          'Could not open the messaging app. Please try again.',
-                                        ),
+                                       _tr(
+  'Không thể mở bảng chia sẻ. Vui lòng thử lại.',
+  'Could not open the share menu. Please try again.',
+),
                                       ),
                                     ),
                                   );
@@ -1823,10 +1526,9 @@ Future<void> _updateDatePlanStatus({
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(
-                                Icons
-                                    .send_to_mobile_rounded,
-                              ),
+                           : const Icon(
+    Icons.ios_share_rounded,
+  ),
                         label: Text(
                           isSharing
                               ? _tr(
@@ -1834,8 +1536,8 @@ Future<void> _updateDatePlanStatus({
                                   'Preparing...',
                                 )
                               : _tr(
-                                  'Chia sẻ kế hoạch',
-                                  'Share Date Plan',
+                                 'Tạo & Chia sẻ',
+                                  'Create & Share',
                                 ),
                           style: const TextStyle(
                             fontWeight: FontWeight.w800,
@@ -1873,10 +1575,10 @@ Future<void> _updateDatePlanStatus({
                         const SizedBox(width: 7),
                         Expanded(
                           child: Text(
-                            _tr(
-                              'VietLove sẽ mở ứng dụng Tin nhắn. Bạn vẫn cần kiểm tra và bấm gửi.',
-                              'VietLove will open your messaging app. You still need to review and tap send.',
-                            ),
+                           _tr(
+  'Chọn Messenger, Zalo, WhatsApp hoặc ứng dụng bạn muốn dùng để chia sẻ.',
+  'Choose Messenger, WhatsApp, or another app to share your plan.',
+),
                             style: const TextStyle(
                               fontSize: 12,
                               color: Colors.black45,
@@ -1922,6 +1624,8 @@ _isSendingVoiceNotifier.dispose();
   _messageController.dispose();
   _dateLocationController.dispose();
   _scrollController.dispose();
+  _isSendingImageNotifier.dispose();
+  _pendingImageFileNotifier.dispose();
   super.dispose();
 }
 
@@ -2288,23 +1992,23 @@ Future<void> _pickImageOnly() async {
 
   if (pickedFile == null) return;
 
-  setState(() {
-    _pendingImageFile = File(pickedFile.path);
-  });
+  _pendingImageFileNotifier.value =
+      File(pickedFile.path);
 }
 Future<void> _sendPendingImage() async {
-  final user = FirebaseAuth.instance.currentUser;
+ final user = FirebaseAuth.instance.currentUser;
+final pendingImage = _pendingImageFileNotifier.value;
 
-  if (user == null || _pendingImageFile == null || _isSendingImage) {
-    return;
-  }
+if (user == null ||
+    pendingImage == null ||
+    _isSendingImageNotifier.value) {
+  return;
+}
 
   try {
-    setState(() {
-      _isSendingImage = true;
-    });
+  _isSendingImageNotifier.value = true;
 
-    final file = _pendingImageFile!;
+  final file = pendingImage;
 
     final fileName =
         '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.jpg';
@@ -2359,9 +2063,7 @@ Future<void> _sendPendingImage() async {
       'lastMessageAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    setState(() {
-      _pendingImageFile = null;
-    });
+   _pendingImageFileNotifier.value = null;
 
     _scrollToBottom();
   } catch (e) {
@@ -2375,121 +2077,10 @@ Future<void> _sendPendingImage() async {
       ),
     );
   } finally {
-    if (mounted) {
-      setState(() {
-        _isSendingImage = false;
-      });
-    }
+   _isSendingImageNotifier.value = false;
   }
 }
 
-  Future<void> _pickAndSendImage() async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null || _isSendingImage) return;
-
-  try {
-    final XFile? pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 75,
-    );
-
-    if (pickedFile == null) return;
-
-    setState(() {
-      _isSendingImage = true;
-    });
-
-    final file = File(pickedFile.path);
-
-    if (!await file.exists()) {
-      throw Exception('Picked file does not exist: ${pickedFile.path}');
-    }
-
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}_${user.uid}.jpg';
-
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('chat_images')
-        .child(widget.chatId)
-        .child(fileName);
-
-    final metadata = SettableMetadata(
-      contentType: 'image/jpeg',
-    );
-
-    final uploadTask = await storageRef.putFile(file, metadata);
-
-    debugPrint('UPLOAD STATE: ${uploadTask.state}');
-    debugPrint('UPLOAD PATH: ${storageRef.fullPath}');
-
-    final imageUrl = await storageRef.getDownloadURL();
-    debugPrint('DOWNLOAD URL: $imageUrl');
-
-    final firestore = FirebaseFirestore.instance;
-
-    await firestore
-        .collection('chats')
-        .doc(widget.chatId)
-        .collection('messages')
-        .add({
-      'senderId': user.uid,
-      'receiverId': widget.otherUserId,
-      'senderName': _currentUserName,
-      'senderPhotoUrl': _currentUserPhotoUrl,
-      'text': '',
-      'type': 'image',
-      'imageUrl': imageUrl,
-      'createdAt': FieldValue.serverTimestamp(),
-      'isRead': false,
-    });
-
-    await firestore.collection('chats').doc(widget.chatId).set({
-      'chatId': widget.chatId,
-      'participants': [user.uid, widget.otherUserId],
-      'lastMessage': _tr('Đã gửi một ảnh', 'Sent a photo'),
-      'lastMessageType': 'image',
-      'lastSenderId': user.uid,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'typing': {
-        user.uid: false,
-        widget.otherUserId: false,
-      },
-    }, SetOptions(merge: true));
-
-    await firestore.collection('matches').doc(widget.chatId).set({
-      'lastMessage': _tr('Đã gửi một ảnh', 'Sent a photo'),
-      'lastMessageAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    await Future.delayed(const Duration(milliseconds: 100));
-    _scrollToBottom();
-  } on FirebaseException catch (e) {
-    debugPrint('FIREBASE ERROR CODE: ${e.code}');
-    debugPrint('FIREBASE ERROR MESSAGE: ${e.message}');
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Firebase error: ${e.code}'),
-      ),
-    );
-  } catch (e) {
-    debugPrint('SEND IMAGE ERROR: $e');
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Send image error: $e'),
-      ),
-    );
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isSendingImage = false;
-      });
-    }
-  }
-}
 
   void _scrollToBottom() {
   if (!_scrollController.hasClients) return;
@@ -3232,6 +2823,7 @@ final bubble = GestureDetector(
         backgroundColor: const Color(0xFFFFF7FB),
         elevation: 0,
         iconTheme: const IconThemeData(color: Color(0xFF8A2F6A)),
+        
         titleSpacing: 0,
         title: GestureDetector(
   onTap: () {
@@ -3271,7 +2863,7 @@ final bubble = GestureDetector(
     'Kế hoạch hẹn hò an toàn',
     'Safe Date Plan',
   ),
-  onPressed: _showDatePlanSheet,
+  onPressed: _openDatePlan,
   icon: SizedBox(
     width: 30,
     height: 30,
@@ -3665,164 +3257,253 @@ ValueListenableBuilder<String?>(
   },
 ),
 
-if (_pendingImageFile != null)
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFFFC7DE)),
-            ),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.file(
-                    _pendingImageFile!,
-                    width: 70,
-                    height: 70,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _tr('Gửi ảnh này?', 'Send this photo?'),
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {
-                    setState(() {
-                      _pendingImageFile = null;
-                    });
-                  },
-                  icon: const Icon(Icons.close, color: Colors.black54),
-                ),
-                IconButton(
-  onPressed: _isSendingImage ? null : _sendPendingImage,
-                  icon: const Icon(
-                    Icons.check_circle,
-                    color: Color(0xFFE91E63),
-                  ),
-                ),
-              ],
+ValueListenableBuilder<File?>(
+  valueListenable: _pendingImageFileNotifier,
+  builder: (context, pendingImageFile, _) {
+    if (pendingImageFile == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFFFC7DE),
+        ),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              pendingImageFile,
+              width: 70,
+              height: 70,
+              fit: BoxFit.cover,
             ),
           ),
 
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            InkWell(
-              onTap: _isSendingImage ? null : _pickImageOnly,
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFE4EF),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFFFC7DE)),
-                ),
-                child: _isSendingImage
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: CircularProgressIndicator(strokeWidth: 2),
+          const SizedBox(width: 10),
+
+          Expanded(
+            child: Text(
+              _tr(
+                'Gửi ảnh này?',
+                'Send this photo?',
+              ),
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+
+          IconButton(
+            onPressed: () {
+              _pendingImageFileNotifier.value = null;
+            },
+            icon: const Icon(
+              Icons.close,
+              color: Colors.black54,
+            ),
+          ),
+
+          ValueListenableBuilder<bool>(
+            valueListenable: _isSendingImageNotifier,
+            builder: (context, isSendingImage, _) {
+              return IconButton(
+                onPressed: isSendingImage
+                    ? null
+                    : _sendPendingImage,
+                icon: isSendingImage
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Icon(
-                        Icons.image_outlined,
+                        Icons.check_circle,
                         color: Color(0xFFE91E63),
                       ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            InkWell(
-  onTap: () {
-    if (_isRecordingVoice) {
-      _stopVoiceRecording();
-    } else {
-      _startVoiceRecording();
-    }
+              );
+            },
+          ),
+        ],
+      ),
+    );
   },
-  borderRadius: BorderRadius.circular(999),
-  child: Container(
-    width: 44,
-    height: 44,
-    decoration: BoxDecoration(
-      color: _isRecordingVoice
-          ? const Color(0xFFE91E63)
-          : const Color(0xFFFFE4EF),
-      shape: BoxShape.circle,
-      border: Border.all(color: const Color(0xFFFFC7DE)),
-    ),
-    child: Icon(
-      _isRecordingVoice ? Icons.stop : Icons.mic_none,
-      color: _isRecordingVoice ? Colors.white : const Color(0xFFE91E63),
-    ),
-  ),
 ),
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                onChanged: _onMessageChanged,
-                onSubmitted: (_) => _sendMessage(),
-                minLines: 1,
-                maxLines: 5,
-                textInputAction: TextInputAction.send,
-                decoration: InputDecoration(
-                  hintText: _tr('Nhập tin nhắn...', 'Type a message...'),
-                  filled: true,
-                  fillColor: Colors.white,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFFFD5E6),
-                    ),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: const BorderSide(
-                      color: Color(0xFFE91E63),
-                      width: 1.2,
-                    ),
-                  ),
-                ),
+           Row(
+  crossAxisAlignment: CrossAxisAlignment.end,
+  children: [
+    ValueListenableBuilder<bool>(
+      valueListenable: _isSendingImageNotifier,
+      builder: (context, isSendingImage, _) {
+        return InkWell(
+          onTap: isSendingImage
+              ? null
+              : _pickImageOnly,
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFE4EF),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFFFFC7DE),
               ),
             ),
-            const SizedBox(width: 8),
-            InkWell(
-              onTap: () {
-  if (_pendingImageFile != null) {
-    _sendPendingImage();
-  } else {
-    _sendMessage();
-  }
-},
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                width: 48,
-                height: 48,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFFE91E63),
-                ),
-                child: const Icon(
-                  Icons.send_rounded,
-                  color: Colors.white,
-                ),
+            child: isSendingImage
+                ? const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(
+                    Icons.image_outlined,
+                    color: Color(0xFFE91E63),
+                  ),
+          ),
+        );
+      },
+    ),
+
+    const SizedBox(width: 8),
+
+    ValueListenableBuilder<bool>(
+      valueListenable: _isRecordingVoiceNotifier,
+      builder: (context, isRecording, _) {
+        return InkWell(
+          onTap: () {
+            if (isRecording) {
+              _stopVoiceRecording();
+            } else {
+              _startVoiceRecording();
+            }
+          },
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isRecording
+                  ? const Color(0xFFE91E63)
+                  : const Color(0xFFFFE4EF),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFFFFC7DE),
               ),
             ),
-          ],
+            child: Icon(
+              isRecording
+                  ? Icons.stop
+                  : Icons.mic_none,
+              color: isRecording
+                  ? Colors.white
+                  : const Color(0xFFE91E63),
+            ),
+          ),
+        );
+      },
+    ),
+
+    const SizedBox(width: 8),
+
+    Expanded(
+      child: TextField(
+        controller: _messageController,
+        onChanged: _onMessageChanged,
+        onSubmitted: (_) {
+          if (_pendingImageFileNotifier.value != null) {
+            _sendPendingImage();
+          } else {
+            _sendMessage();
+          }
+        },
+        minLines: 1,
+        maxLines: 5,
+        textInputAction: TextInputAction.send,
+        decoration: InputDecoration(
+          hintText: _tr(
+            'Nhập tin nhắn...',
+            'Type a message...',
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(
+              color: Color(0xFFFFD5E6),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(24),
+            borderSide: const BorderSide(
+              color: Color(0xFFE91E63),
+              width: 1.2,
+            ),
+          ),
         ),
+      ),
+    ),
+
+    const SizedBox(width: 8),
+
+    ValueListenableBuilder<bool>(
+      valueListenable: _isSendingImageNotifier,
+      builder: (context, isSendingImage, _) {
+        return InkWell(
+          onTap: isSendingImage
+              ? null
+              : () {
+                  if (_pendingImageFileNotifier.value != null) {
+                    _sendPendingImage();
+                  } else {
+                    _sendMessage();
+                  }
+                },
+          borderRadius: BorderRadius.circular(999),
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isSendingImage
+                  ? const Color(0xFFF48FB1)
+                  : const Color(0xFFE91E63),
+            ),
+            child: isSendingImage
+                ? const Padding(
+                    padding: EdgeInsets.all(13),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                  ),
+          ),
+        );
+      },
+    ),
+  ],
+),
       ],
     ),
   ),

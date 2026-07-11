@@ -55,7 +55,13 @@ class _MessagesListPageState extends State<MessagesListPage> {
         child: const Icon(Icons.person),
       );
     }
-
+if (raw.startsWith('http://') || raw.startsWith('https://')) {
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: Colors.grey.shade200,
+    backgroundImage: NetworkImage(raw),
+  );
+}
     return FutureBuilder<String?>(
       future: _resolveImageUrl(raw),
       builder: (context, snapshot) {
@@ -141,12 +147,12 @@ class _MessagesListPageState extends State<MessagesListPage> {
         'photo': photo,
       };
     } catch (_) {
-      return {
-        'deleted': 'true',
-        'name': '',
-        'photo': '',
-      };
-    }
+  return {
+    'deleted': 'false',
+    'name': fallbackName,
+    'photo': fallbackPhoto,
+  };
+}
   }
   Future<Map<String, String>> _getCachedOtherUserInfo({
   required String otherUserId,
@@ -161,6 +167,58 @@ class _MessagesListPageState extends State<MessagesListPage> {
       fallbackPhoto: fallbackPhoto,
     ),
   );
+}
+Future<List<QueryDocumentSnapshot>> _filterExistingUserChats({
+  required List<QueryDocumentSnapshot> docs,
+  required String currentUserId,
+}) async {
+  final checkedDocs = await Future.wait(
+    docs.map((doc) async {
+      final data = doc.data() as Map<String, dynamic>;
+
+      final participants =
+          List<String>.from(data['participants'] ?? []);
+
+      final otherUserId = participants.firstWhere(
+        (id) => id != currentUserId,
+        orElse: () => '',
+      );
+
+      if (otherUserId.isEmpty) {
+        return null;
+      }
+
+      final names = Map<String, dynamic>.from(
+        data['participantNames'] ?? {},
+      );
+
+      final photos = Map<String, dynamic>.from(
+        data['participantPhotos'] ?? {},
+      );
+
+      final fallbackName =
+          (names[otherUserId] ?? '').toString().trim();
+
+      final fallbackPhoto =
+          (photos[otherUserId] ?? '').toString().trim();
+
+      final userInfo = await _getCachedOtherUserInfo(
+        otherUserId: otherUserId,
+        fallbackName: fallbackName,
+        fallbackPhoto: fallbackPhoto,
+      );
+
+      if (userInfo['deleted'] == 'true') {
+        return null;
+      }
+
+      return doc;
+    }),
+  );
+
+  return checkedDocs
+      .whereType<QueryDocumentSnapshot>()
+      .toList();
 }
 
   @override
@@ -251,22 +309,53 @@ final docs = allDocs.where((doc) {
 
   return true;
 }).toList();
+debugPrint('MESSAGE LIST DOCS: ${docs.length}');
 
-              if (docs.isEmpty) {
-                return Center(
-                  child: Text(
-                    _tr('Chưa có cuộc trò chuyện nào', 'No conversations yet'),
-                  ),
-                );
-              }
+           if (docs.isEmpty) {
+  return Center(
+    child: Text(
+      _tr('Chưa có cuộc trò chuyện nào', 'No conversations yet'),
+    ),
+  );
+}
 
-             return ListView.separated(
-  physics: const ClampingScrollPhysics(),
-  padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final data = docs[index].data() as Map<String, dynamic>;
+return FutureBuilder<List<QueryDocumentSnapshot>>(
+  future: _filterExistingUserChats(
+    docs: docs,
+    currentUserId: currentUser.uid,
+  ),
+  builder: (context, validChatsSnapshot) {
+    
+
+    final validDocs = validChatsSnapshot.data;
+
+// Trong lúc đang kiểm tra, vẫn hiện danh sách chat cũ để bấm được.
+final displayDocs = validDocs ?? docs;
+
+if (displayDocs.isEmpty) {
+      return Center(
+        child: Text(
+          _tr(
+            'Chưa có cuộc trò chuyện nào',
+            'No conversations yet',
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      key: const PageStorageKey<String>('messages_list'),
+      physics: const ClampingScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      itemCount: displayDocs.length,
+      itemBuilder: (context, index) {
+        final doc = displayDocs[index];
+
+        debugPrint(
+          'BUILD INDEX: $index - CHAT ID: ${doc.id}',
+        );
+
+        final data = doc.data() as Map<String, dynamic>;
                   final hiddenFor = List<String>.from(data['hiddenFor'] ?? []);
 
                   final participants =
@@ -294,7 +383,7 @@ final docs = allDocs.where((doc) {
 
                   final lastMessage = (data['lastMessage'] ?? '').toString();
                   final updatedAt = data['updatedAt'] as Timestamp?;
-                  final chatId = (data['chatId'] ?? docs[index].id).toString();
+                  final chatId = (data['chatId'] ?? doc.id).toString();
                   final lastSenderId = (data['lastSenderId'] ?? '').toString();
 
                   final lastReadBy = Map<String, dynamic>.from(
@@ -323,9 +412,7 @@ final docs = allDocs.where((doc) {
                             'photo': fallbackPhoto,
                           };
 
-                  if (userInfo['deleted'] == 'true') {
-  return const SizedBox.shrink();
-}
+          
                       final otherName = (userInfo['name'] ?? '').trim();
                       final otherPhoto = (userInfo['photo'] ?? '').trim();
 
@@ -359,6 +446,7 @@ final docs = allDocs.where((doc) {
                           );
                         },
                         child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -568,8 +656,10 @@ ScaffoldMessenger.of(context).showSnackBar(
                   );
                 },
               );
-            },
-          );
+                },
+    );
+  },
+);
         },
       ),
     );

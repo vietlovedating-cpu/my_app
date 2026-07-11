@@ -1837,12 +1837,15 @@ final profileHealth = calculateProfileHealth(profileHealthData);
 
 const SizedBox(height: 18),
 
-_buildProfileHealthCard(
-  profileHealth: profileHealth,
-  isVi: isVi,
-),
+if (profileHealth.score < 100)
+  _buildProfileHealthCard(
+    profileHealth: profileHealth,
+    isVi: isVi,
+  ),
 
-const SizedBox(height: 22),
+if (profileHealth.score < 100)
+  const SizedBox(height: 22),
+
 
           if (getPhoto(1).isNotEmpty) _buildPhotoBlock(getPhoto(1)),
           if (getPhoto(1).isNotEmpty && getPrompt(0)['question']!.isNotEmpty)
