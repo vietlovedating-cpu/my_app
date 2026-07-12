@@ -1180,24 +1180,140 @@ await _saveSwipe(
   }
 
   String _livingStateDisplay(Map<String, dynamic> profile) {
-    final candidates = [
-      profile['selectedState'],
-      profile['state'],
-      profile['livingState'],
-      profile['stateLiving'],
-    ];
+  String firstNonEmpty(List<dynamic> values) {
+    for (final item in values) {
+      String value = (item ?? '').toString().trim();
 
-    for (final item in candidates) {
-      final value = (item ?? '').toString().trim();
-      if (value.isNotEmpty) return value;
+      if (value.isEmpty) continue;
+
+      final lowerValue = value.toLowerCase();
+
+      if (lowerValue == 'other' ||
+          lowerValue == 'no_preference') {
+        continue;
+      }
+
+      if (lowerValue.startsWith('other -')) {
+        value = value.substring(7).trim();
+      } else if (lowerValue.startsWith('other:')) {
+        value = value.substring(6).trim();
+      }
+
+      if (value.isNotEmpty) {
+        return value;
+      }
     }
-
-    final address = (profile['address'] ?? '').toString().trim();
-    if (address.isNotEmpty) return address;
 
     return '';
   }
 
+  String shortAustralianState(String value) {
+    final normalized = value.trim().toLowerCase();
+
+    if (normalized.contains('new south wales') ||
+        normalized == 'nsw') {
+      return 'NSW';
+    }
+
+    if (normalized.contains('victoria') ||
+        normalized == 'vic') {
+      return 'VIC';
+    }
+
+    if (normalized.contains('queensland') ||
+        normalized == 'qld') {
+      return 'QLD';
+    }
+
+    if (normalized.contains('south australia') ||
+        normalized == 'sa') {
+      return 'SA';
+    }
+
+    if (normalized.contains('western australia') ||
+        normalized == 'wa') {
+      return 'WA';
+    }
+
+    if (normalized.contains('tasmania') ||
+        normalized == 'tas') {
+      return 'TAS';
+    }
+
+    if (normalized.contains('australian capital territory') ||
+        normalized == 'act') {
+      return 'ACT';
+    }
+
+    if (normalized.contains('northern territory') ||
+        normalized == 'nt') {
+      return 'NT';
+    }
+
+    return value.trim();
+  }
+
+  final city = firstNonEmpty([
+    profile['city'],
+    profile['suburb'],
+    profile['locality'],
+  ]);
+
+  final rawState = firstNonEmpty([
+    profile['selectedStateKey'],
+    profile['filterState'],
+    profile['stateProvince'],
+    profile['province'],
+    profile['customState'],
+    profile['otherState'],
+    profile['selectedState'],
+    profile['state'],
+    profile['livingState'],
+    profile['stateLiving'],
+    profile['region'],
+  ]);
+
+  final country = firstNonEmpty([
+    profile['selectedCountry'],
+    profile['country'],
+  ]);
+
+  final normalizedCountry = country.toLowerCase();
+
+  final isAustralia =
+      normalizedCountry == 'australia' ||
+      normalizedCountry == 'úc';
+
+  final state = isAustralia
+      ? shortAustralianState(rawState)
+      : rawState.trim();
+
+  final parts = <String>[];
+
+  void addPart(String value) {
+    final cleanValue = value.trim();
+
+    if (cleanValue.isEmpty) return;
+
+    final alreadyExists = parts.any(
+      (item) =>
+          item.toLowerCase() == cleanValue.toLowerCase(),
+    );
+
+    if (!alreadyExists) {
+      parts.add(cleanValue);
+    }
+  }
+
+  addPart(city);
+  addPart(state);
+
+  if (parts.isEmpty) {
+    addPart(country);
+  }
+
+  return parts.join(', ');
+}
   String _buildBornDisplay(Map<String, dynamic> profile, bool isVi) {
     final country = (profile['countryOfBirth'] ?? '').toString().trim();
     final city = (profile['cityOfBirth'] ??
@@ -2146,11 +2262,11 @@ final isRecentlyActive = _isRecentlyActive(p);
                             text: gender,
                           ),
                         if (livingState.isNotEmpty)
-                          _InfoItem(
-                            icon: Icons.location_on_outlined,
-                            label: _tr('Bang đang sống', 'State living'),
-                            text: livingState,
-                          ),
+  _InfoItem(
+    icon: Icons.location_on_outlined,
+    label: _tr('Khu vực', 'Location'),
+    text: livingState,
+  ),
                         
                       ],
                     ),

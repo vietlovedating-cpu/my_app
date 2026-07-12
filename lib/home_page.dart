@@ -177,6 +177,35 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
         _setOnline(true);
       },
     );
+    @override
+void didChangeAppLifecycleState(AppLifecycleState state) {
+  if (state == AppLifecycleState.resumed) {
+    _setOnline(true);
+
+    _onlineTimer?.cancel();
+    _onlineTimer = Timer.periodic(
+      const Duration(minutes: 5),
+      (_) {
+        _setOnline(true);
+      },
+    );
+
+    Future<void>(() async {
+      await _reloadCurrentUserData();
+
+      if (!mounted) return;
+
+      setState(() {
+        _profilesFuture = _loadProfiles();
+      });
+    });
+  } else if (state == AppLifecycleState.inactive ||
+      state == AppLifecycleState.paused ||
+      state == AppLifecycleState.detached) {
+    _onlineTimer?.cancel();
+    _setOnline(false);
+  }
+}
   } else if (state == AppLifecycleState.inactive ||
       state == AppLifecycleState.paused ||
       state == AppLifecycleState.detached) {
@@ -5130,11 +5159,25 @@ if (_extractRelationshipGoalKeys(profile).isNotEmpty)
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedBottomIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedBottomIndex = index;
-          });
-        },
+       onTap: (index) async {
+  // Chỉ reload khi đang ở tab Me và bấm về Home
+  if (_selectedBottomIndex == 5 && index == 0) {
+    await _reloadCurrentUserData();
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedBottomIndex = 0;
+      _profilesFuture = _loadProfiles();
+    });
+
+    return;
+  }
+
+  setState(() {
+    _selectedBottomIndex = index;
+  });
+},
         type: BottomNavigationBarType.fixed,
         selectedItemColor: const Color(0xFF5C6BC0),
         unselectedItemColor: Colors.grey,

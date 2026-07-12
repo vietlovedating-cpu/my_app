@@ -630,83 +630,148 @@ List<String> _extractRelationshipGoalKeys(
   }
 
   String _livingStateDisplay(Map<String, dynamic> profile) {
-  final country =
-      (profile['selectedCountry'] ??
-              profile['country'] ??
-              '')
-          .toString()
-          .trim();
+  String firstNonEmpty(List<dynamic> values) {
+    for (final item in values) {
+      String value = (item ?? '').toString().trim();
 
- final stateCandidates = [
-  profile['selectedStateKey'],
-  profile['filterState'],
-  profile['stateProvince'],
-  profile['province'],
-  profile['customState'],
-  profile['otherState'],
-  profile['selectedState'],
-  profile['state'],
-  profile['livingState'],
-  profile['stateLiving'],
-];
+      if (value.isEmpty) continue;
 
-  String state = '';
+      final lowerValue = value.toLowerCase();
 
-  for (final item in stateCandidates) {
-    String value = (item ?? '').toString().trim();
+      if (lowerValue == 'other' ||
+          lowerValue == 'no_preference') {
+        continue;
+      }
 
-    if (value.isEmpty) continue;
+      if (lowerValue.startsWith('other -')) {
+        value = value.substring(7).trim();
+      } else if (lowerValue.startsWith('other:')) {
+        value = value.substring(6).trim();
+      }
 
-    final lowerValue = value.toLowerCase();
-
-    if (lowerValue == 'other' ||
-        lowerValue == 'no_preference') {
-      continue;
+      if (value.isNotEmpty) {
+        return value;
+      }
     }
 
-    // Xóa chữ "Other -" ở phía trước.
-    if (lowerValue.startsWith('other -')) {
-      value = value.substring(7).trim();
-    } else if (lowerValue.startsWith('other:')) {
-      value = value.substring(6).trim();
-    }
-
-    if (value.isNotEmpty) {
-      state = value;
-      break;
-    }
+    return '';
   }
 
+  String shortAustralianState(String value) {
+    final normalized = value.trim().toLowerCase();
+
+    if (normalized.contains('new south wales') ||
+        normalized == 'nsw') {
+      return 'NSW';
+    }
+
+    if (normalized.contains('victoria') ||
+        normalized == 'vic') {
+      return 'VIC';
+    }
+
+    if (normalized.contains('queensland') ||
+        normalized == 'qld') {
+      return 'QLD';
+    }
+
+    if (normalized.contains('south australia') ||
+        normalized == 'sa') {
+      return 'SA';
+    }
+
+    if (normalized.contains('western australia') ||
+        normalized == 'wa') {
+      return 'WA';
+    }
+
+    if (normalized.contains('tasmania') ||
+        normalized == 'tas') {
+      return 'TAS';
+    }
+
+    if (normalized.contains('australian capital territory') ||
+        normalized == 'act') {
+      return 'ACT';
+    }
+
+    if (normalized.contains('northern territory') ||
+        normalized == 'nt') {
+      return 'NT';
+    }
+
+    return value.trim();
+  }
+
+  final city = firstNonEmpty([
+    profile['city'],
+    profile['suburb'],
+    profile['locality'],
+  ]);
+
+  final rawState = firstNonEmpty([
+    profile['selectedStateKey'],
+    profile['filterState'],
+    profile['stateProvince'],
+    profile['province'],
+    profile['customState'],
+    profile['otherState'],
+    profile['selectedState'],
+    profile['state'],
+    profile['livingState'],
+    profile['stateLiving'],
+    profile['region'],
+  ]);
+
+  final country = firstNonEmpty([
+    profile['selectedCountry'],
+    profile['country'],
+  ]);
+
   final normalizedCountry = country.toLowerCase();
-  final normalizedState = state.toLowerCase();
 
   final isAustralia =
       normalizedCountry == 'australia' ||
       normalizedCountry == 'úc';
 
-  // Australia: chỉ hiện bang.
+  final state = isAustralia
+      ? shortAustralianState(rawState)
+      : rawState.trim();
+
+  final parts = <String>[];
+
+  void addPart(String value) {
+    final cleanValue = value.trim();
+
+    if (cleanValue.isEmpty) return;
+
+    final alreadyExists = parts.any(
+      (item) =>
+          item.toLowerCase() == cleanValue.toLowerCase(),
+    );
+
+    if (!alreadyExists) {
+      parts.add(cleanValue);
+    }
+  }
+
   if (isAustralia) {
-    if (state.isNotEmpty) return state;
-    return country;
+    addPart(city);
+    addPart(state);
+  } else {
+    addPart(state);
+
+    if (parts.isEmpty) {
+      addPart(city);
+    }
   }
 
-  // Nếu state giống country thì chỉ hiện country một lần.
-  if (normalizedState.isNotEmpty &&
-      normalizedState == normalizedCountry) {
-    return country;
+  if (parts.isEmpty) {
+    addPart(country);
   }
 
-  // Nước khác: hiện Tỉnh/Bang, Quốc gia.
-  if (state.isNotEmpty && country.isNotEmpty) {
-    return '$state, $country';
-  }
-
-  if (state.isNotEmpty) return state;
-  if (country.isNotEmpty) return country;
-
-  return '';
+  return parts.join(', ');
 }
-
   Widget _buildMainCirclePhoto(String imageUrl) {
     return Container(
       width: 205,
@@ -1259,20 +1324,26 @@ Widget _buildVoicePromptCard({
     );
   }
 
-  void _openSettings() {
-    if (widget.onSettingsTap != null) {
-      widget.onSettingsTap!.call();
-      return;
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ProfileSettingsPage(
-          languageCode: widget.languageCode,
-        ),
-      ),
-    );
+  Future<void> _openSettings() async {
+  if (widget.onSettingsTap != null) {
+    widget.onSettingsTap!.call();
+    return;
   }
+
+  await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => ProfileSettingsPage(
+        languageCode: widget.languageCode,
+      ),
+    ),
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    _profileFuture = _loadMyProfile();
+  });
+}
 Future<void> _showPhotoRejectedDialog({
   required Map<String, dynamic> profile,
   required bool isVi,
@@ -1585,19 +1656,25 @@ Widget _buildProfileHealthCard({
           ),
         ),
         const SizedBox(height: 12),
-        Text(
-          _tr(
-            isVi,
-            'Hoàn thiện hồ sơ để tăng khả năng Match.',
-            'Complete your profile to improve your chances of matching.',
-          ),
-          style: const TextStyle(
-            fontSize: 14.5,
-            height: 1.4,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF6F5362),
-          ),
+       Text(
+  profileHealth.score < 50
+      ? _tr(
+          isVi,
+          'Hồ sơ dưới 50% sẽ không được hiển thị trên trang Khám phá.',
+          'Profiles below 50% will not appear on the Discover page.',
+        )
+      : _tr(
+          isVi,
+          'Hoàn thiện hồ sơ để tăng khả năng Match.',
+          'Complete your profile to improve your chances of matching.',
         ),
+  style: const TextStyle(
+    fontSize: 14.5,
+    height: 1.4,
+    fontWeight: FontWeight.w600,
+    color: Color(0xFF6F5362),
+  ),
+),
         if (profileHealth.suggestions.isNotEmpty) ...[
   const SizedBox(height: 14),
 
