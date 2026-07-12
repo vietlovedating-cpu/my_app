@@ -79,9 +79,11 @@ Timer? _recordTimer;
 
   String _currentUserPhotoUrl = '';
   String _currentUserName = '';
+  int? _currentUserAge;
 
   String _otherUserPhotoUrl = '';
   String _otherUserName = '';
+  int? _otherUserAge;
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -181,12 +183,13 @@ final shareUrl =
     'datePlanId': widget.chatId,
     'ownerId': currentUser.uid,
     'ownerName': ownerName,
+    'ownerAge': _currentUserAge,
     'chatId': widget.chatId,
 
     'partnerId': widget.otherUserId,
     'partnerName': partnerName,
+    'partnerAge': _otherUserAge,
     'partnerPhotoUrl': _effectiveOtherUserPhotoUrl,
-
     'scheduledAt': Timestamp.fromDate(scheduledAt),
     'location': location,
 
@@ -213,9 +216,11 @@ final shareUrl =
     'ownerId': currentUser.uid,
 
     'ownerName': ownerName,
+    'ownerAge': _currentUserAge,
     'ownerPhotoUrl': _currentUserPhotoUrl,
 
     'partnerName': partnerName,
+    'partnerAge': _otherUserAge,
     'partnerPhotoUrl': _effectiveOtherUserPhotoUrl,
 
     'scheduledAt': Timestamp.fromDate(scheduledAt),
@@ -1468,17 +1473,15 @@ Future<void> _updateDatePlanStatus({
   _selectedDate = selectedDate;
   _selectedTime = selectedTime;
 
-  Navigator.pop(sheetContext);
-
-  await Future.delayed(
-    const Duration(milliseconds: 350),
-  );
-
  await _shareDatePlanLink(
   selectedDate: selectedDate,
   selectedTime: selectedTime,
   location: location,
 );
+
+if (!mounted) return;
+
+Navigator.pop(sheetContext);
   if (!mounted) return;
 
   ScaffoldMessenger.of(
@@ -1643,9 +1646,22 @@ _isSendingVoiceNotifier.dispose();
 
       if (!mounted) return;
       setState(() {
-        _currentUserPhotoUrl = (data['mainPhotoUrl'] ?? '').toString().trim();
-        _currentUserName = (data['firstName'] ?? '').toString().trim();
-      });
+  _currentUserPhotoUrl =
+      (data['mainPhotoUrl'] ?? '').toString().trim();
+
+  _currentUserName =
+      (data['firstName'] ?? '').toString().trim();
+
+  final rawAge = data['age'];
+
+  if (rawAge is int) {
+    _currentUserAge = rawAge;
+  } else {
+    _currentUserAge = int.tryParse(
+      (rawAge ?? '').toString(),
+    );
+  }
+});
     } catch (_) {}
   }
 
@@ -1660,9 +1676,22 @@ _isSendingVoiceNotifier.dispose();
 
       if (!mounted) return;
       setState(() {
-        _otherUserPhotoUrl = (data['mainPhotoUrl'] ?? '').toString().trim();
-        _otherUserName = (data['firstName'] ?? '').toString().trim();
-      });
+  _otherUserPhotoUrl =
+      (data['mainPhotoUrl'] ?? '').toString().trim();
+
+  _otherUserName =
+      (data['firstName'] ?? '').toString().trim();
+
+  final rawAge = data['age'];
+
+  if (rawAge is int) {
+    _otherUserAge = rawAge;
+  } else {
+    _otherUserAge = int.tryParse(
+      (rawAge ?? '').toString(),
+    );
+  }
+});
     } catch (_) {}
   }
 

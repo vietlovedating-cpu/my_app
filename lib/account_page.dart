@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'login_page.dart';
+import 'privacy_profile_page.dart';
+import 'support_help_page.dart';
 
 class AccountPage extends StatefulWidget {
   final String languageCode;
@@ -426,15 +428,38 @@ class _AccountPageState extends State<AccountPage> {
 Future<Map<String, String>?> _showDeleteReasonDialog() async {
   String? selectedReason;
   final otherController = TextEditingController();
+  final scrollController = ScrollController();
 
   final reasons = [
-    _tr('Tôi đã tìm được người phù hợp', 'I found the right person'),
-    _tr('Không có nhiều người phù hợp', 'Not enough suitable people'),
-    _tr('App khó sử dụng', 'The app is difficult to use'),
-    _tr('Tôi lo về quyền riêng tư', 'I have privacy concerns'),
-    _tr('Tôi muốn nghỉ hẹn hò một thời gian', 'I want to take a break from dating'),
-    _tr('Khác', 'Other'),
-  ];
+  _tr(
+    'Tôi đã gặp được người phù hợp trên VietLove Dating',
+    'I met someone through VietLove Dating',
+  ),
+  _tr(
+    'Tôi đã tìm được người phù hợp theo cách khác',
+    'I found the right person elsewhere',
+  ),
+  _tr(
+    'Không có nhiều người phù hợp',
+    'Not enough suitable people',
+  ),
+  _tr(
+    'App khó sử dụng',
+    'The app is difficult to use',
+  ),
+  _tr(
+    'Tôi lo về quyền riêng tư',
+    'I have privacy concerns',
+  ),
+  _tr(
+    'Tôi muốn nghỉ hẹn hò một thời gian',
+    'I want to take a break from dating',
+  ),
+  _tr(
+    'Khác',
+    'Other',
+  ),
+];
 
   return showDialog<Map<String, String>>(
     context: context,
@@ -443,14 +468,41 @@ Future<Map<String, String>?> _showDeleteReasonDialog() async {
       return StatefulBuilder(
         builder: (context, setInnerState) {
           final isOther = selectedReason == _tr('Khác', 'Other');
+          final isDifficultToUse = selectedReason ==
+    _tr(
+      'App khó sử dụng',
+      'The app is difficult to use',
+    );
+
+final isPrivacyConcern = selectedReason ==
+    _tr(
+      'Tôi lo về quyền riêng tư',
+      'I have privacy concerns',
+    );
+
+final isTakingBreak = selectedReason ==
+    _tr(
+      'Tôi muốn nghỉ hẹn hò một thời gian',
+      'I want to take a break from dating',
+    );
 
           return RadioGroup<String>(
             groupValue: selectedReason,
             onChanged: (value) {
-              setInnerState(() {
-                selectedReason = value;
-              });
-            },
+  setInnerState(() {
+    selectedReason = value;
+  });
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!scrollController.hasClients) return;
+
+    scrollController.animateTo(
+      scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOut,
+    );
+  });
+},
             child: AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(22),
@@ -463,6 +515,7 @@ Future<Map<String, String>?> _showDeleteReasonDialog() async {
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
               content: SingleChildScrollView(
+  controller: scrollController,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -473,6 +526,193 @@ Future<Map<String, String>?> _showDeleteReasonDialog() async {
                         activeColor: const Color(0xFFD94B8A),
                       ),
                     ),
+                    if (isDifficultToUse)
+  Container(
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7FA),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFFFC7DD)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr(
+            '💡 Bạn có thể chưa khám phá hết các tính năng của VietLove.',
+            '💡 You may not have discovered all of VietLove\'s features yet.',
+          ),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _tr(
+            'Bạn có thể vào phần Settings để xem hướng dẫn sử dụng và khám phá thêm các tính năng trước khi quyết định xóa tài khoản.',
+            'You can visit Settings to learn how to use VietLove before deciding to delete your account.',
+          ),
+        ),
+        const SizedBox(height: 14),
+
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    icon: const Icon(Icons.settings_outlined),
+    label: Text(
+      _tr(
+        'Mở trang Cài đặt',
+        'Open Settings',
+      ),
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFFD94B8A),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+    onPressed: () {
+  Navigator.pop(dialogContext, null);
+
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => SupportHelpPage(
+        languageCode: widget.languageCode,
+      ),
+    ),
+  );
+},
+  ),
+),
+      ],
+    ),
+  ),
+  if (isPrivacyConcern)
+  Container(
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7FA),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFFFC7DD)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr(
+            '🔒 Quyền riêng tư của bạn rất quan trọng với chúng tôi.',
+            '🔒 Your privacy is important to us.',
+          ),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _tr(
+            '• Email và số điện thoại của bạn không hiển thị công khai.\n'
+            '• Chúng tôi không bán thông tin cá nhân của bạn.\n'
+            '• Bạn có thể ẩn hồ sơ khỏi những người trong danh bạ.',
+            '• Your email and phone number are never shown publicly.\n'
+            '• We never sell your personal information.\n'
+            '• You can hide your profile from people in your contacts.',
+          ),
+        ),
+        const SizedBox(height: 14),
+
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    icon: const Icon(Icons.privacy_tip_outlined),
+    label: Text(
+      _tr(
+        'Ẩn hồ sơ khỏi danh bạ',
+        'Hide my profile from contacts',
+      ),
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFFD94B8A),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+    onPressed: () async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PrivacyProfilePage(
+            languageCode: widget.languageCode,
+          ),
+        ),
+      );
+    },
+  ),
+),
+      ],
+    ),
+  ),
+  if (isTakingBreak)
+  Container(
+    margin: const EdgeInsets.only(top: 12),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7FA),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: const Color(0xFFFFC7DD)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr(
+            '💤 Bạn không cần xóa tài khoản.',
+            '💤 You do not need to delete your account.',
+          ),
+          style: const TextStyle(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          _tr(
+            'Bạn có thể Pause Account. Hồ sơ sẽ được ẩn, nhưng ảnh, tin nhắn, matches và dữ liệu của bạn vẫn được giữ lại để bạn quay lại bất cứ lúc nào.',
+            'You can Pause your account. Your profile will be hidden while your photos, messages, matches and data are safely kept until you come back.',
+          ),
+        ),
+        const SizedBox(height: 14),
+
+SizedBox(
+  width: double.infinity,
+  child: ElevatedButton.icon(
+    icon: const Icon(Icons.pause_circle_outline_rounded),
+    label: Text(
+      _tr(
+        'Tạm dừng tài khoản',
+        'Pause account',
+      ),
+    ),
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFFD94B8A),
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+    onPressed: () async {
+      Navigator.pop(dialogContext, null);
+
+      await _pauseAccount();
+    },
+  ),
+),
+      ],
+    ),
+  ),
                     if (isOther) ...[
                       const SizedBox(height: 8),
                       TextField(

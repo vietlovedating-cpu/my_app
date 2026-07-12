@@ -110,7 +110,7 @@ class SpeedDatingPage extends StatelessWidget {
                 const SizedBox(height: 16),
                 Text(
                   _label(
-                    'VietLove tổ chức các buổi Speed Dating hằng tháng dành cho người Việt độc thân tại nhiều thành phố như Sydney, Melbourne, Brisbane và các thành phố khác tại Úc.',
+                    'VietLove tổ chức các buổi Speed Dating hàng tháng dành cho người Việt độc thân tại nhiều thành phố như Sydney, Melbourne, Brisbane và các thành phố khác tại Úc.',
                     'VietLove hosts monthly Speed Dating events for Vietnamese singles in cities across Australia, including Sydney, Melbourne, Brisbane and more.',
                   ),
                   textAlign: TextAlign.center,
@@ -123,8 +123,8 @@ class SpeedDatingPage extends StatelessWidget {
                 const SizedBox(height: 22),
                 Text(
                   _label(
-                    'Đã quá mệt với việc quẹt trái, quẹt phải nhưng vẫn chưa gặp đúng người?',
-                    'Tired of swiping left and right without meeting the right person?',
+                    'Hãy cho bản thân cơ hội gặp gỡ một người thực sự trân trọng bạn',
+                    'Give yourself a chance to meet someone who truly values you',
                   ),
                   textAlign: TextAlign.center,
                   style: const TextStyle(

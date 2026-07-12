@@ -53,6 +53,59 @@ void dispose() {
   _stateProvinceController.dispose();
   super.dispose();
 }
+String _normalizeAustralianState(String value) {
+  final normalized = value.trim().toLowerCase();
+
+  if (normalized == 'new south wales' ||
+      normalized == 'new south wales (nsw)' ||
+      normalized == 'nsw') {
+    return 'NSW';
+  }
+
+  if (normalized == 'victoria' ||
+      normalized == 'victoria (vic)' ||
+      normalized == 'vic') {
+    return 'VIC';
+  }
+
+  if (normalized == 'queensland' ||
+      normalized == 'queensland (qld)' ||
+      normalized == 'qld') {
+    return 'QLD';
+  }
+
+  if (normalized == 'south australia' ||
+      normalized == 'south australia (sa)' ||
+      normalized == 'sa') {
+    return 'SA';
+  }
+
+  if (normalized == 'western australia' ||
+      normalized == 'western australia (wa)' ||
+      normalized == 'wa') {
+    return 'WA';
+  }
+
+  if (normalized == 'tasmania' ||
+      normalized == 'tasmania (tas)' ||
+      normalized == 'tas') {
+    return 'TAS';
+  }
+
+  if (normalized == 'australian capital territory' ||
+      normalized == 'australian capital territory (act)' ||
+      normalized == 'act') {
+    return 'ACT';
+  }
+
+  if (normalized == 'northern territory' ||
+      normalized == 'northern territory (nt)' ||
+      normalized == 'nt') {
+    return 'NT';
+  }
+
+  return value.trim();
+}
 
   Future<void> _getCurrentLocation() async {
     final isVi = widget.languageCode == 'vi';
@@ -343,6 +396,32 @@ detectedLng = position.longitude;
           ),
         ),
       ),
+      const SizedBox(height: 18),
+
+Text(
+  isVi ? 'Khu vực / Suburb' : 'Suburb',
+  style: const TextStyle(
+    fontSize: 15,
+    fontWeight: FontWeight.w600,
+  ),
+),
+
+const SizedBox(height: 8),
+
+TextField(
+  controller: _cityController,
+  decoration: InputDecoration(
+    prefixIcon: const Icon(Icons.location_city),
+    hintText: isVi
+        ? 'Ví dụ: Wiley Park'
+        : 'Example: Wiley Park',
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+    ),
+  ),
+),
     ],
   ],
 ),
@@ -422,11 +501,12 @@ if (user == null) {
   return;
 }
 
-final stateToSave =
-    isAustralia ? widget.selectedState : stateProvince;
+final stateToSave = isAustralia
+    ? _normalizeAustralianState(widget.selectedState)
+    : stateProvince;
 
 final cityToSave =
-    isAustralia ? detectedCity : city;
+    city.isNotEmpty ? city : detectedCity;
 
 // Nước khác Australia phải nhập City và State/Province.
 if (!isAustralia && (city.isEmpty || stateProvince.isEmpty)) {
@@ -443,12 +523,14 @@ if (!isAustralia && (city.isEmpty || stateProvince.isEmpty)) {
 }
 
 final locationText = isAustralia
-    ? '${widget.selectedState}, ${widget.selectedCountry}'
+    ? city.isNotEmpty
+        ? '$city, $stateToSave, ${widget.selectedCountry}'
+        : '$stateToSave, ${widget.selectedCountry}'
     : '$city, $stateProvince, ${widget.selectedCountry}';
 
 // Nếu user tự nhập thay vì bấm GPS,
 // app tự tìm lat/lng từ City + State + Country.
-if (!isAustralia && (detectedLat == null || detectedLng == null)) {
+if (detectedLat == null || detectedLng == null) {
   try {
     final locations = await locationFromAddress(locationText);
 
@@ -473,9 +555,13 @@ await FirebaseFirestore.instance
   'stateLiving': stateToSave,
 
   'city': cityToSave,
+   'cityLower': cityToSave.toLowerCase(),
+'address': locationText,
+'currentLocation': locationText,
 
-  'address': locationText,
-  'currentLocation': locationText,
+// thêm field này
+'suburb': cityToSave,
+'suburbLower': cityToSave.toLowerCase(),
 
   if (detectedLat != null) 'lat': detectedLat,
   if (detectedLng != null) 'lng': detectedLng,

@@ -919,14 +919,19 @@ if (selectedIncomeFilter != null &&
 }
 
   Future<void> _handlePass({
-    required Map<String, dynamic> targetProfile,
-  }) async {
-    await _saveSwipe(
-      targetProfile: targetProfile,
-      action: 'pass',
-    );
-    if (mounted) setState(() {});
-  }
+  required Map<String, dynamic> targetProfile,
+}) async {
+  await _saveSwipe(
+    targetProfile: targetProfile,
+    action: 'pass',
+  );
+
+  if (!mounted) return;
+
+  setState(() {
+    _profilesFuture = _loadProfiles();
+  });
+}
   Future<void> _createContentLikeMessagesAfterMatch({
   required Map<String, dynamic> targetProfile,
   required String currentComment,
@@ -1162,8 +1167,10 @@ final didMatch = await _saveSwipe(
 }
 
   if (mounted) {
-    setState(() {});
-  }
+  setState(() {
+    _profilesFuture = _loadProfiles();
+  });
+}
 }
  Future<void> _handleLike({
   required Map<String, dynamic> targetProfile,
@@ -1179,7 +1186,11 @@ final didMatch = await _saveSwipe(
     await _showMatchDialog(targetProfile);
   }
 
-  setState(() {});
+  if (!mounted) return;
+
+  setState(() {
+    _profilesFuture = _loadProfiles();
+  });
 }
   Future<void> _handleFlower({
     required Map<String, dynamic> targetProfile,
@@ -1408,7 +1419,9 @@ await _saveSwipe(
       ),
     );
 
-    setState(() {});
+    setState(() {
+  _profilesFuture = _loadProfiles();
+});
   }
 
  Future<bool> _saveSwipe({
@@ -2032,26 +2045,8 @@ if (selectedStateFilter!.isEmpty) {
         ? null
         : result.state;
         selectedDistanceKm = result.distanceKm;
-final user = currentUser;
+        
 
-if (user != null) {
-  FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .set({
-    'genderPreference': selectedGenderFilter,
-    'minAgePreference': selectedMinAgeFilter,
-    'maxAgePreference': selectedMaxAgeFilter,
-
-    // 👉 STATE FILTER (đã sửa)
-    'filterState': selectedStateFilter,
-    'filterStateKey': selectedStateFilter == null
-        ? null
-        : _normalizeStateKey(selectedStateFilter),
-
-    'maxDistanceKm': selectedDistanceKm,
-  }, SetOptions(merge: true));
-}
         if (isVipUser) {
           selectedReligionFilter = result.religion;
           selectedRelationshipGoalFilter = result.relationshipGoal;
@@ -2080,6 +2075,32 @@ if (user != null) {
           selectedPhotoVerifiedOnly = false;
           selectedNewHereOnly = false;
         }
+            });
+            final user = currentUser;
+
+if (user != null) {
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .set({
+    'genderPreference': selectedGenderFilter,
+    'minAgePreference': selectedMinAgeFilter,
+    'maxAgePreference': selectedMaxAgeFilter,
+
+    // 👉 STATE FILTER (đã sửa)
+    'filterState': selectedStateFilter,
+    'filterStateKey': selectedStateFilter == null
+        ? null
+        : _normalizeStateKey(selectedStateFilter),
+
+    'maxDistanceKm': selectedDistanceKm,
+  }, SetOptions(merge: true));
+}
+
+      if (!mounted) return;
+
+      setState(() {
+        _profilesFuture = _loadProfiles();
       });
     }
   }
@@ -2568,57 +2589,110 @@ double _degToRad(double degree) {
   return prompts;
 }
 
-  String _livingStateDisplay(Map<String, dynamic> profile) {
-  final country =
-      (profile['selectedCountry'] ?? '').toString().trim();
+ String _livingStateDisplay(Map<String, dynamic> profile) {
+  String firstNonEmpty(List<dynamic> values) {
+    for (final item in values) {
+      final value = (item ?? '').toString().trim();
+      final lowerValue = value.toLowerCase();
 
-  final stateCandidates = [
+      if (value.isNotEmpty &&
+          lowerValue != 'other' &&
+          lowerValue != 'no_preference') {
+        return value;
+      }
+    }
+
+    return '';
+  }
+
+  String shortState(String value) {
+    final normalized = value.trim().toLowerCase();
+
+    if (normalized.contains('new south wales') ||
+        normalized == 'nsw') {
+      return 'NSW';
+    }
+
+    if (normalized.contains('victoria') ||
+        normalized == 'vic') {
+      return 'VIC';
+    }
+
+    if (normalized.contains('queensland') ||
+        normalized == 'qld') {
+      return 'QLD';
+    }
+
+    if (normalized.contains('south australia') ||
+        normalized == 'sa') {
+      return 'SA';
+    }
+
+    if (normalized.contains('western australia') ||
+        normalized == 'wa') {
+      return 'WA';
+    }
+
+    if (normalized.contains('tasmania') ||
+        normalized == 'tas') {
+      return 'TAS';
+    }
+
+    if (normalized.contains('australian capital territory') ||
+        normalized == 'act') {
+      return 'ACT';
+    }
+
+    if (normalized.contains('northern territory') ||
+        normalized == 'nt') {
+      return 'NT';
+    }
+
+    return value.trim();
+  }
+
+  final city = firstNonEmpty([
+    profile['city'],
+    profile['suburb'],
+    profile['locality'],
+  ]);
+
+  final rawState = firstNonEmpty([
     profile['selectedState'],
     profile['selectedStateKey'],
     profile['state'],
     profile['livingState'],
     profile['stateLiving'],
-  ];
+    profile['province'],
+    profile['region'],
+  ]);
 
-  String state = '';
+  final country = firstNonEmpty([
+    profile['selectedCountry'],
+  ]);
 
-  for (final item in stateCandidates) {
-    final value = (item ?? '').toString().trim();
+  final state = shortState(rawState);
 
-    if (value.isNotEmpty &&
-        value.toLowerCase() != 'other' &&
-        value.toLowerCase() != 'no_preference') {
-      state = value;
-      break;
+  final parts = <String>[];
+
+  void addPart(String value) {
+    final cleanValue = value.trim();
+
+    if (cleanValue.isEmpty) return;
+
+    final alreadyExists = parts.any(
+      (item) => item.toLowerCase() == cleanValue.toLowerCase(),
+    );
+
+    if (!alreadyExists) {
+      parts.add(cleanValue);
     }
   }
 
-  final isAustralia =
-      country.toLowerCase() == 'australia';
+  addPart(city);
+  addPart(state);
 
-  if (isAustralia) {
-    // Australia chỉ hiện bang, ví dụ NSW hoặc Victoria.
-    if (state.isNotEmpty) {
-      return state;
-    }
-
-    return country;
-  }
-
-  // Nước khác: hiện State/Province + Country.
-  if (state.isNotEmpty && country.isNotEmpty) {
-    return '$state, $country';
-  }
-
-  if (state.isNotEmpty) {
-    return state;
-  }
-
-  if (country.isNotEmpty) {
-    return country;
-  }
-
-  return '';
+  return parts.join(', ');
 }
 
   String _buildBornDisplay(Map<String, dynamic> profile, bool isVi) {
@@ -4183,17 +4257,18 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
     label: _label('Khoảng cách', 'Distance'),
     text: distanceText,
   ),
+  if (livingState.isNotEmpty)
+  _InfoItem(
+    icon: Icons.location_on_outlined,
+    label: _label('Khu vực', 'Location'),
+    text: livingState,
+  ),
+
     if (gender.isNotEmpty)
       _InfoItem(
         icon: Icons.person_outline_rounded,
         label: _label('Giới tính', 'Gender'),
         text: gender,
-      ),
-    if (livingState.isNotEmpty)
-      _InfoItem(
-        icon: Icons.location_on_outlined,
-        label: _label('Bang đang sống', 'State living'),
-        text: livingState,
       ),
   ],
 ),
