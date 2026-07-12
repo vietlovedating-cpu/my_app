@@ -233,6 +233,7 @@ class _AccountPageState extends State<AccountPage> {
       await doc.reference.delete();
     }
   }
+  
 
   Future<void> _anonymizeChats(String uid) async {
     final firestore = FirebaseFirestore.instance;

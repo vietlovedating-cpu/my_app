@@ -1844,6 +1844,7 @@ Widget _buildProfileHealthCard({
 };
 
 final profileHealth = calculateProfileHealth(profileHealthData);
+debugPrint('PROFILE HEALTH: ${profileHealth.score}');
     
 
     String getPhoto(int index) {

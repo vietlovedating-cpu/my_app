@@ -328,9 +328,17 @@ return FutureBuilder<List<QueryDocumentSnapshot>>(
     
 
     final validDocs = validChatsSnapshot.data;
+    if (validChatsSnapshot.connectionState ==
+        ConnectionState.waiting &&
+    validDocs == null) {
+  return const Center(
+    child: CircularProgressIndicator(),
+  );
+}
 
 // Trong lúc đang kiểm tra, vẫn hiện danh sách chat cũ để bấm được.
-final displayDocs = validDocs ?? docs;
+final displayDocs =
+    validDocs ?? const <QueryDocumentSnapshot>[];
 
 if (displayDocs.isEmpty) {
       return Center(

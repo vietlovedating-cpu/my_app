@@ -98,6 +98,25 @@ Timer? _recordTimer;
   }
 
   String _tr(String vi, String en) => isVi ? vi : en;
+  List<String> get _conversationStarters {
+  if (isVi) {
+    return const [
+      '👋 Chào bạn! Hôm nay của bạn thế nào?',
+      '😊 Điều gì trên hồ sơ của mình khiến bạn chú ý?',
+      '☕ Cuối tuần bạn thường thích làm gì?',
+      '🌏 Bạn đang sống ở khu vực nào?',
+      '💬 Mình rất vui vì chúng ta đã Match!',
+    ];
+  }
+
+  return const [
+    '👋 Hi! How’s your day going?',
+    '😊 What caught your attention on my profile?',
+    '☕ What do you usually enjoy doing on weekends?',
+    '🌏 Which area are you living in?',
+    '💬 I’m happy we matched!',
+  ];
+}
   String _formatDatePlanDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
@@ -3038,20 +3057,81 @@ final bubble = GestureDetector(
 
       final docs = snapshot.data?.docs ?? [];
 
-      if (docs.isEmpty) {
-        return Center(
-          child: Text(
-            _tr(
-              'Hãy bắt đầu cuộc trò chuyện.',
-              'Start the conversation.',
-            ),
-            style: const TextStyle(
-              color: Colors.black54,
-              fontWeight: FontWeight.w600,
+     if (docs.isEmpty) {
+  return ListView(
+    padding: const EdgeInsets.fromLTRB(18, 24, 18, 18),
+    children: [
+      Text(
+        _tr(
+          'Chưa biết bắt đầu thế nào?',
+          'Not sure how to start?',
+        ),
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF8A2F6A),
+        ),
+      ),
+
+      const SizedBox(height: 8),
+
+      Text(
+        _tr(
+          'Chọn một câu gợi ý bên dưới để bắt đầu cuộc trò chuyện.',
+          'Choose a suggestion below to start the conversation.',
+        ),
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.black54,
+          fontWeight: FontWeight.w600,
+          height: 1.35,
+        ),
+      ),
+
+      const SizedBox(height: 20),
+
+      ..._conversationStarters.map(
+        (suggestion) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              _messageController.text = suggestion;
+              _messageController.selection =
+                  TextSelection.collapsed(
+                offset: suggestion.length,
+              );
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: const Color(0xFFFFD5E6),
+                ),
+              ),
+              child: Text(
+                suggestion,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                  height: 1.35,
+                ),
+              ),
             ),
           ),
-        );
-      }
+        ),
+      ),
+    ],
+  );
+}
 
       return ListView.builder(
         controller: _scrollController,

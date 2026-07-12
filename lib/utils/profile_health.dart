@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class ProfileHealthResult {
   final int score;
   final List<String> suggestions;
@@ -33,7 +35,7 @@ ProfileHealthResult calculateProfileHealth(
   }
 
   /// ============================================================
-  /// 1. ẢNH HỒ SƠ — TỐI ĐA 25 ĐIỂM
+  /// 1. ẢNH HỒ SƠ — TỐI ĐA 40 ĐIỂM
   /// ============================================================
 
   final rawPhotos = user['photos'];
@@ -48,7 +50,7 @@ ProfileHealthResult calculateProfileHealth(
 
   final photoCount = photos.length.clamp(0, 5);
 
-  score += photoCount * 5;
+  score += photoCount * 8;
 
   if (photoCount < 5) {
     final missingPhotos = 5 - photoCount;
@@ -61,7 +63,7 @@ ProfileHealthResult calculateProfileHealth(
   }
 
   /// ============================================================
-  /// 2. PROMPT — TỐI ĐA 20 ĐIỂM
+  /// 2. PROMPT — TỐI ĐA 10 ĐIỂM
   /// ============================================================
 
   int answeredPrompts = 0;
@@ -75,7 +77,7 @@ ProfileHealthResult calculateProfileHealth(
     }
   }
 
-  score += answeredPrompts * 4;
+  score += answeredPrompts * 2;
 
   if (answeredPrompts < 5) {
     final missingPrompts = 5 - answeredPrompts;
@@ -103,36 +105,9 @@ ProfileHealthResult calculateProfileHealth(
     suggestions.add('add_voice_prompt');
   }
 
-  /// ============================================================
-  /// 4. BIO — TỐI ĐA 10 ĐIỂM
-  /// ============================================================
-
-  final bio = [
-    user['bio'],
-    user['aboutMe'],
-    user['about'],
-    user['introduction'],
-  ]
-      .map((item) => (item ?? '').toString().trim())
-      .firstWhere(
-        (item) => item.isNotEmpty,
-        orElse: () => '',
-      );
-
-  if (bio.length >= 80) {
-    score += 10;
-  } else if (bio.length >= 30) {
-    score += 7;
-    suggestions.add('bio_could_be_longer');
-  } else if (bio.isNotEmpty) {
-    score += 4;
-    suggestions.add('bio_too_short');
-  } else {
-    suggestions.add('add_bio');
-  }
 
   /// ============================================================
-  /// 5. XÁC MINH ẢNH — TỐI ĐA 10 ĐIỂM
+  /// 5. XÁC MINH ẢNH — TỐI ĐA 5 ĐIỂM
   /// ============================================================
 
   final photoVerified =
@@ -145,14 +120,14 @@ ProfileHealthResult calculateProfileHealth(
           'approved';
 
   if (photoVerified) {
-    score += 10;
+    score += 5;
   } else {
     suggestions.add('verify_photo');
   }
 
   /// ============================================================
-  /// 6. THÔNG TIN CÁ NHÂN — TỐI ĐA 30 ĐIỂM
-  /// Mỗi nhóm đầy đủ được 3 điểm.
+  /// 6. THÔNG TIN CÁ NHÂN — TỐI ĐA 40 ĐIỂM
+  /// Mỗi nhóm đầy đủ được 4 điểm.
   /// ============================================================
 
   final personalSections = <bool>[
@@ -230,7 +205,7 @@ ProfileHealthResult calculateProfileHealth(
   final completedPersonalSections =
       personalSections.where((item) => item).length;
 
-  score += completedPersonalSections * 3;
+  score += completedPersonalSections * 4;
 
   if (!personalSections[0]) {
     suggestions.add('add_living_location');
@@ -249,14 +224,24 @@ ProfileHealthResult calculateProfileHealth(
   }
 
   if (!personalSections[9]) {
-    suggestions.add('add_relationship_goal');
-  }
+  suggestions.add('add_relationship_goal');
+}
 
-  /// Đảm bảo kết quả luôn nằm trong khoảng 0–100.
-  score = score.clamp(0, 100);
+/// Đảm bảo kết quả luôn nằm trong khoảng 0–100.
+score = score.clamp(0, 100);
 
-  return ProfileHealthResult(
-    score: score,
-    suggestions: suggestions,
-  );
+debugPrint('photoCount = $photoCount');
+debugPrint('answeredPrompts = $answeredPrompts');
+debugPrint('hasVoicePrompt = $hasVoicePrompt');
+debugPrint('photoVerified = $photoVerified');
+debugPrint('personalSections = $personalSections');
+debugPrint(
+  'completedPersonalSections = $completedPersonalSections',
+);
+debugPrint('score = $score');
+
+return ProfileHealthResult(
+  score: score,
+  suggestions: suggestions,
+);
 }

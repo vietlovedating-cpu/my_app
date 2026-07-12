@@ -1066,6 +1066,7 @@ if (selectedIncomeFilter != null &&
     'updatedAt': FieldValue.serverTimestamp(),
   }, SetOptions(merge: true));
 }
+
 Future<void> _handleContentLike({
   required Map<String, dynamic> targetProfile,
   required String contentType,
@@ -1173,24 +1174,17 @@ commentController.dispose();
 if (!mounted) return;
 
 final didMatch = await _saveSwipe(
-    targetProfile: targetProfile,
-    action: 'like',
-    likedContentType: contentType,
-    likedContentIndex: contentIndex,
-    likedContentText: contentText,
-    likeComment: result,
-  );
+  targetProfile: targetProfile,
+  action: 'like',
+  likedContentType: contentType,
+  likedContentIndex: contentIndex,
+  likedContentText: contentText,
+  likeComment: result,
+);
 
   if (!mounted) return;
 
   if (didMatch) {
-  await _createContentLikeMessagesAfterMatch(
-    targetProfile: targetProfile,
-    currentComment: result,
-    currentContentType: contentType,
-    currentContentIndex: contentIndex,
-    currentContentText: contentText,
-  );
 
   await _showMatchDialog(targetProfile);
 }
@@ -1561,10 +1555,40 @@ if (action == 'like') {
             (reverseData?['action'] ?? '').toString().trim().toLowerCase();
 
         if (reverseAction == 'like') {
-          didMatch = true;
-          await _createMatch(targetProfile: targetProfile);
-         await _sendMatchNotification(targetProfile);
-        }
+  didMatch = true;
+
+  await _createMatch(
+    targetProfile: targetProfile,
+  );
+
+  final reverseContentType =
+      (reverseData?['likedContentType'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+  final currentIsContentLike =
+      likedContentType == 'photo' ||
+      likedContentType == 'prompt';
+
+  final reverseIsContentLike =
+      reverseContentType == 'photo' ||
+      reverseContentType == 'prompt';
+
+  // Chỉ tạo message nếu ít nhất một người
+  // Like ảnh hoặc prompt.
+  if (currentIsContentLike || reverseIsContentLike) {
+    await _createContentLikeMessagesAfterMatch(
+      targetProfile: targetProfile,
+      currentComment: likeComment ?? '',
+      currentContentType: likedContentType ?? '',
+      currentContentIndex: likedContentIndex ?? -1,
+      currentContentText: likedContentText ?? '',
+    );
+  }
+
+  await _sendMatchNotification(targetProfile);
+}
       }
     } catch (e) {
       if (!mounted) return false;
