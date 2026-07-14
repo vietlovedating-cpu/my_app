@@ -241,12 +241,17 @@ requestedAt: admin.firestore.FieldValue.serverTimestamp(),
 
       try {
         const subcollections = [
-          "blocked_users",
-          "likedBy",
-          "passedUsers",
-          "processedVipPurchases",
-        ];
-
+  "appleVipNotifications",
+  "blockedUsers",
+  "blocked_users",
+  "datePlans",
+  "likedBy",
+  "passedUsers",
+  "processedVipPurchases",
+  "settings",
+  "top_picks_daily",
+  "trustedContacts",
+];
         for (const collectionName of subcollections) {
           const collectionRef = userRef.collection(collectionName);
 
@@ -279,6 +284,52 @@ try {
 } catch (error) {
   console.error(
     "DELETE PHOTO VERIFICATION REQUEST ERROR:",
+    uid,
+    error
+  );
+}
+try {
+  const membershipRefs = new Map();
+
+  const membershipsByUid = await db
+    .collectionGroup("members")
+    .where("uid", "==", uid)
+    .get();
+
+  for (const doc of membershipsByUid.docs) {
+    membershipRefs.set(doc.ref.path, doc.ref);
+  }
+
+  const membershipsByUserId = await db
+    .collectionGroup("members")
+    .where("userId", "==", uid)
+    .get();
+
+  for (const doc of membershipsByUserId.docs) {
+    membershipRefs.set(doc.ref.path, doc.ref);
+  }
+
+  const refs = [...membershipRefs.values()];
+
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = db.batch();
+    const chunk = refs.slice(i, i + 400);
+
+    for (const ref of chunk) {
+      batch.delete(ref);
+    }
+
+    await batch.commit();
+  }
+
+  console.log(
+    "GROUP MEMBERSHIPS DELETED:",
+    uid,
+    refs.length
+  );
+} catch (error) {
+  console.error(
+    "DELETE GROUP MEMBERSHIPS ERROR:",
     uid,
     error
   );

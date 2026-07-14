@@ -1225,10 +1225,10 @@ return true;
                       ),
                     ),
                     _featureItem(
-                      '❤️',
+                      '🌸',
                       _label(
-                        'Nhắn tin không giới hạn',
-                        'Unlimited messaging',
+                        'Gởi hoa không giới hạn',
+                        'Send Unlimited flowers',
                       ),
                     ),
                     _featureItem(

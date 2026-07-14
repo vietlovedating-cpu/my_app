@@ -350,16 +350,47 @@ class WhoIPassedPage extends StatelessWidget {
               Expanded(
                 child: FutureBuilder<List<QueryDocumentSnapshot>>(
                   future: Future.wait(
-                    docs.map((doc) async {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final uid = (data['uid'] ?? doc.id).toString().trim();
+  docs.map((doc) async {
+    final data = doc.data() as Map<String, dynamic>;
+    final targetUid = (data['uid'] ?? doc.id).toString().trim();
 
-                      final isDeleted = await _isUserDeleted(uid);
-                      return isDeleted ? null : doc;
-                    }),
-                  ).then(
-                    (list) => list.whereType<QueryDocumentSnapshot>().toList(),
-                  ),
+    if (targetUid.isEmpty) {
+      return null;
+    }
+
+    final isDeleted = await _isUserDeleted(targetUid);
+
+    if (isDeleted) {
+      return null;
+    }
+
+    final swipeId = '${currentUser.uid}_$targetUid';
+
+    final swipeDoc = await FirebaseFirestore.instance
+        .collection('swipes')
+        .doc(swipeId)
+        .get();
+
+    if (!swipeDoc.exists) {
+      return null;
+    }
+
+    final swipeData = swipeDoc.data() ?? {};
+
+    final action = (swipeData['action'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (action != 'pass') {
+      return null;
+    }
+
+    return doc;
+  }),
+).then(
+  (list) => list.whereType<QueryDocumentSnapshot>().toList(),
+),
                   builder: (context, filteredSnapshot) {
                     if (filteredSnapshot.connectionState ==
                         ConnectionState.waiting) {

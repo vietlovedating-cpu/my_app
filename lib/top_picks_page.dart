@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'message_page.dart';
 import 'prompt_data.dart';
+import 'upgrade_vip_page.dart';
+import 'buy_flower_page.dart';
 
 class TopPicksPage extends StatefulWidget {
   final String languageCode;
@@ -32,6 +34,91 @@ class _TopPicksPageState extends State<TopPicksPage> {
   bool get isVi => widget.languageCode == 'vi';
 
   String _label(String vi, String en) => isVi ? vi : en;
+  String _buildFilterKey(Map<String, dynamic> userData) {
+  return [
+    (userData['datingPreference'] ??
+            userData['genderPreference'] ??
+            '')
+        .toString()
+        .trim(),
+
+    (userData['minAgePreference'] ??
+            userData['preferredMinAge'] ??
+            '')
+        .toString()
+        .trim(),
+
+    (userData['maxAgePreference'] ??
+            userData['preferredMaxAge'] ??
+            '')
+        .toString()
+        .trim(),
+
+    (userData['maxDistanceKm'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['selectedCountry'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['selectedState'] ??
+            userData['state'] ??
+            '')
+        .toString()
+        .trim(),
+
+    (userData['stateProvince'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterVerifiedPhoto'] ??
+            userData['verifiedOnly'] ??
+            false)
+        .toString(),
+
+    (userData['filterNewHere'] ??
+            userData['newHereOnly'] ??
+            false)
+        .toString(),
+
+    (userData['filterReligion'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterRelationshipGoal'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterMaritalStatus'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterResidentStatus'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterEducation'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterSmoking'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterDrinking'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterHaveChildren'] ?? '')
+        .toString()
+        .trim(),
+
+    (userData['filterAnnualIncome'] ?? '')
+        .toString()
+        .trim(),
+  ].join('|');
+}
 
   DocumentReference<Map<String, dynamic>> _dailyTopPicksRef(String uid) {
     return FirebaseFirestore.instance
@@ -109,6 +196,7 @@ Future<void> _saveHomeFeed(List<Map<String, dynamic>> profiles) async {
           .get();
 
       final currentUserData = currentUserDoc.data() ?? {};
+      final currentFilterKey = _buildFilterKey(currentUserData);
       final dailyRef = _dailyTopPicksRef(user.uid);
       final dailyDoc = await dailyRef.get();
 
@@ -116,11 +204,16 @@ Future<void> _saveHomeFeed(List<Map<String, dynamic>> profiles) async {
       List<String> usedUserIds = [];
 
       if (dailyDoc.exists) {
-        final data = dailyDoc.data() ?? {};
-        pickUserIds = _stringList(data['pickUserIds']);
-        usedUserIds = _stringList(data['usedUserIds']);
-      }
+  final data = dailyDoc.data() ?? {};
 
+  final savedFilterKey =
+      (data['filterKey'] ?? '').toString();
+
+  if (savedFilterKey == currentFilterKey) {
+    pickUserIds = _stringList(data['pickUserIds']);
+    usedUserIds = _stringList(data['usedUserIds']);
+  }
+}
       if (pickUserIds.isEmpty) {
         final generatedTopPicks = await _loadTopPicks(currentUserData);
 
@@ -134,6 +227,7 @@ Future<void> _saveHomeFeed(List<Map<String, dynamic>> profiles) async {
 
         await dailyRef.set({
           'dateKey': _todayKey(),
+          'filterKey': currentFilterKey,  
           'pickUserIds': pickUserIds,
           'usedUserIds': usedUserIds,
           'createdAt': FieldValue.serverTimestamp(),
@@ -149,9 +243,7 @@ final swipedUserIds = swipesSnapshot.docs
     .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
     .toSet();
       var remainingIds = pickUserIds
-    .where((id) =>
-        !usedUserIds.contains(id) &&
-        !swipedUserIds.contains(id)) // 👈 thêm dòng này
+    .where((id) => !usedUserIds.contains(id))
     .toList();
 if (remainingIds.length < _dailyTopPicksLimit) {
   final generatedTopPicks = await _loadTopPicks(currentUserData);
@@ -162,7 +254,6 @@ if (remainingIds.length < _dailyTopPicksLimit) {
           id.isNotEmpty &&
           !pickUserIds.contains(id) &&
           !usedUserIds.contains(id) &&
-          !swipedUserIds.contains(id) &&
           !remainingIds.contains(id))
       .take(_dailyTopPicksLimit - remainingIds.length)
       .toList();
@@ -173,6 +264,7 @@ if (remainingIds.length < _dailyTopPicksLimit) {
 
     await dailyRef.set({
       'dateKey': _todayKey(),
+      'filterKey': currentFilterKey,  
       'pickUserIds': pickUserIds,
       'usedUserIds': usedUserIds,
       'updatedAt': FieldValue.serverTimestamp(),
@@ -310,6 +402,7 @@ if (remainingIds.length < _dailyTopPicksLimit) {
 
     await _dailyTopPicksRef(user.uid).set({
       'dateKey': _todayKey(),
+      'filterKey': _buildFilterKey(_currentUserData ?? {}),
       'usedUserIds': FieldValue.arrayUnion([targetUid.trim()]),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
@@ -810,6 +903,37 @@ final likedMeIds = likedBySnapshot.docs
         .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
         .where((id) => id.isNotEmpty)
         .toSet();
+        final passedAgainCutoff =
+    DateTime.now().subtract(const Duration(hours: 24));
+
+final passedSwipeData = <String, Map<String, dynamic>>{};
+
+for (final doc in swipesSnapshot.docs) {
+  final data = doc.data();
+
+  final targetUid =
+      (data['toUserId'] ?? '').toString().trim();
+
+  final action =
+      (data['action'] ?? '').toString().trim().toLowerCase();
+
+  if (targetUid.isEmpty || action != 'pass') {
+    continue;
+  }
+
+  final createdAt = data['createdAt'];
+
+  // Người vừa Pass phải được ẩn ít nhất 24 giờ.
+  if (createdAt is Timestamp) {
+    final passTime = createdAt.toDate();
+
+    if (passTime.isAfter(passedAgainCutoff)) {
+      continue;
+    }
+  }
+
+  passedSwipeData[targetUid] = data;
+}
 
     final hiddenUserIds = hiddenSnapshot.docs
         .map((doc) => doc.id.toString().trim())
@@ -826,6 +950,7 @@ final homeFeedUserIds = homeFeedSnapshot.docs
         .toSet();
 
     final profiles = <Map<String, dynamic>>[];
+    final passedProfiles = <Map<String, dynamic>>[];
 
     for (final doc in usersSnapshot.docs) {
       final data = doc.data();
@@ -833,7 +958,6 @@ final homeFeedUserIds = homeFeedSnapshot.docs
 
       if (uid.isEmpty) continue;
       if (uid == currentUid) continue;
-      if (swipedUserIds.contains(uid)) continue;
       if (hiddenUserIds.contains(uid)) continue;
       if (blockedUserIds.contains(uid)) continue;
       if (homeFeedUserIds.contains(uid)) continue;
@@ -858,16 +982,26 @@ final homeFeedUserIds = homeFeedSnapshot.docs
         continue;
       }
 
-      if (selectedMaxAgeFilter > 0 && profileAge > selectedMaxAgeFilter) {
-        continue;
-      }
+    if (selectedMaxAgeFilter > 0 && profileAge > selectedMaxAgeFilter) {
+  continue;
+}
 
-      profiles.add({
-        'docId': doc.id,
-        ...data,
-      });
+final profile = <String, dynamic>{
+  'docId': doc.id,
+  ...data,
+};
+
+// Người chưa từng swipe: đưa vào nhóm người mới.
+if (!swipedUserIds.contains(uid)) {
+  profiles.add(profile);
+  continue;
+}
+
+// Người đã Pass hơn 24 giờ: giữ riêng để làm dự phòng.
+if (passedSwipeData.containsKey(uid)) {
+  passedProfiles.add(profile);
+}
     }
-
     bool isOnlineRecently(Map<String, dynamic> profile) {
   final lastSeen = profile['lastSeen'];
 
@@ -1058,25 +1192,89 @@ freshProfiles.sort(
 likedMeProfiles.sort(
   (a, b) => scoreProfile(b).compareTo(scoreProfile(a)),
 );
+passedProfiles.sort((a, b) {
+  final aUid =
+      (a['uid'] ?? a['docId'] ?? '').toString().trim();
+
+  final bUid =
+      (b['uid'] ?? b['docId'] ?? '').toString().trim();
+
+  final aCreatedAt =
+      passedSwipeData[aUid]?['createdAt'];
+
+  final bCreatedAt =
+      passedSwipeData[bUid]?['createdAt'];
+
+  if (aCreatedAt is Timestamp &&
+      bCreatedAt is Timestamp) {
+    final timeCompare = aCreatedAt.toDate().compareTo(
+          bCreatedAt.toDate(),
+        );
+
+    // Khác thời gian Pass thì lấy người Pass lâu nhất trước.
+    if (timeCompare != 0) {
+      return timeCompare;
+    }
+  }
+
+  // Nếu thời gian giống nhau thì lấy người phù hợp hơn trước.
+  return scoreProfile(b).compareTo(
+    scoreProfile(a),
+  );
+});
 
 final result = <Map<String, dynamic>>[];
 
-// Lấy người mới trước.
+// 1. Luôn ưu tiên người mới chưa Like mình.
 result.addAll(
   freshProfiles.take(_dailyTopPicksLimit),
 );
 
-// Nếu chưa đủ 10 người mới,
-// mới lấy người đã nằm trong Who Likes Me để bổ sung.
+// 2. Nếu thiếu thì lấy người mới đã Like mình.
 if (result.length < _dailyTopPicksLimit) {
-  final needed = _dailyTopPicksLimit - result.length;
+  final needed =
+      _dailyTopPicksLimit - result.length;
 
   result.addAll(
     likedMeProfiles.take(needed),
   );
 }
 
-return result;
+// 3. Nếu vẫn thiếu thì mới lấy người đã Pass,
+// ưu tiên người Pass lâu nhất trước.
+if (result.length < _dailyTopPicksLimit) {
+  final needed =
+      _dailyTopPicksLimit - result.length;
+
+  final existingIds = result
+      .map(
+        (profile) =>
+            (profile['uid'] ?? profile['docId'] ?? '')
+                .toString()
+                .trim(),
+      )
+      .where((id) => id.isNotEmpty)
+      .toSet();
+
+  final availablePassedProfiles = passedProfiles
+      .where((profile) {
+        final uid =
+            (profile['uid'] ?? profile['docId'] ?? '')
+                .toString()
+                .trim();
+
+        return uid.isNotEmpty &&
+            !existingIds.contains(uid);
+      })
+      .take(needed)
+      .toList();
+
+  result.addAll(availablePassedProfiles);
+}
+
+return result
+    .take(_dailyTopPicksLimit)
+    .toList();
   }
 
   Widget _buildOnlineDot(bool isOnline) {
@@ -1540,18 +1738,67 @@ return result;
             title: Text(isVi ? 'Hết lượt tặng hoa' : 'No flowers left'),
             content: Text(
               isVi
-                  ? 'Bạn đã dùng hết 3 lượt flower miễn phí. Hãy mua VIP hoặc mua thêm \$1.99 cho 1 flower.'
-                  : 'You have used all 3 free flowers. Please buy VIP or purchase 1 extra flower for \$1.99.',
+                  ? 'Bạn đã dùng hết 7 lượt flower miễn phí. Hãy nâng cấp VIP hoặc mua thêm flower.'
+                  : 'You have used all 7 free flowers. Please upgrade to VIP or purchase more flowers.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: Text(isVi ? 'Để sau' : 'Later'),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
+             TextButton(
+  onPressed: () async {
+    Navigator.pop(context);
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UpgradeVipPage(
+          languageCode: widget.languageCode,
+          onPurchaseSuccess: () async {
+            await _loadData();
+          },
+        ),
+      ),
+    );
+
+    await _loadData();
+  },
+  child: Text(
+    isVi ? 'Nâng cấp VIP' : 'Upgrade VIP',
+    style: const TextStyle(
+      color: Color(0xFFCC3D7A),
+      fontWeight: FontWeight.w700,
+    ),
+  ),
+),
+ElevatedButton(
+  onPressed: () async {
+    Navigator.pop(context);
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BuyFlowerPage(
+          languageCode: widget.languageCode,
+          autoBuyProductId: 'flower_1',
+        ),
+      ),
+    );
+
+    await _loadData();
+  },
+  style: ElevatedButton.styleFrom(
+    backgroundColor: const Color(0xFFCC3D7A),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+    ),
+  ),
+  child: Text(
+    isVi ? 'Mua flower' : 'Buy flower',
+    style: const TextStyle(color: Colors.white),
+  ),
+),
             ],
           );
         },
@@ -1561,25 +1808,61 @@ return result;
 
     final controller = TextEditingController();
 
-    final result = await showDialog<String?>(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          title: Text(
+final snapshot = await FirebaseFirestore.instance
+    .collection('swipes')
+    .where('fromUserId', isEqualTo: user.uid)
+    .where('action', isEqualTo: 'flower')
+    .get();
+
+final sentCount = snapshot.docs.length;
+final freeRemaining = (7 - sentCount).clamp(0, 7);
+
+final userDoc = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid)
+    .get();
+
+final purchasedRemaining =
+    _parseInt(userDoc.data()?['flowerBalance']);
+
+final remaining = freeRemaining + purchasedRemaining;
+
+final result = await showDialog<String?>(
+  context: context,
+  builder: (_) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+      ),
+      title: Text(
+        isVi
+            ? 'Viết vài lời cho người bạn thích nhé!'
+            : 'Write a few words to someone you like!',
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
             isVi
-                ? 'Viết vài lời cho người bạn thích nhé!'
-                : 'Write a few words to someone you like!',
-            style: const TextStyle(fontWeight: FontWeight.w800),
+                ? '🌹 Bạn còn: $remaining hoa'
+                : '🌹 Flowers remaining: $remaining',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFCC3D7A),
+            ),
           ),
-          content: TextField(
+          const SizedBox(height: 12),
+          TextField(
             controller: controller,
             maxLines: 4,
             decoration: InputDecoration(
-              hintText:
-                  isVi ? 'Nhập lời nhắn của bạn...' : 'Write your message...',
+              hintText: isVi
+                  ? 'Nhập lời nhắn của bạn...'
+                  : 'Write your message...',
               filled: true,
               fillColor: const Color(0xFFFFF3F8),
               border: OutlineInputBorder(
@@ -1588,7 +1871,9 @@ return result;
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xFFFFD5E6)),
+                borderSide: const BorderSide(
+                  color: Color(0xFFFFD5E6),
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(18),
@@ -1599,34 +1884,69 @@ return result;
               ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, null),
-              child: Text(isVi ? 'Huỷ' : 'Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, controller.text.trim());
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFCC3D7A),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: Text(isVi ? 'Huỷ' : 'Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final text = controller.text.trim();
+
+            if (text.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    isVi
+                        ? 'Vui lòng nhập lời nhắn trước khi gửi hoa.'
+                        : 'Please write a message before sending a flower.',
+                  ),
                 ),
-              ),
-              child: Text(
-                isVi ? 'Gửi' : 'Send',
-                style: const TextStyle(color: Colors.white),
-              ),
+              );
+              return;
+            }
+
+            Navigator.pop(context, text);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFCC3D7A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
             ),
-          ],
-        );
-      },
+          ),
+          child: Text(
+            isVi ? 'Gửi' : 'Send',
+            style: const TextStyle(color: Colors.white),
+          ),
+        ),
+      ],
     );
+  },
+);
 
     if (result == null) return;
 
-    final swipeResult = await _saveSwipe(
+final canUseFlower = await _consumePurchasedFlowerIfNeeded();
+
+if (!canUseFlower) {
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        isVi
+            ? 'Bạn không còn flower. Vui lòng mua thêm flower.'
+            : 'You have no flowers left. Please purchase more flowers.',
+      ),
+    ),
+  );
+
+  return;
+}
+
+final swipeResult = await _saveSwipe(
       targetProfile: targetProfile,
       action: 'flower',
       flowerMessage: result,
@@ -1758,17 +2078,86 @@ return result;
   }
 
   Future<bool> _canSendFlower() async {
-    final user = currentUser;
-    if (user == null) return false;
+  final user = currentUser;
+  if (user == null) return false;
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection('swipes')
-        .where('fromUserId', isEqualTo: user.uid)
-        .where('action', isEqualTo: 'flower')
-        .get();
+  final snapshot = await FirebaseFirestore.instance
+      .collection('swipes')
+      .where('fromUserId', isEqualTo: user.uid)
+      .where('action', isEqualTo: 'flower')
+      .get();
 
-    return snapshot.docs.length < 3;
+  final sentCount = snapshot.docs.length;
+
+  // Còn trong 7 lượt Flower miễn phí
+  if (sentCount < 7) return true;
+
+  // Đã dùng hết lượt miễn phí thì kiểm tra Flower đã mua
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .get();
+
+  final data = userDoc.data() ?? {};
+  final flowerBalance = _parseInt(data['flowerBalance']);
+
+  return flowerBalance > 0;
+}
+Future<bool> _consumePurchasedFlowerIfNeeded() async {
+  final user = currentUser;
+  if (user == null) return false;
+
+  final snapshot = await FirebaseFirestore.instance
+      .collection('swipes')
+      .where('fromUserId', isEqualTo: user.uid)
+      .where('action', isEqualTo: 'flower')
+      .get();
+
+  final sentCount = snapshot.docs.length;
+
+  // Vẫn còn trong 7 lượt miễn phí
+  if (sentCount < 7) return true;
+
+  final userRef =
+      FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+  bool success = false;
+
+  await FirebaseFirestore.instance.runTransaction((transaction) async {
+    final doc = await transaction.get(userRef);
+    final data = doc.data() ?? {};
+
+    final balance = _parseInt(data['flowerBalance']);
+
+    if (balance <= 0) {
+      success = false;
+      return;
+    }
+
+    transaction.set(
+      userRef,
+      {
+        'flowerBalance': FieldValue.increment(-1),
+        'lastFlowerUsedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    success = true;
+  });
+
+  if (success) {
+    final refreshedDoc = await userRef.get();
+
+    if (mounted) {
+      setState(() {
+        _currentUserData = refreshedDoc.data() ?? {};
+      });
+    }
   }
+
+  return success;
+}
 
   Future<void> _createFlowerChat({
     required Map<String, dynamic> targetProfile,

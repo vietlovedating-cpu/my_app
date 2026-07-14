@@ -31,6 +31,7 @@ class _PrivacyProfilePageState extends State<PrivacyProfilePage> {
   bool _hideDistance = false;
   bool _showOnlineStatus = true;
   bool _showReadReceipts = true;
+  bool _showHomeTutorial = false;
 
   @override
   void initState() {
@@ -59,6 +60,7 @@ class _PrivacyProfilePageState extends State<PrivacyProfilePage> {
         _hideDistance = data['hideDistance'] ?? false;
         _showOnlineStatus = data['showOnlineStatus'] ?? true;
         _showReadReceipts = data['showReadReceipts'] ?? true;
+        _showHomeTutorial = !(data['hasSeenHomeTutorial'] ?? false);
         _isLoading = false;
       });
     } catch (e) {
@@ -549,7 +551,31 @@ if (granted) {
                         },
                       ),
                     ),
+_settingsTile(
+  icon: Icons.school_outlined,
+  title: _tr(
+    'Hiển thị hướng dẫn Trang khám phá',
+    'Show Discover tutorial',
+  ),
+  subtitle: _tr(
+    'Bật để xem lại hướng dẫn khi mở Trang khám phá.',
+    'Turn on to show the Discover tutorial the next time you open Discover.',
+  ),
+  trailing: Switch(
+    value: _showHomeTutorial,
+    activeColor: const Color(0xFFB83280),
+    onChanged: (value) async {
+      setState(() => _showHomeTutorial = value);
 
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser!.uid)
+          .set({
+        'hasSeenHomeTutorial': !value,
+      }, SetOptions(merge: true));
+    },
+  ),
+),
                     const SizedBox(height: 10),
                     _sectionTitle(_tr('Quản lý', 'Management')),
 

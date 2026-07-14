@@ -4,11 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'top_picks_page.dart';
 
 import 'upgrade_vip_page.dart';
 import 'who_likes_me_page.dart';
 import 'who_i_passed_page.dart';
+import 'boost_profile_page.dart';
 
 
 class LikesAndViewsHubPage extends StatelessWidget {
@@ -182,16 +182,39 @@ return vipExpiresAt.toDate().isAfter(DateTime.now());
       builder: (_) => WhoIPassedPage(languageCode: languageCode),
     ),
   );
-} else {
+}
+}
+Future<void> _openBoost(BuildContext context) async {
+  final isVip = await _isVipUser();
+
+  if (!context.mounted) return;
+
+  if (!isVip) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UpgradeVipPage(
+          languageCode: languageCode,
+          onPurchaseSuccess: () async {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ),
+    );
+    return;
+  }
+
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (_) => TopPicksPage(languageCode: languageCode),
+      builder: (_) => BoostProfilePage(
+        languageCode: languageCode,
+      ),
     ),
   );
 }
-  }
-
   Widget _buildBlurredAvatar(
     String rawPhoto, {
     double size = 40,
@@ -617,8 +640,8 @@ return vipExpiresAt.toDate().isAfter(DateTime.now());
           const SizedBox(height: 14),
           Text(
             _tr(
-              'Mở khóa danh sách ai đã thích và ai đã xem hồ sơ của bạn.',
-              'Unlock the list of people who liked you and viewed your profile.',
+              'Mở khóa danh sách ai đã thích bạn, Boost hồ sơ và nhiều quyền lợi VIP khác.',
+              'See who likes you, boost your profile, and unlock more VIP benefits.',
             ),
             style: const TextStyle(
               fontSize: 15,
@@ -723,18 +746,52 @@ return vipExpiresAt.toDate().isAfter(DateTime.now());
                   thickness: 1,
                 ),
                 _buildServiceTile(
-                  icon: Icons.remove_red_eye_outlined,
-                  title: isVi ? 'Gợi ý cho bạn' : 'Top Picks',
-                  subtitle: _buildViewsSubtitle(),
-                  trailing: _buildViewsPreview(),
-                  onTap: () => _openLockedPage(context, type: 'views'),
-                  iconGradient: const [
-                    Color(0xFFFFEEF0),
-                    Color(0xFFFFD9DE),
-                  ],
-                  iconColor: const Color(0xFFFF6B74),
-                  showPremiumTag: true,
-                ),
+ icon: Icons.rocket_launch_rounded,
+  title: isVi ? 'Boost hồ sơ' : 'Profile Boost',
+  subtitle: Text(
+    isVi
+        ? 'Làm nổi bật hồ sơ của bạn'
+        : 'Highlight your profile',
+    style: const TextStyle(
+      fontSize: 15,
+      height: 1.4,
+      color: Colors.black45,
+      fontWeight: FontWeight.w500,
+    ),
+  ),
+  trailing: Container(
+    width: 34,
+    height: 34,
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [
+          Color(0xFFFFD76A),
+          Color(0xFFE9A91A),
+        ],
+      ),
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFE9A91A).withOpacity(0.25),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: const Icon(
+  Icons.rocket_launch_rounded,
+  color: Colors.white,
+  size: 20,
+),
+  ),
+  onTap: () => _openBoost(context),
+  iconGradient: const [
+    Color(0xFFFFF6D9),
+    Color(0xFFFFE9A6),
+  ],
+  iconColor: const Color(0xFFE2A11A),
+  showPremiumTag: true,
+),
                 Divider(
   color: Colors.grey.shade200,
   height: 1,

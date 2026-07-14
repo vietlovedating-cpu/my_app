@@ -344,13 +344,17 @@ class _AccountPageState extends State<AccountPage> {
     final firestore = FirebaseFirestore.instance;
     final userRef = firestore.collection('users').doc(uid);
 
-    const subcollections = [
-      'likes',
-      'passes',
-      'flowers',
-      'notifications',
-      'reports',
-    ];
+  const subcollections = [
+  "appleVipNotifications",
+  "blockedUsers",
+  "blocked_users",
+  "datePlans",
+  "likedBy",
+  "passedUsers",
+  "processedVipPurchases",
+  "settings",
+  "trustedContacts",
+];
 
     for (final sub in subcollections) {
       try {
