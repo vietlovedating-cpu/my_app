@@ -1524,8 +1524,9 @@ debugPrint(
           const SizedBox(height: 12),
           Text(
             _tr(
-              'Người bí ẩn của bạn vẫn chưa xuất hiện.\nHãy quay lại sau nhé ❤️',
-              'Your mystery person has not appeared yet.\nPlease come back later ❤️',
+              'Người bí ẩn chưa xuất hiện.\nHãy quay lại vào ngày mai nhé hoặc mở rộng bộ lọc để khám phá nhiều hơn ❤️',
+
+  'Your mystery person has not appeared yet.\nPlease come back tomorrow or widen your filters to discover more ❤️',
             ),
             textAlign: TextAlign.center,
             style: TextStyle(
