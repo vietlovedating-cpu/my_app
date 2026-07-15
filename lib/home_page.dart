@@ -84,23 +84,37 @@ double? selectedDistanceKm;
 // DAILY DISCOVER LIMIT
 // ===========================================================
 
-int get _dailyDiscoverLimit => isVipUser ? 35 : 15;
+int get _dailyDiscoverLimit => isVipUser ? 20 : 10;
 
 DateTime _discoverResetTime() {
   final now = DateTime.now();
 
-  var reset = DateTime(
+  final morningReset = DateTime(
     now.year,
     now.month,
     now.day,
-    9, // 9:00 AM
+    9,
   );
 
-  if (now.isBefore(reset)) {
-    reset = reset.subtract(const Duration(days: 1));
+  final eveningReset = DateTime(
+    now.year,
+    now.month,
+    now.day,
+    18,
+  );
+
+  // 09:00 -> 17:59
+  if (now.isAfter(morningReset) && now.isBefore(eveningReset)) {
+    return morningReset;
   }
 
-  return reset;
+  // Sau 18:00
+  if (!now.isBefore(eveningReset)) {
+    return eveningReset;
+  }
+
+  // 00:00 -> 08:59
+  return eveningReset.subtract(const Duration(days: 1));
 }
 int _dailyDiscoverShuffleSeed() {
   final uid = currentUser?.uid ?? '';
@@ -242,8 +256,11 @@ _voicePromptPlayer.onPlayerComplete.listen((_) {
     });
   }
 });
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  _checkAndShowHomeTutorial();
+WidgetsBinding.instance.addPostFrameCallback((_) async {
+  await _checkAndShowHomeTutorial();
+
+  if (!mounted) return;
+
   _listenForHomeTutorialRequest();
 });
 }
@@ -642,18 +659,29 @@ Future<Map<String, Map<String, dynamic>>> _loadLikedMeData() async {
 DateTime _nextDiscoverResetTime() {
   final now = DateTime.now();
 
-  var nextReset = DateTime(
+  final morningReset = DateTime(
     now.year,
     now.month,
     now.day,
     9,
   );
 
-  if (!now.isBefore(nextReset)) {
-    nextReset = nextReset.add(const Duration(days: 1));
+  final eveningReset = DateTime(
+    now.year,
+    now.month,
+    now.day,
+    18,
+  );
+
+  if (now.isBefore(morningReset)) {
+    return morningReset;
   }
 
-  return nextReset;
+  if (now.isBefore(eveningReset)) {
+    return eveningReset;
+  }
+
+  return morningReset.add(const Duration(days: 1));
 }
 
 String _formatDiscoverCountdown(Duration duration) {
@@ -716,37 +744,45 @@ Widget _buildDailyDiscoverCountdown() {
 
   final currentUid = user.uid;
 
-  final likedMeData = await _loadLikedMeData();
-final likedMeIds = likedMeData.keys.toSet();
-  final usersSnapshot =
-      await FirebaseFirestore.instance.collection('users').get();
+ final results = await Future.wait<dynamic>([
+  _loadLikedMeData(),
 
-  final swipesSnapshot = await FirebaseFirestore.instance
+  FirebaseFirestore.instance
+      .collection('users')
+      .get(),
+
+  FirebaseFirestore.instance
       .collection('swipes')
       .where('fromUserId', isEqualTo: currentUid)
-      .get();
+      .get(),
 
-  final hiddenSnapshot = await FirebaseFirestore.instance
+  FirebaseFirestore.instance
       .collection('users')
       .doc(currentUid)
       .collection('hidden_users')
-      .get();
+      .get(),
 
-  final blockedSnapshot = await FirebaseFirestore.instance
+  FirebaseFirestore.instance
       .collection('users')
       .doc(currentUid)
       .collection('blocked_users')
-      .get();
-      final todayTopPicksDoc = await FirebaseFirestore.instance
-    .collection('users')
-    .doc(currentUid)
-    .collection('top_picks_daily')
-    .doc(_todayKey())
-    .get();
+      .get(),
+]);
 
-final todayTopPickIds = _stringList(
-  todayTopPicksDoc.data()?['pickUserIds'],
-).toSet();
+final likedMeData =
+    results[0] as Map<String, Map<String, dynamic>>;
+
+final usersSnapshot =
+    results[1] as QuerySnapshot<Map<String, dynamic>>;
+
+final swipesSnapshot =
+    results[2] as QuerySnapshot<Map<String, dynamic>>;
+
+final hiddenSnapshot =
+    results[3] as QuerySnapshot<Map<String, dynamic>>;
+
+final blockedSnapshot =
+    results[4] as QuerySnapshot<Map<String, dynamic>>;
 
   final swipedUserIds = swipesSnapshot.docs
       .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
@@ -768,26 +804,16 @@ final todayTopPickIds = _stringList(
   for (final doc in usersSnapshot.docs) {
     final data = doc.data();
     final uid = (data['uid'] ?? doc.id).toString().trim();
-    print('CHECK USER: $uid');
-print('profileCompleted: ${data['profileCompleted']}');
-print('showMyProfile: ${data['showMyProfile']}');
-print('showOnDiscover: ${data['showOnDiscover']}');
-print('gender: ${data['gender']} age: ${data['age']}');
-print('selectedState: ${data['selectedState']}');
-print('selectedStateKey: ${data['selectedStateKey']}');
-print('state: ${data['state']}');
-print('stateLiving: ${data['stateLiving']}');
+    
 
     if (uid.isEmpty) continue;
 if (uid == currentUid) continue;
 if (swipedUserIds.contains(uid)) continue;
 if (hiddenUserIds.contains(uid)) continue;
 if (blockedUserIds.contains(uid)) continue;
-if (todayTopPickIds.contains(uid)) continue;
 final mainPhotoUrl = (data['mainPhotoUrl'] ?? '').toString().trim();
 
 if (mainPhotoUrl.isEmpty) {
-  print('LOAI VI KHONG CO AVATAR: $uid');
   continue;
 }
 
@@ -820,75 +846,148 @@ if (data['profileCompleted'] != true) {
     if (_shouldHideUserBecauseInMyContacts(profile)) continue;
 
     if (!_matchesFilters(profile)) continue;
-    print('ADD PROFILE OK: $uid');
+
     profiles.add(profile);
   }
 
-// Thỉnh thoảng chèn profile thường vào danh sách ưu tiên
+// ===========================================================
+// DISCOVER ORDER
+// ===========================================================
+
 final boostedProfiles = <Map<String, dynamic>>[];
-final priorityProfiles = <Map<String, dynamic>>[];
-final regularProfiles = <Map<String, dynamic>>[];
+final onlineProfiles = <Map<String, dynamic>>[];
+final activeDay1Profiles = <Map<String, dynamic>>[];
+final activeDay2Profiles = <Map<String, dynamic>>[];
+final activeDay3Profiles = <Map<String, dynamic>>[];
+final normalProfiles = <Map<String, dynamic>>[];
+
+final random = Random(_dailyDiscoverShuffleSeed());
 
 for (final profile in profiles) {
-  final uid =
-      (profile['uid'] ?? profile['docId'] ?? '')
-          .toString()
-          .trim();
-final boostExpiresAt = profile['boostExpiresAt'];
+  final boostExpiresAt = profile['boostExpiresAt'];
 
-final isBoosted =
-    boostExpiresAt is Timestamp &&
-    boostExpiresAt.toDate().isAfter(DateTime.now());
-
-  final isLikedMe = likedMeIds.contains(uid);
-  final isOnline = _isOnlineRecently(profile);
-  final isRecentlyActive = _isRecentlyActive(profile);
-  final compatibleScore = _mostCompatibleScore(profile);
-
-  final isPriorityProfile =
-      isLikedMe ||
-      isOnline ||
-      isRecentlyActive ||
-      compatibleScore >= 150;
+  final isBoosted =
+      boostExpiresAt is Timestamp &&
+      boostExpiresAt.toDate().isAfter(DateTime.now());
 
   if (isBoosted) {
-  boostedProfiles.add(profile);
-} else if (isPriorityProfile) {
-  priorityProfiles.add(profile);
-} else {
-  regularProfiles.add(profile);
-}
+    boostedProfiles.add(profile);
+    continue;
+  }
+
+  if (_isOnlineRecently(profile)) {
+    onlineProfiles.add(profile);
+    continue;
+  }
+
+  final lastSeen = profile['lastSeen'];
+
+  if (lastSeen is Timestamp) {
+    final diff = DateTime.now().difference(lastSeen.toDate());
+
+    if (diff <= const Duration(days: 1)) {
+      activeDay1Profiles.add(profile);
+      continue;
+    }
+
+    if (diff <= const Duration(days: 2)) {
+      activeDay2Profiles.add(profile);
+      continue;
+    }
+
+    if (diff <= const Duration(days: 3)) {
+      activeDay3Profiles.add(profile);
+      continue;
+    }
+  }
+
+  normalProfiles.add(profile);
 }
 
-// Xáo nhẹ nhóm người thường để mỗi lần không hiện giống nhau
-regularProfiles.shuffle(
-  Random(_dailyDiscoverShuffleSeed()),
+boostedProfiles.shuffle(random);
+onlineProfiles.shuffle(random);
+activeDay1Profiles.shuffle(random);
+activeDay2Profiles.shuffle(random);
+activeDay3Profiles.shuffle(random);
+normalProfiles.shuffle(random);
+final mixedProfiles = <Map<String, dynamic>>[];
+
+// ===========================================================
+// ROUND-ROBIN DISCOVER
+// Boost -> Online -> Recently Active -> Normal
+// ===========================================================
+
+void addBatch(
+  List<Map<String, dynamic>> source,
+  int startIndex,
+  int maxCount,
+) {
+  final remainingSlots =
+      _dailyDiscoverLimit - mixedProfiles.length;
+
+  if (remainingSlots <= 0) return;
+  if (startIndex >= source.length) return;
+
+  final availableCount = source.length - startIndex;
+
+  final count = min(
+    maxCount,
+    min(availableCount, remainingSlots),
+  );
+
+  mixedProfiles.addAll(
+    source.skip(startIndex).take(count),
+  );
+}
+
+// Boost luôn ưu tiên trước.
+addBatch(
+  boostedProfiles,
+  0,
+  boostedProfiles.length,
 );
 
-final mixedProfiles = <Map<String, dynamic>>[];
-mixedProfiles.addAll(boostedProfiles);
+final recentlyActiveProfiles = <Map<String, dynamic>>[
+  ...activeDay1Profiles,
+  ...activeDay2Profiles,
+  ...activeDay3Profiles,
+];
 
-int regularIndex = 0;
+int onlineIndex = 0;
+int activeIndex = 0;
+int normalIndex = 0;
 
-for (int i = 0; i < priorityProfiles.length; i++) {
-  mixedProfiles.add(priorityProfiles[i]);
+while (mixedProfiles.length < _dailyDiscoverLimit) {
+  final before = mixedProfiles.length;
 
-  // Cứ 3 người ưu tiên thì chèn 1 người thường
-  if ((i + 1) % 3 == 0 &&
-      regularIndex < regularProfiles.length) {
-    mixedProfiles.add(regularProfiles[regularIndex]);
-    regularIndex++;
+  addBatch(
+    onlineProfiles,
+    onlineIndex,
+    5,
+  );
+  onlineIndex += 5;
+
+  addBatch(
+    recentlyActiveProfiles,
+    activeIndex,
+    5,
+  );
+  activeIndex += 5;
+
+  addBatch(
+    normalProfiles,
+    normalIndex,
+    5,
+  );
+  normalIndex += 5;
+
+  // Không còn người mới để lấy.
+  if (mixedProfiles.length == before) {
+    break;
   }
 }
 
-// Thêm những profile thường còn lại xuống phía sau
-while (regularIndex < regularProfiles.length) {
-  mixedProfiles.add(regularProfiles[regularIndex]);
-  regularIndex++;
-}
-
 return mixedProfiles;
-return profiles;
 }
 Future<List<Map<String, dynamic>>> _loadPreviouslyPassedProfiles({
   required int limit,
@@ -1093,59 +1192,7 @@ if (result.length < remaining) {
 // Chỉ trả đúng số lượng còn lại hôm nay.
 return result.take(remaining).toList();
 }
-Future<List<Map<String, dynamic>>> _loadTopPicks() async {
-  final profiles = await _loadProfiles();
 
-  int scoreProfile(Map<String, dynamic> profile) {
-    int score = 0;
-
-    final profileState = (profile['selectedState'] ?? profile['state'])?.toString();
-
-    final myState = _normalizeString(
-      currentUserData?['selectedState'] ?? currentUserData?['state'],
-    );
-
-    final profileAge = _parseInt(profile['age']);
-
-    if (myState.isNotEmpty && profileState == myState) {
-      score += 30;
-    }
-
-    if (selectedMinAgeFilter != null && selectedMaxAgeFilter != null) {
-      if (profileAge >= selectedMinAgeFilter! &&
-          profileAge <= selectedMaxAgeFilter!) {
-        score += 25;
-      }
-    }
-
-    final photos = _extractPhotos(profile);
-    if (photos.length >= 3) {
-      score += 20;
-    } else if (photos.length >= 2) {
-      score += 10;
-    }
-
-    if (profile['isOnline'] == true) {
-      score += 10;
-    }
-
-    final relationshipGoal = _extractRelationshipGoalKey(profile);
-    final myGoal = _normalizeString(
-      currentUserData?['relationshipGoal'] ??
-          currentUserData?['relationshipGoals'],
-    );
-
-    if (myGoal.isNotEmpty && relationshipGoal == myGoal) {
-      score += 15;
-    }
-
-    return score;
-  }
-
-  profiles.sort((a, b) => scoreProfile(b).compareTo(scoreProfile(a)));
-
-  return profiles.take(6).toList();
-}
 bool _isNewHere(Map<String, dynamic> profile) {
   final createdAt = profile['createdAt'];
 
@@ -1202,10 +1249,6 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
   final profileAge = _parseInt(profile['age']);
 
 
-  print('FILTER DEBUG => gender=$profileGender selectedGender=$selectedGenderFilter');
-print('FILTER DEBUG => age=$profileAge min=$selectedMinAgeFilter max=$selectedMaxAgeFilter');
-
-
   final profileStateKey = _normalizeStateKey(
   profile['selectedStateKey'] ??
       profile['selectedState'] ??
@@ -1232,8 +1275,6 @@ print('FILTER DEBUG => age=$profileAge min=$selectedMinAgeFilter max=$selectedMa
   if (selectedMaxAgeFilter != null && profileAge > selectedMaxAgeFilter!) {
     return false;
   }
-print('PROFILE STATE KEY: $profileStateKey');
-print('SELECTED STATE KEY: ${_normalizeStateKey(selectedStateFilter ?? '')}');
 
 
 
@@ -2742,14 +2783,6 @@ if (user != null) {
 
   return vipExpiresAt.toDate().isAfter(DateTime.now());
 }
-String _todayKey() {
-  final now = DateTime.now();
-  final y = now.year.toString().padLeft(4, '0');
-  final m = now.month.toString().padLeft(2, '0');
-  final d = now.day.toString().padLeft(2, '0');
-  return '$y-$m-$d';
-}
-
 List<String> _stringList(dynamic value) {
   if (value is List) {
     return value
@@ -5517,13 +5550,13 @@ if (_extractRelationshipGoalKeys(profile).isNotEmpty)
             _label(
   _dailyDiscoverLimitReached
       ? isVipUser
-          ? 'Bạn đã xem hết hồ sơ hôm nay 😊\nHồ sơ mới sẽ được mở lại lúc 9:00 sáng.'
-          : 'Bạn đã xem hết hồ sơ hôm nay 😊\nHồ sơ mới sẽ được mở lại lúc 9:00 sáng.\n⭐ Nâng cấp VIP để xem thêm nhiều hồ sơ mỗi ngày.'
+          ? 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
+          : 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
       : 'Hiện chưa còn hồ sơ nào để xem.',
   _dailyDiscoverLimitReached
       ? isVipUser
-          ? 'You have reached today\'s limit 😊\nNew profiles will be available again at 9:00 AM.'
-          : 'You have reached today\'s limit 😊\nNew profiles will be available again at 9:00 AM.\n⭐ Upgrade to VIP to discover more profiles every day.'
+          ? 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
+          : 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
       : 'No more profiles to show.',
 ),
             textAlign: TextAlign.center,

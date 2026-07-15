@@ -1202,8 +1202,8 @@ return true;
                     _featureItem(
                       '🚀',
                       _label(
-                        'Mở khóa toàn bộ trải nghiệm hẹn hò cao cấp',
-                        'Unlock premium dating experience',
+                        'Mở khóa thêm hồ sơ mỗi ngày',
+                        'Unlock more profiles every day',
                       ),
                     ),
                     _featureItem(
@@ -1241,8 +1241,8 @@ return true;
                     _featureItem(
                       '🎯',
                       _label(
-                        'Gợi ý tìm người phù hợp với tiêu chí của bạn',
-                        'Suggestions to find people who match your criteria ',
+                        'Mở khóa toàn bộ trải nghiệm hẹn hò cao cấp',
+                        'Unlock premium dating experience',
                       ),
                     ),
                     const SizedBox(height: 18),

@@ -171,7 +171,7 @@ class GroupPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-
+/*
 Padding(
   padding: const EdgeInsets.symmetric(horizontal: 16),
   child: GestureDetector(
@@ -265,7 +265,7 @@ Padding(
     ),
   ),
 ),
-
+*/
 const SizedBox(height: 20),
 
 Expanded(

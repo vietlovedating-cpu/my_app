@@ -114,12 +114,12 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     {
       'title': 'Like ảnh',
       'description':
-          'Bấm biểu tượng tim trên ảnh để thích riêng ảnh đó và có thể gửi lời nhắn.',
+          'Bấm biểu tượng tim trên ảnh để thích riêng ảnh đó và có thể comment.Người ấy sẽ biết bạn đã thích và comment ảnh nào.Nếu người ấy cũng thích bạn, hai bạn sẽ Match.',
     },
     {
       'title': 'Like Prompt',
       'description':
-          'Bấm tim bên dưới câu trả lời để thích Prompt và bắt đầu cuộc trò chuyện tự nhiên hơn.',
+          'Bấm tim bên dưới câu trả lời để thích Prompt và có thể comment.Người ấy sẽ biết bạn đã thích và comment ảnh nào.Nếu người ấy cũng thích bạn, hai bạn sẽ Match.',
     },
     {
       'title': 'Bạn đã sẵn sàng!',
@@ -152,12 +152,12 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     {
       'title': 'Like a photo',
       'description':
-          'Tap the heart on a photo to like that photo and optionally send a message.',
+          'Tap the heart on a photo to like and comment on that specific photo. They will see which photo you liked. If they like you back, you will Match.',
     },
     {
       'title': 'Like a Prompt',
       'description':
-          'Tap the heart below an answer to like the Prompt and start a natural conversation.',
+          'Tap the heart below an answer to like and comment on that specific Prompt. They will see which Prompt you liked. If they like you back, you will Match.',
     },
     {
       'title': 'You are ready!',
