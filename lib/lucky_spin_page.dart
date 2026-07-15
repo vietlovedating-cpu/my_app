@@ -599,7 +599,18 @@ class _LuckySpinPageState extends State<LuckySpinPage>
       );
     }
   }
+Future<int> _sentFlowerCount() async {
+  final user = currentUser;
+  if (user == null) return 0;
 
+  final snapshot = await _firestore
+      .collection('swipes')
+      .where('fromUserId', isEqualTo: user.uid)
+      .where('action', isEqualTo: 'flower')
+      .get();
+
+  return snapshot.docs.length;
+}
   // ============================================================
   // CLAIM REWARD
   // ============================================================
@@ -656,12 +667,29 @@ class _LuckySpinPageState extends State<LuckySpinPage>
             throw const _RewardAlreadyProcessedException();
           }
 
-          final oldBalance = _parseInt(
-            data['flowerBalance'],
-          );
+         final oldPurchasedBalance = _parseInt(
+  data['flowerBalance'],
+);
 
-          final totalBalance =
-              oldBalance + pendingFlowers;
+final sentFlowerSnapshot = await _firestore
+    .collection('swipes')
+    .where('fromUserId', isEqualTo: user.uid)
+    .where('action', isEqualTo: 'flower')
+    .get();
+
+final sentFlowerCount = sentFlowerSnapshot.docs.length;
+
+final freeFlowersRemaining =
+    (7 - sentFlowerCount).clamp(0, 7);
+
+final previousTotalFlowers =
+    freeFlowersRemaining + oldPurchasedBalance;
+
+final newPurchasedBalance =
+    oldPurchasedBalance + pendingFlowers;
+
+final totalAvailableFlowers =
+    freeFlowersRemaining + newPurchasedBalance;
 
           transaction.set(
             userRef,
@@ -691,19 +719,19 @@ class _LuckySpinPageState extends State<LuckySpinPage>
             SetOptions(merge: true),
           );
 
-          return _ClaimRewardResult(
-            oldBalance: oldBalance,
-            flowersWon: pendingFlowers,
-            totalBalance: totalBalance,
-          );
+        return _ClaimRewardResult(
+  previousTotalFlowers: previousTotalFlowers,
+  flowersWon: pendingFlowers,
+  totalAvailableFlowers: totalAvailableFlowers,
+);
         },
       );
 
       if (!mounted) return;
 
-      setState(() {
-        _flowerBalance =
-            claimedResult.totalBalance;
+    setState(() {
+  _flowerBalance =
+      claimedResult.totalAvailableFlowers;
 
         _pendingRewardId = null;
         _pendingRewardKey = null;
@@ -891,13 +919,13 @@ class _LuckySpinPageState extends State<LuckySpinPage>
                 ),
                 const SizedBox(height: 18),
 
-                _buildRewardCalculationRow(
-                  label: _tr(
-                    'Flower bạn đang có',
-                    'Your previous Flowers',
-                  ),
-                  value: '${result.oldBalance}',
-                ),
+             _buildRewardCalculationRow(
+  label: _tr(
+    'Số Flower bạn đang có',
+    'Flowers you currently have',
+  ),
+  value: '${result.previousTotalFlowers}',
+),
 
                 const SizedBox(height: 10),
 
@@ -917,12 +945,12 @@ class _LuckySpinPageState extends State<LuckySpinPage>
                   child: Divider(height: 1),
                 ),
 
-                _buildRewardCalculationRow(
-                  label: _tr(
-                    'Tổng Flower của bạn',
-                    'Total Flowers',
-                  ),
-                  value: '${result.totalBalance}',
+               _buildRewardCalculationRow(
+  label: _tr(
+    'Tổng Flower của bạn',
+    'Your total Flowers',
+  ),
+  value: '${result.totalAvailableFlowers}',
                   valueColor: const Color(0xFF267B45),
                   large: true,
                 ),
@@ -1659,14 +1687,14 @@ class _SpinTransactionResult {
 }
 
 class _ClaimRewardResult {
-  final int oldBalance;
+  final int previousTotalFlowers;
   final int flowersWon;
-  final int totalBalance;
+  final int totalAvailableFlowers;
 
   const _ClaimRewardResult({
-    required this.oldBalance,
+    required this.previousTotalFlowers,
     required this.flowersWon,
-    required this.totalBalance,
+    required this.totalAvailableFlowers,
   });
 }
 
