@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'utils/profile_health.dart';
 
 class EditAgePage extends StatefulWidget {
   final String languageCode;
@@ -69,12 +70,25 @@ class _EditAgePageState extends State<EditAgePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'age': _selectedAge.round(),
-      }, SetOptions(merge: true));
+     final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      if (!mounted) return;
-      Navigator.pop(context, _selectedAge.round());
+await userRef.set({
+  'age': _selectedAge.round(),
+}, SetOptions(merge: true));
+
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+final healthResult = calculateProfileHealth(updatedData);
+
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, _selectedAge.round());
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -1675,7 +1675,8 @@ Widget _buildProfileHealthCard({
     color: Color(0xFF6F5362),
   ),
 ),
-        if (profileHealth.suggestions.isNotEmpty) ...[
+       if (profileHealth.score < 100 &&
+    profileHealth.suggestions.isNotEmpty) ...[
   const SizedBox(height: 14),
 
   ...profileHealth.suggestions.take(3).map((suggestion) {

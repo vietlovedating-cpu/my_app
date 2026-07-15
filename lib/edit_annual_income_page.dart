@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'utils/profile_health.dart';
 
 class EditAnnualIncomePage extends StatefulWidget {
   final String languageCode;
@@ -86,12 +87,29 @@ class _EditAnnualIncomePageState extends State<EditAnnualIncomePage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'annualIncome': _selectedKey,
-      }, SetOptions(merge: true));
+     final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      if (!mounted) return;
-      Navigator.pop(context, _selectedKey);
+// Lưu annual income
+await userRef.set({
+  'annualIncome': _selectedKey,
+}, SetOptions(merge: true));
+
+// Đọc lại hồ sơ mới nhất
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+// Tính lại điểm hồ sơ
+final healthResult = calculateProfileHealth(updatedData);
+
+// Cập nhật điểm và trạng thái profile
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, _selectedKey);
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

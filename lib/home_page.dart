@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'mini_game_page.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -767,6 +768,11 @@ Widget _buildDailyDiscoverCountdown() {
       .doc(currentUid)
       .collection('blocked_users')
       .get(),
+   FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUid)
+      .collection('guessHiddenUsers')
+      .get(),    
 ]);
 
 final likedMeData =
@@ -783,6 +789,8 @@ final hiddenSnapshot =
 
 final blockedSnapshot =
     results[4] as QuerySnapshot<Map<String, dynamic>>;
+final guessHiddenSnapshot =
+    results[5] as QuerySnapshot<Map<String, dynamic>>;    
 
   final swipedUserIds = swipesSnapshot.docs
       .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
@@ -798,6 +806,20 @@ final blockedSnapshot =
       .map((doc) => doc.id.toString().trim())
       .where((id) => id.isNotEmpty)
       .toSet();
+  final guessHiddenUserIds = <String>{};
+final now = DateTime.now();
+
+for (final doc in guessHiddenSnapshot.docs) {
+  final data = doc.data();
+  final hiddenUntil = data['hiddenUntil'];
+
+  if (hiddenUntil is Timestamp &&
+      hiddenUntil.toDate().isAfter(now)) {
+    guessHiddenUserIds.add(
+      doc.id.toString().trim(),
+    );
+  }
+}    
 
   final profiles = <Map<String, dynamic>>[];
 
@@ -4512,7 +4534,7 @@ setState(() {
       case 2:
         return isVi ? 'Match' : 'Match';
       case 3:
-        return isVi ? 'Nhóm' : 'Group';
+        return isVi ? 'Games' : 'Games';
       case 4:
         return isVi ? 'Nâng cấp' : 'Upgrade';
       case 5:
@@ -5590,9 +5612,11 @@ return _buildHomeProfile(profiles.first, isVi);
     if (_selectedBottomIndex == 2) {
   return MatchPage(languageCode: widget.languageCode);
 }
-    if (_selectedBottomIndex == 3) {
-      return GroupPage(languageCode: widget.languageCode);
-    }
+   if (_selectedBottomIndex == 3) {
+  return MiniGamePage(
+    languageCode: widget.languageCode,
+  );
+}
 
     if (_selectedBottomIndex == 4) {
       return UpgradeVipPage(
@@ -5734,9 +5758,9 @@ return _buildHomeProfile(profiles.first, isVi);
             label: _label('Match', 'Match'),
           ),
           BottomNavigationBarItem(
-            icon: const Icon(Icons.groups),
-            label: _label('Group', 'Group'),
-          ),
+  icon: const Icon(Icons.sports_esports_rounded),
+  label: _label('Games', 'Games'),
+),
           BottomNavigationBarItem(
             icon: const Icon(Icons.workspace_premium),
             label: _label('Upgrade', 'Upgrade'),

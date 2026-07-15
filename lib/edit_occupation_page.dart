@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
+import 'utils/profile_health.dart';
 class EditOccupationPage extends StatefulWidget {
   final String languageCode;
 
@@ -107,13 +107,30 @@ class _EditOccupationPageState extends State<EditOccupationPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'occupation': _selectedKey,
-        'occupationOther': _selectedKey == 'other' ? otherText : '',
-      }, SetOptions(merge: true));
+     final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      if (!mounted) return;
-      Navigator.pop(context, _selectedKey);
+// Lưu công việc
+await userRef.set({
+  'occupation': _selectedKey,
+  'occupationOther': _selectedKey == 'other' ? otherText : '',
+}, SetOptions(merge: true));
+
+// Đọc lại hồ sơ mới nhất
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+// Tính lại điểm hồ sơ
+final healthResult = calculateProfileHealth(updatedData);
+
+// Cập nhật điểm và trạng thái hồ sơ
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, _selectedKey);
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

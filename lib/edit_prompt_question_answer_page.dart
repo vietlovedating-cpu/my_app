@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-
+import 'utils/profile_health.dart';
 import 'prompt_data.dart';
 
 class EditPromptQuestionAnswerPage extends StatefulWidget {
@@ -399,14 +399,31 @@ Future<String> _translatePromptAnswer({
     });
 
     try {
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'profilePrompts': answers,
-        'profilePromptsCompleted': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+     final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      if (!mounted) return;
-      Navigator.pop(context, true);
+// Lưu prompt
+await userRef.set({
+  'profilePrompts': answers,
+  'profilePromptsCompleted': true,
+  'updatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
+
+// Đọc lại hồ sơ mới nhất
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+// Tính lại điểm hồ sơ
+final healthResult = calculateProfileHealth(updatedData);
+
+// Cập nhật điểm và trạng thái hồ sơ
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 

@@ -18,174 +18,159 @@ class EditCurrentLocationPage extends StatefulWidget {
 
 class _EditCurrentLocationPageState extends State<EditCurrentLocationPage> {
   final TextEditingController _addressController = TextEditingController();
+String _selectedCountry = '';
+String _selectedState = '';
+String _city = '';
 
+double? _latitude;
+double? _longitude;
   bool _isLoading = true;
   bool _isSaving = false;
   bool _isLoadingLocation = false;
 
   bool get isVi => widget.languageCode == 'vi';
   String _tr(String vi, String en) => isVi ? vi : en;
+String _normalizeAustralianState(String value) {
+  final normalized = value.trim().toLowerCase();
 
+  if (normalized == 'new south wales' ||
+      normalized == 'new south wales (nsw)' ||
+      normalized == 'nsw') {
+    return 'NSW';
+  }
+
+  if (normalized == 'victoria' ||
+      normalized == 'victoria (vic)' ||
+      normalized == 'vic') {
+    return 'VIC';
+  }
+
+  if (normalized == 'queensland' ||
+      normalized == 'queensland (qld)' ||
+      normalized == 'qld') {
+    return 'QLD';
+  }
+
+  if (normalized == 'south australia' ||
+      normalized == 'south australia (sa)' ||
+      normalized == 'sa') {
+    return 'SA';
+  }
+
+  if (normalized == 'western australia' ||
+      normalized == 'western australia (wa)' ||
+      normalized == 'wa') {
+    return 'WA';
+  }
+
+  if (normalized == 'tasmania' ||
+      normalized == 'tasmania (tas)' ||
+      normalized == 'tas') {
+    return 'TAS';
+  }
+
+  if (normalized == 'australian capital territory' ||
+      normalized == 'australian capital territory (act)' ||
+      normalized == 'act') {
+    return 'ACT';
+  }
+
+  if (normalized == 'northern territory' ||
+      normalized == 'northern territory (nt)' ||
+      normalized == 'nt') {
+    return 'NT';
+  }
+
+  return value.trim();
+}
   @override
   void initState() {
     super.initState();
     _loadCurrentData();
   }
 
-  Future<void> _loadCurrentData() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+ Future<void> _loadCurrentData() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-      final doc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
 
-      final data = doc.data() ?? {};
-      _addressController.text = (data['currentLocation'] ??
-              data['address'] ??
-              '')
-          .toString();
-    } catch (_) {
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
+    final data = doc.data() ?? {};
 
-  Future<void> _getCurrentLocation() async {
+    final country = (data['selectedCountry'] ?? '').toString().trim();
+
+    final state = (data['selectedState'] ??
+            data['state'] ??
+            data['stateLiving'] ??
+            data['stateProvince'] ??
+            '')
+        .toString()
+        .trim();
+
+    final city = (data['suburb'] ?? data['city'] ?? '').toString().trim();
+
+    final currentLocation =
+        (data['currentLocation'] ?? data['address'] ?? '').toString().trim();
+
+    final latValue = data['lat'];
+    final lngValue = data['lng'];
+
+    if (!mounted) return;
+
     setState(() {
-      _isLoadingLocation = true;
-    });
+      _selectedCountry = country;
+      _selectedState = state;
+      _city = city;
 
-    try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text(
-              _tr(
-                'Dịch vụ vị trí đang tắt. Vui lòng bật GPS.',
-                'Location services are disabled. Please turn on GPS.',
-              ),
-            ),
-          ),
-        );
-        return;
-      }
+      _latitude = latValue is num ? latValue.toDouble() : null;
+      _longitude = lngValue is num ? lngValue.toDouble() : null;
 
-      var permission = await Geolocator.checkPermission();
-
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
-      if (permission == LocationPermission.denied) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text(
-              _tr(
-                'Bạn đã từ chối quyền truy cập vị trí.',
-                'Location permission was denied.',
-              ),
-            ),
-          ),
-        );
-        return;
-      }
-
-      if (permission == LocationPermission.deniedForever) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text(
-              _tr(
-                'Quyền vị trí đã bị từ chối vĩnh viễn. Hãy bật lại trong cài đặt.',
-                'Location permission is permanently denied. Please enable it in settings.',
-              ),
-            ),
-          ),
-        );
-        return;
-      }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
-
-      if (placemarks.isNotEmpty) {
-        final place = placemarks.first;
-
+      if (currentLocation.isNotEmpty) {
+        _addressController.text = currentLocation;
+      } else {
         final parts = [
-          place.street,
-          place.subLocality,
-          place.locality,
-          place.administrativeArea,
-          place.postalCode,
-          place.country,
-        ].where((part) => part != null && part.trim().isNotEmpty).toList();
+          city,
+          state,
+          country,
+        ].where((value) => value.trim().isNotEmpty).toList();
 
-        final fullAddress = parts.join(', ');
-
-        setState(() {
-          _addressController.text = fullAddress;
-        });
-
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text(
-              _tr(
-                'Đã tự động điền địa chỉ hiện tại',
-                'Current address has been filled in',
-              ),
-            ),
-          ),
-        );
+        _addressController.text = parts.join(', ');
       }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-            _tr('Lỗi khi lấy vị trí: $e', 'Error while getting location: $e'),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingLocation = false;
-        });
-      }
+    });
+  } catch (e) {
+    debugPrint('Unable to load current location: $e');
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
 
-  Future<void> _save() async {
-    final address = _addressController.text.trim();
+ Future<void> _getCurrentLocation() async {
+  setState(() {
+    _isLoadingLocation = true;
+  });
 
-    if (address.isEmpty) {
+  try {
+    final serviceEnabled =
+        await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
           content: Text(
             _tr(
-              'Vui lòng nhập địa chỉ hoặc dùng vị trí hiện tại',
-              'Please enter an address or use your current location',
+              'Dịch vụ vị trí đang tắt. Vui lòng bật GPS.',
+              'Location services are disabled. Please turn on GPS.',
             ),
           ),
         ),
@@ -193,36 +178,306 @@ class _EditCurrentLocationPageState extends State<EditCurrentLocationPage> {
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    var permission = await Geolocator.checkPermission();
 
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'currentLocation': address,
-        'address': address,
-      }, SetOptions(merge: true));
-
+    if (permission == LocationPermission.denied) {
       if (!mounted) return;
-      Navigator.pop(context, address);
-    } catch (_) {
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text(_tr('Lưu thất bại', 'Save failed')),
+          content: Text(
+            _tr(
+              'Bạn đã từ chối quyền truy cập vị trí.',
+              'Location permission was denied.',
+            ),
+          ),
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSaving = false;
-        });
-      }
+      return;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            _tr(
+              'Quyền vị trí đã bị từ chối vĩnh viễn. Hãy bật lại trong cài đặt.',
+              'Location permission is permanently denied. Please enable it in settings.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+
+    final placemarks = await placemarkFromCoordinates(
+      position.latitude,
+      position.longitude,
+    );
+
+    if (placemarks.isEmpty) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            _tr(
+              'Không tìm thấy địa chỉ từ vị trí hiện tại.',
+              'Could not find an address from your current location.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final place = placemarks.first;
+
+    final country = (place.country ?? _selectedCountry).trim();
+
+    final rawState = (place.administrativeArea ?? _selectedState).trim();
+
+    final isAustralia = country.toLowerCase() == 'australia';
+
+    final state = isAustralia
+        ? _normalizeAustralianState(rawState)
+        : rawState;
+
+    // subLocality thường chính xác hơn locality đối với suburb ở Australia.
+   final city = (place.locality ?? place.subLocality ?? '').trim();
+
+    final locationParts = [
+      city,
+      state,
+      country,
+    ].where((value) => value.trim().isNotEmpty).toList();
+
+    final locationText = locationParts.join(', ');
+
+    if (!mounted) return;
+
+    setState(() {
+      _selectedCountry = country;
+      _selectedState = state;
+      _city = city;
+
+      _latitude = position.latitude;
+      _longitude = position.longitude;
+
+      _addressController.text = locationText;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+          _tr(
+            'Đã tự động điền vị trí hiện tại',
+            'Current location has been filled in',
+          ),
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+          _tr(
+            'Lỗi khi lấy vị trí: $e',
+            'Error while getting location: $e',
+          ),
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoadingLocation = false;
+      });
     }
   }
+}
+ Future<void> _save() async {
+  final enteredAddress = _addressController.text.trim();
+
+  if (enteredAddress.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+          _tr(
+            'Vui lòng nhập địa chỉ hoặc dùng vị trí hiện tại',
+            'Please enter an address or use your current location',
+          ),
+        ),
+      ),
+    );
+    return;
+  }
+
+  setState(() {
+    _isSaving = true;
+  });
+
+  try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    String country = _selectedCountry.trim();
+    String state = _selectedState.trim();
+    String city = _city.trim();
+
+    double? lat = _latitude;
+    double? lng = _longitude;
+
+    /*
+     * Khi người dùng tự sửa hoặc tự nhập địa chỉ,
+     * tìm lại lat/lng và tách city, state, country.
+     */
+    try {
+      final locations = await locationFromAddress(enteredAddress);
+
+      if (locations.isNotEmpty) {
+        lat = locations.first.latitude;
+        lng = locations.first.longitude;
+
+        final placemarks = await placemarkFromCoordinates(lat, lng);
+
+        if (placemarks.isNotEmpty) {
+          final place = placemarks.first;
+
+          final detectedCountry = (place.country ?? '').trim();
+          final detectedState = (place.administrativeArea ?? '').trim();
+
+         final detectedCity =
+    (place.locality ?? place.subLocality ?? '').trim();
+
+          if (detectedCountry.isNotEmpty) {
+            country = detectedCountry;
+          }
+
+          if (detectedState.isNotEmpty) {
+            state = detectedState;
+          }
+
+          if (detectedCity.isNotEmpty) {
+            city = detectedCity;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Unable to geocode entered address: $e');
+    }
+
+    final isAustralia = country.toLowerCase() == 'australia';
+
+    if (isAustralia) {
+      state = _normalizeAustralianState(state);
+    }
+
+    /*
+     * Trường hợp geocoding không lấy được city,
+     * giữ lại city/suburb cũ thay vì xóa dữ liệu.
+     */
+    if (city.isEmpty) {
+      city = _city.trim();
+    }
+
+    if (country.isEmpty) {
+      country = _selectedCountry.trim();
+    }
+
+    if (state.isEmpty) {
+      state = _selectedState.trim();
+    }
+
+    final locationParts = [
+      city,
+      state,
+      country,
+    ].where((value) => value.trim().isNotEmpty).toList();
+
+    /*
+     * Nếu tách được city/state/country thì chuẩn hóa lại.
+     * Nếu không tách được thì giữ nguyên địa chỉ user nhập.
+     */
+    final locationText = locationParts.isNotEmpty
+        ? locationParts.join(', ')
+        : enteredAddress;
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      if (country.isNotEmpty) 'selectedCountry': country,
+
+      if (state.isNotEmpty) ...{
+        'selectedState': state,
+        'selectedStateKey': state,
+        'state': state,
+        'stateLiving': state,
+      },
+
+      if (city.isNotEmpty) ...{
+        'city': city,
+        'cityLower': city.toLowerCase(),
+        'suburb': city,
+        'suburbLower': city.toLowerCase(),
+      },
+
+      'address': locationText,
+      'currentLocation': locationText,
+
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
+
+      'locationUpdatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+    
+
+    if (!mounted) return;
+
+    Navigator.pop(context, locationText);
+  } catch (e) {
+    debugPrint('Unable to save current location: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+          _tr(
+            'Lưu vị trí thất bại',
+            'Failed to save location',
+          ),
+        ),
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isSaving = false;
+      });
+    }
+  }
+}
 
   @override
   void dispose() {

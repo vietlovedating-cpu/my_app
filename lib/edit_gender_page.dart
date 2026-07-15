@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'utils/profile_health.dart';
 
 class EditGenderPage extends StatefulWidget {
   final String languageCode;
@@ -22,7 +23,7 @@ class _EditGenderPageState extends State<EditGenderPage> {
   bool get isVi => widget.languageCode == 'vi';
 
   String _tr(String vi, String en) => isVi ? vi : en;
-
+ 
   @override
   void initState() {
     super.initState();
@@ -78,13 +79,25 @@ class _EditGenderPageState extends State<EditGenderPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'gender': _selectedGender,
-        'profileCompleted': true,
-      }, SetOptions(merge: true));
+     final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      if (!mounted) return;
-      Navigator.pop(context, _selectedGender);
+await userRef.set({
+  'gender': _selectedGender,
+}, SetOptions(merge: true));
+
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+final healthResult = calculateProfileHealth(updatedData);
+
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, _selectedGender);
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -8,6 +8,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
+import 'utils/profile_health.dart';
 
 class EditVoicePromptPage extends StatefulWidget {
   final String languageCode;
@@ -373,16 +374,30 @@ Future<void> _continueButton() async {
 
     final audioUrl = await storageRef.getDownloadURL();
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({
-      'voicePromptAudioUrl': audioUrl,
-      'voicePromptDuration': _recordSeconds,
-      'voicePromptUpdatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+   final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-    if (!mounted) return;
+// Lưu Voice Prompt
+await userRef.set({
+  'voicePromptAudioUrl': audioUrl,
+  'voicePromptDuration': _recordSeconds,
+  'voicePromptUpdatedAt': FieldValue.serverTimestamp(),
+}, SetOptions(merge: true));
+
+// Đọc lại hồ sơ mới nhất
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+// Tính lại điểm hồ sơ
+final healthResult = calculateProfileHealth(updatedData);
+
+// Cập nhật điểm và trạng thái hồ sơ
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

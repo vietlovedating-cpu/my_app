@@ -3,6 +3,7 @@ const sgMail = require("@sendgrid/mail");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const { google } = require("googleapis");
+const crypto = require("crypto");
 
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
@@ -13,6 +14,91 @@ const APPLE_BUNDLE_ID = "com.vietlovedating.app";
 const GOOGLE_PACKAGE_NAME = "com.vietlovedating.app";
 
 admin.initializeApp();
+function getSydneyDateKey(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const year = parts.find(
+    (part) => part.type === "year"
+  )?.value;
+
+  const month = parts.find(
+    (part) => part.type === "month"
+  )?.value;
+
+  const day = parts.find(
+    (part) => part.type === "day"
+  )?.value;
+
+  if (!year || !month || !day) {
+    throw new Error(
+      "Could not create Sydney date key."
+    );
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateKey(
+  dateKey,
+  numberOfDays
+) {
+  const [year, month, day] = dateKey
+    .split("-")
+    .map(Number);
+
+  if (
+    !year ||
+    !month ||
+    !day ||
+    !Number.isInteger(numberOfDays)
+  ) {
+    throw new Error("Invalid date key.");
+  }
+
+  const date = new Date(
+    Date.UTC(year, month - 1, day)
+  );
+
+  date.setUTCDate(
+    date.getUTCDate() + numberOfDays
+  );
+
+  const newYear = String(
+    date.getUTCFullYear()
+  ).padStart(4, "0");
+
+  const newMonth = String(
+    date.getUTCMonth() + 1
+  ).padStart(2, "0");
+
+  const newDay = String(
+    date.getUTCDate()
+  ).padStart(2, "0");
+
+  return `${newYear}-${newMonth}-${newDay}`;
+}
+
+function secureRandomInt(min, max) {
+  return crypto.randomInt(
+    min,
+    max + 1
+  );
+}
+
+function luckySpinSafeInt(value) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return 0;
+  }
+
+  return Math.floor(parsed);
+}
 
 const SENDGRID_KEY = process.env.SENDGRID_KEY;
 sgMail.setApiKey(SENDGRID_KEY);
@@ -3359,6 +3445,780 @@ exports.syncPhotoVerificationStatus = onDocumentUpdated(
       console.error(
         "syncPhotoVerificationStatus error:",
         error
+      );
+    }
+  }
+);
+
+
+exports.spinLuckyWheel = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be logged in."
+      );
+    }
+
+    const uid = request.auth.uid;
+
+    const requestId = String(
+      request.data?.requestId || ""
+    ).trim();
+
+    if (
+      !requestId ||
+      requestId.length < 10 ||
+      requestId.length > 200
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "A valid requestId is required."
+      );
+    }
+
+    const db = admin.firestore();
+
+    const userRef = db
+      .collection("users")
+      .doc(uid);
+
+    const now = new Date();
+    const todayKey = getSydneyDateKey(now);
+
+    /*
+     * Tạo random bên ngoài transaction.
+     *
+     * Firestore có thể tự chạy lại transaction khi có xung đột.
+     * Việc tạo random ở ngoài giúp cùng một request không bị đổi
+     * kết quả giữa các lần transaction tự chạy lại.
+     */
+    const noRewardResult =
+      secureRandomInt(0, 1) === 0
+        ? "try_again"
+        : "better_luck";
+
+    const nextRewardAfterDays =
+      secureRandomInt(7, 12);
+
+    const nextWinningSpinNumber =
+      secureRandomInt(1, 3);
+
+    const newPendingRewardId =
+      crypto.randomBytes(20).toString("hex");
+
+    try {
+      const result = await db.runTransaction(
+        async (transaction) => {
+          const userSnapshot =
+            await transaction.get(userRef);
+
+          if (!userSnapshot.exists) {
+            throw new HttpsError(
+              "not-found",
+              "User profile was not found."
+            );
+          }
+
+          const data =
+            userSnapshot.data() || {};
+
+          // ==========================================
+          // CHỐNG GỬI TRÙNG CÙNG MỘT REQUEST
+          // ==========================================
+
+          const previousRequestId = String(
+            data.luckySpinLastRequestId || ""
+          ).trim();
+
+          if (
+            previousRequestId === requestId &&
+            data.luckySpinLastResponse &&
+            typeof data.luckySpinLastResponse ===
+              "object"
+          ) {
+            return {
+              ...data.luckySpinLastResponse,
+              duplicateRequest: true,
+            };
+          }
+
+          // ==========================================
+          // KHÔNG CHO QUAY KHI CÒN THƯỞNG CHỜ XỬ LÝ
+          // ==========================================
+
+          const pendingStatus = String(
+            data.luckySpinPendingRewardStatus ||
+              ""
+          ).trim();
+
+          const pendingRewardId = String(
+            data.luckySpinPendingRewardId || ""
+          ).trim();
+
+          const pendingFlowers =
+            luckySpinSafeInt(
+              data.luckySpinPendingFlowers
+            );
+
+          if (
+            pendingStatus === "pending" &&
+            pendingRewardId &&
+            pendingFlowers > 0
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "PENDING_REWARD"
+            );
+          }
+
+          // ==========================================
+          // ĐỌC SỐ LƯỢT QUAY TRONG NGÀY
+          // ==========================================
+
+          const savedDateKey = String(
+            data.luckySpinDateKey || ""
+          ).trim();
+
+          let spinsUsedToday =
+            luckySpinSafeInt(
+              data.luckySpinSpinsUsedToday
+            );
+
+          if (savedDateKey !== todayKey) {
+            spinsUsedToday = 0;
+          }
+
+          if (spinsUsedToday >= 3) {
+            throw new HttpsError(
+              "resource-exhausted",
+              "NO_SPINS_LEFT"
+            );
+          }
+
+          const spinNumberToday =
+            spinsUsedToday + 1;
+
+          // ==========================================
+          // ĐỌC TỔNG SỐ LƯỢT QUAY TRONG ĐỜI
+          // ==========================================
+
+          const firstRewardAlreadyOffered =
+            data.luckySpinFirstRewardOffered ===
+              true ||
+            data.luckySpinFirstRewardClaimed ===
+              true;
+
+          let lifetimeSpinsUsed =
+            luckySpinSafeInt(
+              data.luckySpinLifetimeSpinsUsed
+            );
+
+          /*
+           * Hỗ trợ dữ liệu cũ:
+           *
+           * Nếu từng được đề nghị 5 Flowers nhưng chưa có
+           * lifetimeSpinsUsed, xem như đã hoàn tất 3 lượt đầu.
+           */
+          if (
+            lifetimeSpinsUsed <= 0 &&
+            firstRewardAlreadyOffered
+          ) {
+            lifetimeSpinsUsed = 3;
+          } else if (
+            lifetimeSpinsUsed <= 0 &&
+            savedDateKey === todayKey
+          ) {
+            lifetimeSpinsUsed =
+              spinsUsedToday;
+          }
+
+          const lifetimeSpinNumber =
+            lifetimeSpinsUsed + 1;
+
+          // ==========================================
+          // ĐỌC NGÀY VÀ LƯỢT TRÚNG TIẾP THEO
+          // ==========================================
+
+          let nextRewardDateKey = String(
+            data.luckySpinNextRewardDateKey ||
+              ""
+          ).trim();
+
+          /*
+           * Hỗ trợ field Timestamp cũ nếu có.
+           */
+          if (
+            !nextRewardDateKey &&
+            data.luckySpinNextRewardDate &&
+            typeof data
+              .luckySpinNextRewardDate
+              .toDate === "function"
+          ) {
+            nextRewardDateKey =
+              getSydneyDateKey(
+                data.luckySpinNextRewardDate.toDate()
+              );
+          }
+
+          let winningSpinNumber =
+            luckySpinSafeInt(
+              data.luckySpinWinningSpinNumber
+            );
+
+          if (
+            winningSpinNumber < 1 ||
+            winningSpinNumber > 3
+          ) {
+            winningSpinNumber =
+              nextWinningSpinNumber;
+          }
+
+          let resultKey = noRewardResult;
+          let flowersWon = 0;
+
+          let newNextRewardDateKey = null;
+          let newWinningSpinNumber = null;
+
+          // ==========================================
+          // BA LƯỢT ĐẦU TIÊN TRONG ĐỜI
+          //
+          // Lượt 1: không trúng
+          // Lượt 2: 5 Flowers
+          // Lượt 3: không trúng
+          // ==========================================
+
+          if (lifetimeSpinNumber <= 3) {
+            if (lifetimeSpinNumber === 2) {
+              resultKey = "five_flowers";
+              flowersWon = 5;
+
+              newNextRewardDateKey =
+                addDaysToDateKey(
+                  todayKey,
+                  nextRewardAfterDays
+                );
+
+              newWinningSpinNumber =
+                nextWinningSpinNumber;
+            } else {
+              resultKey = noRewardResult;
+              flowersWon = 0;
+            }
+          } else {
+            // ========================================
+            // SAU BA LƯỢT ĐẦU
+            //
+            // Chỉ có thể trúng đúng 1 Flower.
+            // Ngày trúng cách lần trước 7–12 ngày.
+            // Lượt trúng trong ngày là lượt 1–3.
+            // ========================================
+
+         const isRewardDay =
+  nextRewardDateKey.length > 0 &&
+  todayKey >= nextRewardDateKey;
+
+            if (
+              isRewardDay &&
+              spinNumberToday ===
+                winningSpinNumber
+            ) {
+              resultKey = "one_flower";
+              flowersWon = 1;
+
+              newNextRewardDateKey =
+                addDaysToDateKey(
+                  todayKey,
+                  nextRewardAfterDays
+                );
+
+              newWinningSpinNumber =
+                nextWinningSpinNumber;
+            } else {
+              resultKey = noRewardResult;
+              flowersWon = 0;
+            }
+          }
+
+          // Backend không được trả hai phần thưởng này.
+          if (
+            resultKey === "ten_flowers" ||
+            resultKey === "one_week_vip"
+          ) {
+            throw new HttpsError(
+              "internal",
+              "INVALID_LUCKY_SPIN_RESULT"
+            );
+          }
+
+          const currentFlowerBalance =
+            luckySpinSafeInt(
+              data.flowerBalance
+            );
+
+          const responseData = {
+            success: true,
+            resultKey,
+            spinNumber: spinNumberToday,
+            spinsUsedToday: spinNumberToday,
+            spinsRemaining:
+              Math.max(
+                0,
+                3 - spinNumberToday
+              ),
+            lifetimeSpinNumber,
+            flowersWon,
+            pendingRewardId:
+              flowersWon > 0
+                ? newPendingRewardId
+                : "",
+            pendingRewardKey:
+              flowersWon > 0
+                ? resultKey
+                : "",
+            pendingFlowers: flowersWon,
+            flowerBalance:
+              currentFlowerBalance,
+          };
+
+          const updateData = {
+            luckySpinDateKey: todayKey,
+
+            luckySpinSpinsUsedToday:
+              spinNumberToday,
+
+            luckySpinLifetimeSpinsUsed:
+              lifetimeSpinNumber,
+
+            luckySpinLastResult:
+              resultKey,
+
+            luckySpinLastRequestId:
+              requestId,
+
+            luckySpinLastResponse:
+              responseData,
+
+            luckySpinLastSpinAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+
+            luckySpinUpdatedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+          };
+
+          /*
+           * 5 Flowers chỉ được đề nghị đúng một lần.
+           * Dù người dùng nhận hay từ chối cũng không hiện lại.
+           */
+          if (resultKey === "five_flowers") {
+            updateData
+              .luckySpinFirstRewardOffered =
+              true;
+
+            updateData
+              .luckySpinFirstRewardOfferedAt =
+              admin.firestore.FieldValue
+                .serverTimestamp();
+          }
+
+          /*
+           * Khi trúng chỉ tạo pending reward.
+           * Chưa cộng vào flowerBalance.
+           */
+          if (flowersWon > 0) {
+            updateData
+              .luckySpinPendingRewardId =
+              newPendingRewardId;
+
+            updateData
+              .luckySpinPendingRewardKey =
+              resultKey;
+
+            updateData
+              .luckySpinPendingFlowers =
+              flowersWon;
+
+            updateData
+              .luckySpinPendingRewardStatus =
+              "pending";
+
+            updateData
+              .luckySpinPendingRewardCreatedAt =
+              admin.firestore.FieldValue
+                .serverTimestamp();
+          }
+
+          if (newNextRewardDateKey) {
+            updateData
+              .luckySpinNextRewardDateKey =
+              newNextRewardDateKey;
+          }
+
+          if (newWinningSpinNumber) {
+            updateData
+              .luckySpinWinningSpinNumber =
+              newWinningSpinNumber;
+          }
+
+          transaction.set(
+            userRef,
+            updateData,
+            {
+              merge: true,
+            }
+          );
+
+          return responseData;
+        }
+      );
+
+      console.log(
+        "LUCKY SPIN SUCCESS:",
+        {
+          uid,
+          requestId,
+          resultKey: result.resultKey,
+          spinNumber: result.spinNumber,
+          lifetimeSpinNumber:
+            result.lifetimeSpinNumber,
+          flowersWon: result.flowersWon,
+          duplicateRequest:
+            result.duplicateRequest === true,
+        }
+      );
+
+      return result;
+    } catch (error) {
+      console.error(
+        "SPIN LUCKY WHEEL ERROR:",
+        {
+          uid,
+          requestId,
+          error,
+        }
+      );
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Could not spin the lucky wheel."
+      );
+    }
+  }
+);
+
+
+
+exports.claimLuckySpinReward = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be logged in."
+      );
+    }
+
+    const uid = request.auth.uid;
+
+    const expectedRewardId = String(
+      request.data?.rewardId || ""
+    ).trim();
+
+    if (!expectedRewardId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "rewardId is required."
+      );
+    }
+
+    const db = admin.firestore();
+
+    const userRef = db
+      .collection("users")
+      .doc(uid);
+
+    try {
+      const result = await db.runTransaction(
+        async (transaction) => {
+          const userSnapshot =
+            await transaction.get(userRef);
+
+          if (!userSnapshot.exists) {
+            throw new HttpsError(
+              "not-found",
+              "User profile was not found."
+            );
+          }
+
+          const data =
+            userSnapshot.data() || {};
+
+          const pendingRewardId = String(
+            data.luckySpinPendingRewardId || ""
+          ).trim();
+
+          const pendingRewardStatus = String(
+            data.luckySpinPendingRewardStatus ||
+              ""
+          ).trim();
+
+          const pendingRewardKey = String(
+            data.luckySpinPendingRewardKey || ""
+          ).trim();
+
+          const pendingFlowers =
+            luckySpinSafeInt(
+              data.luckySpinPendingFlowers
+            );
+
+          if (
+            pendingRewardId !== expectedRewardId ||
+            pendingRewardStatus !== "pending" ||
+            pendingFlowers <= 0
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "REWARD_ALREADY_PROCESSED"
+            );
+          }
+
+          if (
+            pendingRewardKey !== "one_flower" &&
+            pendingRewardKey !== "five_flowers"
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "INVALID_PENDING_REWARD"
+            );
+          }
+
+          if (
+            pendingRewardKey === "one_flower" &&
+            pendingFlowers !== 1
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "INVALID_FLOWER_AMOUNT"
+            );
+          }
+
+          if (
+            pendingRewardKey === "five_flowers" &&
+            pendingFlowers !== 5
+          ) {
+            throw new HttpsError(
+              "failed-precondition",
+              "INVALID_FLOWER_AMOUNT"
+            );
+          }
+
+          const oldBalance =
+            luckySpinSafeInt(
+              data.flowerBalance
+            );
+
+          const totalBalance =
+            oldBalance + pendingFlowers;
+
+          const updateData = {
+            flowerBalance:
+              admin.firestore.FieldValue.increment(
+                pendingFlowers
+              ),
+
+            luckySpinPendingRewardStatus:
+              "claimed",
+
+            luckySpinPendingRewardClaimedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+
+            luckySpinPendingFlowers: 0,
+            luckySpinPendingRewardKey: "",
+            luckySpinPendingRewardId: "",
+
+            luckySpinLastClaimedFlowers:
+              pendingFlowers,
+
+            luckySpinLastClaimedRewardId:
+              expectedRewardId,
+
+            luckySpinLastClaimedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+
+            luckySpinUpdatedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+          };
+
+          if (
+            pendingRewardKey === "five_flowers"
+          ) {
+            updateData
+              .luckySpinFirstRewardClaimed =
+              true;
+
+            updateData
+              .luckySpinFirstRewardClaimedAt =
+              admin.firestore.FieldValue
+                .serverTimestamp();
+          }
+
+          transaction.set(
+            userRef,
+            updateData,
+            {
+              merge: true,
+            }
+          );
+
+          return {
+            success: true,
+            rewardId: expectedRewardId,
+            rewardKey: pendingRewardKey,
+            oldBalance,
+            flowersWon: pendingFlowers,
+            totalBalance,
+          };
+        }
+      );
+
+      console.log(
+        "LUCKY SPIN REWARD CLAIMED:",
+        {
+          uid,
+          rewardId: result.rewardId,
+          rewardKey: result.rewardKey,
+          flowersWon: result.flowersWon,
+          totalBalance: result.totalBalance,
+        }
+      );
+
+      return result;
+    } catch (error) {
+      console.error(
+        "CLAIM LUCKY SPIN REWARD ERROR:",
+        {
+          uid,
+          rewardId: expectedRewardId,
+          error,
+        }
+      );
+
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Could not claim the lucky spin reward."
+      );
+    }
+  }
+);
+
+exports.declineLuckySpinReward = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be logged in."
+      );
+    }
+
+    const uid = request.auth.uid;
+
+    const rewardId = String(
+      request.data?.rewardId || ""
+    ).trim();
+
+    if (!rewardId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "rewardId is required."
+      );
+    }
+
+    const db = admin.firestore();
+
+    const userRef = db.collection("users").doc(uid);
+
+    try {
+      await db.runTransaction(async (transaction) => {
+        const snap = await transaction.get(userRef);
+
+        if (!snap.exists) {
+          throw new HttpsError(
+            "not-found",
+            "User not found."
+          );
+        }
+
+        const data = snap.data() || {};
+
+        if (
+          String(data.luckySpinPendingRewardId || "") !== rewardId ||
+          String(data.luckySpinPendingRewardStatus || "") !== "pending"
+        ) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Reward already processed."
+          );
+        }
+
+        transaction.set(
+          userRef,
+          {
+            luckySpinPendingRewardStatus: "declined",
+
+            luckySpinPendingRewardDeclinedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+
+            luckySpinPendingRewardId: "",
+            luckySpinPendingRewardKey: "",
+            luckySpinPendingFlowers: 0,
+
+            luckySpinUpdatedAt:
+              admin.firestore.FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          }
+        );
+      });
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
+      throw new HttpsError(
+        "internal",
+        "Could not decline reward."
       );
     }
   }

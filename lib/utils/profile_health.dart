@@ -68,6 +68,26 @@ ProfileHealthResult calculateProfileHealth(
 
   int answeredPrompts = 0;
 
+// Ưu tiên đọc cấu trúc prompt mới
+final rawProfilePrompts = user['profilePrompts'];
+
+if (rawProfilePrompts is List) {
+  answeredPrompts = rawProfilePrompts.where((item) {
+    if (item is! Map) return false;
+
+    final prompt = Map<String, dynamic>.from(item);
+
+    final answer = (
+      prompt['answerVi'] ??
+      prompt['answerEn'] ??
+      prompt['answer'] ??
+      ''
+    ).toString().trim();
+
+    return answer.isNotEmpty;
+  }).length;
+} else {
+  // Giữ hỗ trợ dữ liệu prompt cũ
   for (int i = 1; i <= 5; i++) {
     final answer =
         (user['prompt${i}Answer'] ?? '').toString().trim();
@@ -76,8 +96,12 @@ ProfileHealthResult calculateProfileHealth(
       answeredPrompts++;
     }
   }
+}
 
-  score += answeredPrompts * 2;
+// Tối đa chỉ tính 5 prompt
+answeredPrompts = answeredPrompts.clamp(0, 5);
+
+score += answeredPrompts * 2;
 
   if (answeredPrompts < 5) {
     final missingPrompts = 5 - answeredPrompts;
@@ -120,7 +144,7 @@ ProfileHealthResult calculateProfileHealth(
           'approved';
 
   if (photoVerified) {
-    score += 5;
+    score += 10;
   } else {
     suggestions.add('verify_photo');
   }

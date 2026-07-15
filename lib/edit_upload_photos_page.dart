@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-
+import 'utils/profile_health.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -247,12 +247,28 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
       }
 
       await _savePhotoUrlsToFirestore(
-        uid: user.uid,
-        allPhotoUrls: allPhotoUrls,
-      );
+  uid: user.uid,
+  allPhotoUrls: allPhotoUrls,
+);
 
-      if (!mounted) return;
-      Navigator.pop(context, allPhotoUrls);
+// Đọc lại hồ sơ mới nhất
+final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
+
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+// Tính lại điểm hồ sơ
+final healthResult = calculateProfileHealth(updatedData);
+
+// Cập nhật điểm và trạng thái hồ sơ
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, allPhotoUrls);
     } catch (e) {
       if (!mounted) return;
 

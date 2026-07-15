@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'utils/profile_health.dart';
 
 class EditHeightPage extends StatefulWidget {
   final String languageCode;
@@ -63,12 +64,30 @@ class _EditHeightPageState extends State<EditHeightPage> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'height': _selectedHeight.round(),
-      }, SetOptions(merge: true));
+     final userRef =
+    FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-      if (!mounted) return;
-      Navigator.pop(context, _selectedHeight.round());
+// Lưu chiều cao
+await userRef.set({
+  'height': _selectedHeight.round(),
+  'heightCm': _selectedHeight.round(),
+}, SetOptions(merge: true));
+
+// Đọc lại hồ sơ mới nhất
+final updatedDoc = await userRef.get();
+final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+
+// Tính lại điểm hồ sơ
+final healthResult = calculateProfileHealth(updatedData);
+
+// Cập nhật điểm và trạng thái hồ sơ
+await userRef.set({
+  'profileScore': healthResult.score,
+  'profileCompleted': healthResult.score >= 50,
+}, SetOptions(merge: true));
+
+if (!mounted) return;
+Navigator.pop(context, _selectedHeight.round());
     } catch (_) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
