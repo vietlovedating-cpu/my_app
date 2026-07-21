@@ -548,6 +548,7 @@ await FirebaseFirestore.instance
     .doc(user.uid)
     .set({
   'selectedCountry': widget.selectedCountry,
+  'country': widget.selectedCountry,
 
   'selectedState': stateToSave,
   'selectedStateKey': stateToSave,

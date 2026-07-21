@@ -21,6 +21,7 @@ import 'edit_current_location_page.dart';
 import 'edit_prompt_question_answer_page.dart';
 import 'edit_upload_photos_page.dart';
 import 'edit_place_you_call_home_page.dart';
+import 'edit_social_media_page.dart';
 
 class EditProfilePage extends StatelessWidget {
   final String languageCode;
@@ -62,6 +63,20 @@ class EditProfilePage extends StatelessWidget {
     );
   },
 ),
+ _EditMenuItem(
+    icon: Icons.share_outlined,
+    title: _tr('Mạng xã hội', 'Social media'),
+    onTap: () async {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EditSocialMediaPage(
+            languageCode: languageCode,
+          ),
+        ),
+      );
+    },
+  ),
 
 _EditMenuItem(
   icon: Icons.mic_none_rounded,

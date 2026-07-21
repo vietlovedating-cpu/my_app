@@ -12,6 +12,7 @@ import 'notification_settings_page.dart';
 import 'privacy_profile_page.dart';
 import 'photo_verification_page.dart';
 import 'utils/profile_health.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MyProfilePage extends StatefulWidget {
   final String languageCode;
@@ -1831,7 +1832,19 @@ Widget _buildProfileHealthCard({
 }
   Widget _buildMyProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
+    final facebookUrl =
+    (profile['facebookUrl'] ?? '').toString().trim();
+
+final instagramUrl =
+    (profile['instagramUrl'] ?? '').toString().trim();
+
+final tiktokUrl =
+    (profile['tiktokUrl'] ?? '').toString().trim();
+
+final showSocialMedia =
+    profile['showSocialMedia'] == true;
     final prompts = _extractPrompts(profile, isVi);
+    
     final profileHealthData = <String, dynamic>{
   ...profile,
 
@@ -2138,8 +2151,79 @@ if ((profile['voicePromptAudioUrl'] ?? '')
               question: getPrompt(4)['question'] ?? '',
               answer: getPrompt(4)['answer'] ?? '',
             ),
+if (showSocialMedia &&
+    (facebookUrl.isNotEmpty ||
+        instagramUrl.isNotEmpty ||
+        tiktokUrl.isNotEmpty)) ...[
+  const SizedBox(height: 24),
 
-          const SizedBox(height: 18),
+  Text(
+    _tr(isVi, 'Mạng xã hội', 'Social media'),
+    style: const TextStyle(
+      fontSize: 20,
+      fontWeight: FontWeight.w900,
+      color: Color(0xFF7A2E6E),
+    ),
+  ),
+
+  const SizedBox(height: 14),
+  Wrap(
+  spacing: 14,
+  children: [
+    if (facebookUrl.isNotEmpty)
+      InkWell(
+      onTap: () => _openSocial(
+  value: facebookUrl,
+  platform: 'facebook',
+),
+        borderRadius: BorderRadius.circular(30),
+        child: CircleAvatar(
+          radius: 24,
+          backgroundColor: const Color(0xFF1877F2),
+          child: const Icon(
+            Icons.facebook,
+            color: Colors.white,
+          ),
+        ),
+      ),
+
+    if (instagramUrl.isNotEmpty)
+      InkWell(
+      onTap: () => _openSocial(
+  value: instagramUrl,
+  platform: 'instagram',
+),
+        borderRadius: BorderRadius.circular(30),
+        child: const CircleAvatar(
+          radius: 24,
+          backgroundColor: Colors.purple,
+          child: Icon(
+            Icons.camera_alt,
+            color: Colors.white,
+          ),
+        ),
+      ),
+
+    if (tiktokUrl.isNotEmpty)
+      InkWell(
+     onTap: () => _openSocial(
+  value: tiktokUrl,
+  platform: 'tiktok',
+),
+        borderRadius: BorderRadius.circular(30),
+        child: const CircleAvatar(
+          radius: 24,
+          backgroundColor: Colors.black,
+          child: Icon(
+            Icons.music_note,
+            color: Colors.white,
+          ),
+        ),
+      ),
+  ],
+),
+],
+        
         ],
       ),
     );
@@ -2203,7 +2287,54 @@ if ((profile['voicePromptAudioUrl'] ?? '')
       },
     );
   }
+Future<void> _openSocial({
+  required String value,
+  required String platform,
+}) async {
+  String input = value.trim();
 
+  if (input.isEmpty) return;
+
+  String url;
+
+  if (input.startsWith('http://') ||
+      input.startsWith('https://')) {
+    url = input;
+  } else {
+    final username = input
+        .replaceAll('@', '')
+        .replaceAll('facebook.com/', '')
+        .replaceAll('www.facebook.com/', '')
+        .replaceAll('instagram.com/', '')
+        .replaceAll('www.instagram.com/', '')
+        .replaceAll('tiktok.com/', '')
+        .replaceAll('www.tiktok.com/', '')
+        .trim();
+
+    switch (platform) {
+      case 'facebook':
+        url = 'https://www.facebook.com/$username';
+        break;
+      case 'instagram':
+        url = 'https://www.instagram.com/$username';
+        break;
+      case 'tiktok':
+        url = 'https://www.tiktok.com/@$username';
+        break;
+      default:
+        url = input;
+    }
+  }
+
+  final uri = Uri.tryParse(url);
+
+  if (uri == null) return;
+
+  await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+  );
+}
   @override
   Widget build(BuildContext context) {
     final content = Container(

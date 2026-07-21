@@ -30,6 +30,7 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.googleusercontent.apps.358333936335-ipsfdl5slhmp1bia9nh02rl702qa62o2</string>
+		        <string>vietlove</string>
 			</array>
 		</dict>
 	</array>

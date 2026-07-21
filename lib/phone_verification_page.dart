@@ -314,24 +314,62 @@ await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  isVi
-                      ? 'Chọn mã quốc gia và nhập số điện thoại của bạn'
-                      : 'Choose your country code and enter your phone number',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 24),
+               Text(
+  isVi
+      ? 'Chọn mã quốc gia và nhập số điện thoại của bạn'
+      : 'Choose your country code and enter your phone number',
+  style: const TextStyle(
+    fontSize: 15,
+    color: Colors.black54,
+  ),
+),
 
-                Text(
-                  isVi ? 'Mã quốc gia' : 'Country code',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
+const SizedBox(height: 10),
+
+Container(
+  width: double.infinity,
+  padding: const EdgeInsets.all(14),
+  decoration: BoxDecoration(
+    color: Colors.pink.shade50,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(
+      color: Colors.pink.shade100,
+    ),
+  ),
+  child: Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(
+        Icons.shield_outlined,
+        color: primaryPink,
+        size: 22,
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text(
+          isVi
+              ? 'Vui lòng xác minh số điện thoại để giúp ngăn chặn tài khoản giả mạo, lừa đảo và giữ cho cộng đồng VietLove Dating an toàn hơn.'
+              : 'Please verify your phone number to help prevent fake accounts and scams, and keep the VietLove Dating community safe for everyone.',
+          style: const TextStyle(
+            fontSize: 14,
+            height: 1.4,
+            color: Colors.black87,
+          ),
+        ),
+      ),
+    ],
+  ),
+),
+
+const SizedBox(height: 24),
+
+Text(
+  isVi ? 'Mã quốc gia' : 'Country code',
+  style: const TextStyle(
+    fontWeight: FontWeight.w600,
+    color: Colors.black87,
+  ),
+),
                 const SizedBox(height: 8),
 
                 InkWell(

@@ -5,6 +5,7 @@ class HomePageFilterResult {
   final String? gender;
   final int? minAge;
   final int? maxAge;
+  final String? country;
   final String? state;
   final double? distanceKm;
 
@@ -25,6 +26,7 @@ class HomePageFilterResult {
     required this.gender,
     required this.minAge,
     required this.maxAge,
+    required this.country,
     required this.state,
     required this.distanceKm,
     required this.religion,
@@ -49,6 +51,7 @@ class HomePageFilterSheet extends StatefulWidget {
   final String? initialGender;
   final int? initialMinAge;
   final int? initialMaxAge;
+  final String? initialCountry;
   final String? initialState;
   final String currentUserCountryCode;
   final double? initialDistanceKm;
@@ -83,6 +86,7 @@ class HomePageFilterSheet extends StatefulWidget {
     required this.initialGender,
     required this.initialMinAge,
     required this.initialMaxAge,
+    required this.initialCountry,
     required this.initialState,
     required this.currentUserCountryCode,
     required this.initialDistanceKm,
@@ -115,8 +119,11 @@ class _HomePageFilterSheetState extends State<HomePageFilterSheet> {
   late String? tempGender;
   late int? tempMinAge;
   late int? tempMaxAge;
+  late String? tempCountry;
   late String? tempState;
+List<csc.Country> availableCountries = [];
 
+bool isLoadingCountries = false;
 List<csc.State> availableStates = [];
 
 bool isLoadingStates = false;
@@ -139,7 +146,37 @@ late double tempDistanceKm;
   bool get isVi => widget.isVi;
 
   String _label(String vi, String en) => widget.labelBuilder(vi, en);
-  
+Future<void> _loadCountries() async {
+  setState(() {
+    isLoadingCountries = true;
+  });
+
+  try {
+    final countries = await csc.getAllCountries();
+
+    countries.sort(
+      (a, b) => a.name.toLowerCase().compareTo(
+            b.name.toLowerCase(),
+          ),
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      availableCountries = countries;
+      isLoadingCountries = false;
+    });
+  } catch (e) {
+    debugPrint('Load countries error: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      availableCountries = [];
+      isLoadingCountries = false;
+    });
+  }
+}  
 Future<void> _loadStatesForCountry(
   String countryCode, {
   bool keepCurrentState = false,
@@ -201,6 +238,7 @@ Future<void> _loadStatesForCountry(
     tempGender = widget.initialGender?.toLowerCase();
     tempMinAge = widget.initialMinAge;
     tempMaxAge = widget.initialMaxAge;
+    tempCountry = widget.initialCountry;
     tempState = widget.initialState;
 
     tempDistanceKm = widget.initialDistanceKm ?? 200;
@@ -217,12 +255,32 @@ Future<void> _loadStatesForCountry(
     tempIncome = widget.initialIncome;
     tempPhotoVerifiedOnly = widget.initialPhotoVerifiedOnly;
     tempNewHereOnly = widget.initialNewHereOnly;
-   _loadStatesForCountry(
-  widget.currentUserCountryCode,
-  keepCurrentState: true,
-);
+    _loadCountries();
+ _loadInitialStates();
+  }
+Future<void> _loadInitialStates() async {
+  if (tempCountry == null || tempCountry!.isEmpty) {
+    return;
   }
 
+  final countries = await csc.getAllCountries();
+
+  csc.Country? selectedCountry;
+
+  for (final country in countries) {
+    if (country.name == tempCountry) {
+      selectedCountry = country;
+      break;
+    }
+  }
+
+  if (selectedCountry != null) {
+    await _loadStatesForCountry(
+      selectedCountry.isoCode,
+      keepCurrentState: true,
+    );
+  }
+}
   void _apply() {
     Navigator.pop(
       context,
@@ -230,6 +288,7 @@ Future<void> _loadStatesForCountry(
         gender: tempGender,
         minAge: tempMinAge,
         maxAge: tempMaxAge,
+        country: tempCountry,
         state: tempState,
         height: tempHeight,
         distanceKm: tempDistanceKm,
@@ -381,18 +440,18 @@ newHereOnly:
 
               const SizedBox(height: 18),
               _sheetTitle(_label('Khoảng cách tối đa', 'Max distance')),
-              Slider(
-                value: tempDistanceKm,
-                min: 5,
-                max: 200,
-                divisions: 39,
-                label: '${tempDistanceKm.round()} km',
-                onChanged: (value) {
-                  setState(() {
-                    tempDistanceKm = value;
-                  });
-                },
-              ),
+             Slider(
+  value: tempDistanceKm.clamp(5.0, 200.0),
+  min: 5,
+  max: 200,
+  divisions: 39,
+  label: '${tempDistanceKm.round()} km',
+  onChanged: (value) {
+    setState(() {
+      tempDistanceKm = value;
+    });
+  },
+),
               Align(
                 alignment: Alignment.centerRight,
                 child: Text(
@@ -406,6 +465,61 @@ newHereOnly:
 
               const SizedBox(height: 18),
               _sheetTitle(_label('Khu vực', 'Location')),
+             if (isLoadingCountries)
+  const LinearProgressIndicator()
+else
+  DropdownButtonFormField<String>(
+    value: availableCountries.any(
+      (country) => country.name == tempCountry,
+    )
+        ? tempCountry
+        : null,
+    isExpanded: true,
+    decoration: InputDecoration(
+      labelText: _label(
+        'Quốc gia',
+        'Country',
+      ),
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+    ),
+    items: [
+      const DropdownMenuItem<String>(
+        value: null,
+        child: Text('All Countries'),
+      ),
+      ...availableCountries.map((country) {
+        return DropdownMenuItem<String>(
+          value: country.name,
+          child: Text(
+            country.name,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      }),
+    ],
+    onChanged: (value) async {
+      setState(() {
+        tempCountry = value;
+        tempState = null;
+        availableStates = [];
+      });
+
+      if (value == null) return;
+
+      final selectedCountry = availableCountries.firstWhere(
+        (c) => c.name == value,
+      );
+
+      await _loadStatesForCountry(
+        selectedCountry.isoCode,
+      );
+    },
+  ),
+const SizedBox(height: 16),
 if (isLoadingStates)
   const LinearProgressIndicator()
 else if (availableStates.isEmpty)

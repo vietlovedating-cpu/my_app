@@ -310,7 +310,8 @@ await FirebaseFirestore.instance
   'selectedState': stateToSave,
   'selectedStateKey': stateToSave,
   'selectedStateLower': stateToSave.toLowerCase(),
-  'filterState': stateToSave,
+  
+  
   'state': stateToSave,
   'stateLiving': stateToSave,
 

@@ -425,14 +425,21 @@ String _normalizeAustralianState(String value) {
         .collection('users')
         .doc(user.uid)
         .set({
-      if (country.isNotEmpty) 'selectedCountry': country,
+    if (country.isNotEmpty) ...{
+  'selectedCountry': country,
+  'filterCountry': country,
+},
 
-      if (state.isNotEmpty) ...{
-        'selectedState': state,
-        'selectedStateKey': state,
-        'state': state,
-        'stateLiving': state,
-      },
+if (state.isNotEmpty) ...{
+  'selectedState': state,
+  'selectedStateKey': state,
+  'state': state,
+  'stateLiving': state,
+
+  // Đồng bộ filter
+  'filterState': state,
+  'filterStateKey': state,
+},
 
       if (city.isNotEmpty) ...{
         'city': city,

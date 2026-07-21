@@ -2033,9 +2033,18 @@ debugPrint(
         .toString()
         .trim();
 
-    if (rawState.isEmpty) {
-      return '';
-    }
+   if (rawState.isEmpty) {
+  final city = (
+    profile['city'] ??
+    profile['suburb'] ??
+    profile['locality'] ??
+    ''
+  )
+      .toString()
+      .trim();
+
+  return city;
+}
 
     final normalized =
         rawState.toLowerCase();

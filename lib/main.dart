@@ -10,6 +10,9 @@ import 'home_page.dart';
 import 'push_notification_service.dart';
 import 'group_renew_redirect_page.dart';
 
+import 'dart:async';
+import 'package:app_links/app_links.dart';
+import 'view_other_profile_page.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -78,18 +81,112 @@ class _MyAppState extends State<MyApp> {
   bool _isReady = true;
   late final PushNotificationService _pushService;
   String? _lastPushUserId;
+  late final AppLinks _appLinks;
+StreamSubscription? _appLinkSubscription;
+StreamSubscription? _deepLinkAuthSubscription;
+
+String? _pendingProfileUserId;
+bool _isOpeningDeepLinkProfile = false;
 
   @override
-  void initState() {
-    super.initState();
+void initState() {
+  super.initState();
 
-    _pushService = PushNotificationService(
-      navigatorKey: navigatorKey,
-      getLanguageCode: () => _languageCode,
+  _pushService = PushNotificationService(
+    navigatorKey: navigatorKey,
+    getLanguageCode: () => _languageCode,
+  );
+
+  _appLinks = AppLinks();
+  _initDeepLink();
+
+  _deepLinkAuthSubscription =
+      FirebaseAuth.instance.authStateChanges().listen((user) {
+    if (user != null) {
+      _openPendingProfile();
+    }
+  });
+
+  _loadSavedLanguage();
+} // thêm dấu đóng initState ở đây
+
+ void _initDeepLink() {
+  _appLinkSubscription = _appLinks.uriLinkStream.listen(
+    (uri) {
+      String userId = '';
+
+      // Link riêng của app:
+      // vietlove://profile/UID
+      if (uri.scheme == 'vietlove' &&
+          uri.host == 'profile' &&
+          uri.pathSegments.isNotEmpty) {
+        userId = uri.pathSegments.first.trim();
+      }
+
+      // Hỗ trợ thêm link website:
+      // https://vietlovedating.com/profile/UID
+      if ((uri.host == 'vietlovedating.com' ||
+              uri.host == 'www.vietlovedating.com') &&
+          uri.pathSegments.length >= 2 &&
+          uri.pathSegments.first.toLowerCase() == 'profile') {
+        userId = uri.pathSegments[1].trim();
+      }
+
+      if (userId.isEmpty) return;
+
+      _pendingProfileUserId = userId;
+      _openPendingProfile();
+    },
+    onError: (error) {
+      debugPrint('App link error: $error');
+    },
+  );
+}
+
+void _openPendingProfile() {
+  final userId = _pendingProfileUserId;
+
+  if (userId == null || userId.isEmpty) return;
+  if (_isOpeningDeepLinkProfile) return;
+
+  // Chưa đăng nhập thì giữ UID lại.
+  // Sau khi đăng nhập, authStateChanges sẽ gọi lại hàm này.
+  if (FirebaseAuth.instance.currentUser == null) return;
+
+  _isOpeningDeepLinkProfile = true;
+
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    if (!mounted) {
+      _isOpeningDeepLinkProfile = false;
+      return;
+    }
+
+    final navigator = navigatorKey.currentState;
+
+    if (navigator == null) {
+      _isOpeningDeepLinkProfile = false;
+
+      Future<void>.delayed(
+        const Duration(milliseconds: 300),
+        _openPendingProfile,
+      );
+      return;
+    }
+
+    _pendingProfileUserId = null;
+
+    await navigator.push(
+      MaterialPageRoute(
+        builder: (_) => ViewOtherProfilePage(
+          userId: userId,
+          languageCode: _languageCode,
+        ),
+      ),
     );
 
-    _loadSavedLanguage();
-  }
+    _isOpeningDeepLinkProfile = false;
+  });
+}
 
   Future<void> _loadSavedLanguage() async {
     try {
@@ -142,7 +239,12 @@ class _MyAppState extends State<MyApp> {
     }
   });
 }
-
+@override
+void dispose() {
+  _appLinkSubscription?.cancel();
+  _deepLinkAuthSubscription?.cancel();
+  super.dispose();
+}
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;

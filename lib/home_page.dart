@@ -4,7 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'mini_game_page.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +62,7 @@ bool _isOpeningHomeTutorial = false;
  String? selectedGenderFilter;
 int? selectedMinAgeFilter;
 int? selectedMaxAgeFilter;
+String? selectedCountryFilter;
 String? selectedStateFilter;
 double? selectedDistanceKm;
 
@@ -374,8 +375,23 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
         data['maxAgePreference'] ?? data['preferredMaxAge'],
       );
 
-      selectedStateFilter =
+    selectedCountryFilter =
+    (data['filterCountry'] ??
+            data['selectedCountry'] ??
+            '')
+        .toString()
+        .trim();
+
+if (selectedCountryFilter!.isEmpty) {
+  selectedCountryFilter = null;
+}
+
+selectedStateFilter =
     (data['filterState'] ?? '').toString().trim();
+
+if (selectedStateFilter!.isEmpty) {
+  selectedStateFilter = null;
+}
 
 selectedDistanceKm =
     (data['maxDistanceKm'] as num?)?.toDouble();
@@ -400,20 +416,25 @@ selectedDistanceKm =
   if (!mounted) return;
 
   final data = doc.data() ?? {};
-
-  final newFilterState =
-      (data['filterState'] ??
-              data['selectedStateKey'] ??
-              data['selectedState'] ??
-              '')
-          .toString()
-          .trim();
+final newFilterCountry =
+    (data['filterCountry'] ??
+            data['selectedCountry'] ??
+            '')
+        .toString()
+        .trim();
+ final newFilterState =
+    (data['filterState'] ?? '')
+        .toString()
+        .trim();
 
   setState(() {
     currentUserData = data;
 
-    selectedStateFilter =
-        newFilterState.isEmpty ? null : newFilterState;
+selectedCountryFilter =
+    newFilterCountry.isEmpty ? null : newFilterCountry;
+
+selectedStateFilter =
+    newFilterState.isEmpty ? null : newFilterState;
 
     selectedDistanceKm =
         (data['maxDistanceKm'] as num?)?.toDouble();
@@ -462,13 +483,20 @@ Future<void> _checkAndShowHomeTutorial() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .set({
-      'isOnline': isOnline,
-      'lastSeen': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    final userRef = FirebaseFirestore.instance
+    .collection('users')
+    .doc(user.uid);
+
+final userSnap = await userRef.get();
+
+if (!userSnap.exists) {
+  return;
+}
+
+await userRef.update({
+  'isOnline': isOnline,
+  'lastSeen': FieldValue.serverTimestamp(),
+});
   } catch (e) {
     debugPrint('Online status error: $e');
   }
@@ -1269,6 +1297,11 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
     
   final profileGender = _normalizeGenderPreference(profile['gender']);
   final profileAge = _parseInt(profile['age']);
+  final profileCountry = _normalizeString(
+  profile['selectedCountry'] ??
+      profile['country'] ??
+      '',
+);
 
 
   final profileStateKey = _normalizeStateKey(
@@ -1281,7 +1314,7 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
 );
 
 
-  // FREE FILTERS: gender, age, state, distance
+  // FREE FILTERS: gender, age, country, state, distance
   if (selectedGenderFilter != null &&
       selectedGenderFilter!.isNotEmpty &&
       selectedGenderFilter != 'everyone') {
@@ -1298,7 +1331,16 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
     return false;
   }
 
+if (selectedCountryFilter != null &&
+    selectedCountryFilter!.trim().isNotEmpty &&
+    selectedCountryFilter != 'all_countries') {
+  final selectedCountryKey =
+      _normalizeString(selectedCountryFilter);
 
+  if (profileCountry != selectedCountryKey) {
+    return false;
+  }
+}
 
 
  // ❗ Nếu No preference → KHÔNG lọc state
@@ -2489,7 +2531,60 @@ Future<void> _sendMatchNotification(
       },
     );
   }
+Future<void> _openSocial({
+  required String value,
+  required String platform,
+}) async {
+  String input = value.trim();
 
+  if (input.isEmpty) return;
+
+  String url;
+
+  if (input.startsWith('http://') ||
+      input.startsWith('https://')) {
+    url = input;
+  } else {
+    final username = input
+        .replaceAll('@', '')
+        .replaceAll('facebook.com/', '')
+        .replaceAll('www.facebook.com/', '')
+        .replaceAll('instagram.com/', '')
+        .replaceAll('www.instagram.com/', '')
+        .replaceAll('tiktok.com/', '')
+        .replaceAll('www.tiktok.com/', '')
+        .trim();
+
+    if (platform == 'facebook') {
+      url = 'https://www.facebook.com/$username';
+    } else if (platform == 'instagram') {
+      url = 'https://www.instagram.com/$username';
+    } else {
+      url = 'https://www.tiktok.com/@$username';
+    }
+  }
+
+  final uri = Uri.tryParse(url);
+
+  if (uri == null) return;
+
+  final opened = await launchUrl(
+    uri,
+    mode: LaunchMode.externalApplication,
+  );
+
+  if (!opened && mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isVi
+              ? 'Không thể mở liên kết này.'
+              : 'Unable to open this link.',
+        ),
+      ),
+    );
+  }
+}
   Widget _buildMatchPhoto(String imageUrl) {
     return Container(
       width: 130,
@@ -2531,6 +2626,7 @@ Future<void> _sendMatchNotification(
           initialGender: selectedGenderFilter,
           initialMinAge: selectedMinAgeFilter,
           initialMaxAge: selectedMaxAgeFilter,
+          initialCountry: selectedCountryFilter,
           initialState: selectedStateFilter,
           currentUserCountryCode:
     (currentUserData?['countryCode'] ?? 'AU')
@@ -2563,6 +2659,16 @@ Future<void> _sendMatchNotification(
           },
           onResetToDefault: () {
             setState(() {
+              selectedCountryFilter =
+    (currentUserData?['selectedCountry'] ??
+            currentUserData?['country'] ??
+            '')
+        .toString()
+        .trim();
+
+if (selectedCountryFilter!.isEmpty) {
+  selectedCountryFilter = null;
+}
               selectedGenderFilter = _normalizeGenderPreference(
                 currentUserData?['datingPreference'] ??
                     currentUserData?['genderPreference'],
@@ -2576,8 +2682,14 @@ Future<void> _sendMatchNotification(
                 currentUserData?['maxAgePreference'] ??
                     currentUserData?['preferredMaxAge'],
               );
-              selectedStateFilter =
-    (currentUserData?['filterState'] ?? '').toString().trim();
+             selectedStateFilter =
+    (currentUserData?['selectedStateKey'] ??
+            currentUserData?['selectedState'] ??
+            currentUserData?['stateLiving'] ??
+            currentUserData?['state'] ??
+            '')
+        .toString()
+        .trim();
 
 if (selectedStateFilter!.isEmpty) {
   selectedStateFilter = null;
@@ -2619,6 +2731,10 @@ if (selectedStateFilter!.isEmpty) {
         selectedGenderFilter = result.gender;
         selectedMinAgeFilter = result.minAge;
         selectedMaxAgeFilter = result.maxAge;
+        selectedCountryFilter =
+    (result.country == null || result.country!.trim().isEmpty)
+        ? null
+        : result.country;
         selectedStateFilter =
     (result.state == null || result.state!.trim().isEmpty)
         ? null
@@ -2665,6 +2781,7 @@ if (user != null) {
     'genderPreference': selectedGenderFilter,
     'minAgePreference': selectedMinAgeFilter,
     'maxAgePreference': selectedMaxAgeFilter,
+    'filterCountry': selectedCountryFilter,
 
     // 👉 STATE FILTER (đã sửa)
     'filterState': selectedStateFilter,
@@ -4194,6 +4311,98 @@ setState(() {
     ),
   );
 }
+Widget _buildSocialMediaSection({
+  required String facebookUrl,
+  required String instagramUrl,
+  required String tiktokUrl,
+}) {
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(
+        color: const Color(0xFFFFD5E6),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.08),
+          blurRadius: 16,
+          offset: const Offset(0, 7),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _label('Mạng xã hội', 'Social media'),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: Color(0xFF7A2E6E),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            if (facebookUrl.isNotEmpty)
+              InkWell(
+                onTap: () => _openSocial(
+                  value: facebookUrl,
+                  platform: 'facebook',
+                ),
+                borderRadius: BorderRadius.circular(30),
+                child: const CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Color(0xFF1877F2),
+                  child: Icon(
+                    Icons.facebook,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            if (instagramUrl.isNotEmpty)
+              InkWell(
+                onTap: () => _openSocial(
+                  value: instagramUrl,
+                  platform: 'instagram',
+                ),
+                borderRadius: BorderRadius.circular(30),
+                child: const CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.purple,
+                  child: Icon(
+                    Icons.camera_alt,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            if (tiktokUrl.isNotEmpty)
+              InkWell(
+                onTap: () => _openSocial(
+                  value: tiktokUrl,
+                  platform: 'tiktok',
+                ),
+                borderRadius: BorderRadius.circular(30),
+                child: const CircleAvatar(
+                  radius: 24,
+                  backgroundColor: Colors.black,
+                  child: Icon(
+                    Icons.music_note,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildPromptCard({
   required String question,
   required String answer,
@@ -4616,6 +4825,17 @@ setState(() {
   Widget _buildHomeProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
     final prompts = _extractPrompts(profile, isVi);
+    final facebookUrl =
+    (profile['facebookUrl'] ?? '').toString().trim();
+
+final instagramUrl =
+    (profile['instagramUrl'] ?? '').toString().trim();
+
+final tiktokUrl =
+    (profile['tiktokUrl'] ?? '').toString().trim();
+
+final showSocialMedia =
+    profile['showSocialMedia'] == true;
 
     String getPhoto(int index) {
       if (index < 0 || index >= photos.length) return '';
@@ -5074,6 +5294,19 @@ if (_extractRelationshipGoalKeys(profile).isNotEmpty)
   promptIndex: 4,
 ),
                 ],
+                const SizedBox(height: 22),
+
+if (showSocialMedia &&
+    (facebookUrl.isNotEmpty ||
+        instagramUrl.isNotEmpty ||
+        tiktokUrl.isNotEmpty))
+  _buildSocialMediaSection(
+    facebookUrl: facebookUrl,
+    instagramUrl: instagramUrl,
+    tiktokUrl: tiktokUrl,
+  ),
+
+const SizedBox(height: 10),
               ],
             ),
           ),
@@ -5574,12 +5807,12 @@ if (_extractRelationshipGoalKeys(profile).isNotEmpty)
       ? isVipUser
           ? 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
           : 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
-      : 'Hiện chưa còn hồ sơ nào để xem.',
+      : 'Không có hồ sơ nào phù hợp với bộ lọc hiện tại.\nHãy thử thay đổi bộ lọc nhé. ❤️',
   _dailyDiscoverLimitReached
       ? isVipUser
           ? 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
           : 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
-      : 'No more profiles to show.',
+      : 'No profiles match your current filters.\nTry adjusting your filters. ❤️',
 ),
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -5721,9 +5954,12 @@ return _buildHomeProfile(profiles.first, isVi);
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedBottomIndex,
-       onTap: (index) async {
-  // Chỉ reload khi đang ở tab Me và bấm về Home
-  if (_selectedBottomIndex == 5 && index == 0) {
+      onTap: (index) async {
+  // Từ tab Games hoặc Me quay về Home:
+  // reload lại flowerBalance và dữ liệu user.
+  if ((_selectedBottomIndex == 3 ||
+          _selectedBottomIndex == 5) &&
+      index == 0) {
     await _reloadCurrentUserData();
 
     if (!mounted) return;
