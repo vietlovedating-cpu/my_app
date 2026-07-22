@@ -385,17 +385,28 @@ if (selectedCountryFilter!.isEmpty) {
   selectedCountryFilter = null;
 }
 
-selectedStateFilter = _firstNonEmptyValue([
-  data['filterState'],
-  data['selectedState'],
-  data['state'],
-]);
+final hasSavedCountryFilter =
+    data.containsKey('filterCountry');
 
-if (selectedStateFilter!.isEmpty) {
-  selectedStateFilter = null;
+if (hasSavedCountryFilter) {
+  // User đã từng Apply filter.
+  // Chỉ đọc state filter, không lấy state nơi đang sống.
+  selectedStateFilter = _firstNonEmptyValue([
+    data['filterState'],
+    data['filterStateKey'],
+  ]);
+} else {
+  // Hỗ trợ dữ liệu cũ.
+  selectedStateFilter = _firstNonEmptyValue([
+    data['selectedStateKey'],
+    data['selectedState'],
+    data['stateLiving'],
+    data['state'],
+  ]);
 }
 
-if (selectedStateFilter!.isEmpty) {
+if (selectedStateFilter == null ||
+    selectedStateFilter!.trim().isEmpty) {
   selectedStateFilter = null;
 }
 
@@ -427,11 +438,20 @@ final newFilterCountry = _firstNonEmptyValue([
   data['selectedCountry'],
   data['country'],
 ]);
-final newFilterState = _firstNonEmptyValue([
-  data['filterState'],
-  data['selectedState'],
-  data['state'],
-]);
+final hasSavedCountryFilter =
+    data.containsKey('filterCountry');
+
+final newFilterState = hasSavedCountryFilter
+    ? _firstNonEmptyValue([
+        data['filterState'],
+        data['filterStateKey'],
+      ])
+    : _firstNonEmptyValue([
+        data['selectedStateKey'],
+        data['selectedState'],
+        data['stateLiving'],
+        data['state'],
+      ]);
 
   setState(() {
     currentUserData = data;

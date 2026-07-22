@@ -133,11 +133,11 @@ print('MATCH FCM TOKEN UPDATED');
         actions: [
           IconButton(
             tooltip: _tr('Ai thích tôi', 'Who Likes Me'),
-            icon: const Icon(
-              Icons.people_alt_rounded,
-              color: Color(0xFFE76F51),
-              size: 42,
-            ),
+           icon: const Icon(
+  Icons.card_giftcard_rounded,
+  color: Color(0xFFE76F51),
+  size: 42,
+),
             onPressed: () {
               Navigator.push(
                 context,

@@ -346,17 +346,17 @@ Container(
       ),
       const SizedBox(width: 10),
       Expanded(
-        child: Text(
-          isVi
-              ? 'Vui lòng xác minh số điện thoại để giúp ngăn chặn tài khoản giả mạo, lừa đảo và giữ cho cộng đồng VietLove Dating an toàn hơn.'
-              : 'Please verify your phone number to help prevent fake accounts and scams, and keep the VietLove Dating community safe for everyone.',
-          style: const TextStyle(
-            fontSize: 14,
-            height: 1.4,
-            color: Colors.black87,
-          ),
-        ),
-      ),
+  child: Text(
+    isVi
+        ? 'Vui lòng xác minh số điện thoại để giúp ngăn chặn tài khoản giả mạo, lừa đảo và giữ cho cộng đồng VietLove Dating an toàn hơn. VietLove Dating cam kết mọi thông tin cá nhân của bạn sẽ được bảo mật và lưu trữ an toàn.'
+        : 'Please verify your phone number to help prevent fake accounts and scams, and keep the VietLove Dating community safe for everyone. VietLove Dating is committed to protecting your personal information and keeping your data secure.',
+    style: const TextStyle(
+      fontSize: 14,
+      height: 1.4,
+      color: Colors.black87,
+    ),
+  ),
+),
     ],
   ),
 ),

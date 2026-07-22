@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'guess_game_page.dart';
 import 'lucky_spin_page.dart';
+import 'blind_date_quiz_page.dart';
 
 class MiniGamePage extends StatefulWidget {
   final String languageCode;
@@ -21,6 +22,7 @@ class _MiniGamePageState extends State<MiniGamePage>
     with TickerProviderStateMixin {
   late final AnimationController _guessAnimationController;
   late final AnimationController _spinAnimationController;
+  late final AnimationController _blindDateAnimationController;
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -43,12 +45,17 @@ class _MiniGamePageState extends State<MiniGamePage>
       vsync: this,
       duration: const Duration(seconds: 8),
     )..repeat();
+    _blindDateAnimationController = AnimationController(
+  vsync: this,
+  duration: const Duration(milliseconds: 1800),
+)..repeat(reverse: true);
   }
 
   @override
   void dispose() {
     _guessAnimationController.dispose();
     _spinAnimationController.dispose();
+    _blindDateAnimationController.dispose();
     super.dispose();
   }
 
@@ -62,17 +69,27 @@ class _MiniGamePageState extends State<MiniGamePage>
       ),
     );
   }
-
-  void _openLuckySpinPage() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LuckySpinPage(
-          languageCode: widget.languageCode,
-        ),
+void _openLuckySpinPage() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LuckySpinPage(
+        languageCode: widget.languageCode,
       ),
-    );
-  }
+    ),
+  );
+} 
+
+ void _openBlindDateQuizPage() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => BlindDateQuizPage(
+        languageCode: widget.languageCode,
+      ),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -123,6 +140,10 @@ class _MiniGamePageState extends State<MiniGamePage>
 
               // Game 2: Lucky Spin
               _buildLuckySpinCard(),
+
+              const SizedBox(height: 20),
+
+_buildBlindDateQuizCard(),
             ],
           ),
         ),
@@ -424,6 +445,131 @@ class _MiniGamePageState extends State<MiniGamePage>
       ),
     );
   }
+  Widget _buildBlindDateQuizCard() {
+  return InkWell(
+    onTap: _openBlindDateQuizPage,
+    borderRadius: BorderRadius.circular(28),
+    child: Container(
+      width: double.infinity,
+      height: 235,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFF8A65),
+            Color(0xFFFF5A7A),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFFF5A7A)
+                .withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -35,
+            right: -25,
+            child: Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.08),
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Blind Date Quiz',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 29,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      Text(
+                        _tr(
+                          'Trả lời 7 câu hỏi và khám phá người phù hợp nhất hôm nay.',
+                          'Answer 7 questions and discover your best match today.',
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.92),
+                          fontSize: 14,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const Spacer(),
+
+                      _buildOpenButton(
+                        _tr(
+                          'Bắt đầu',
+                          'Start',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                AnimatedBuilder(
+                  animation:
+                      _blindDateAnimationController,
+                  builder: (context, child) {
+                    final value =
+                        _blindDateAnimationController.value;
+
+                    final moveY =
+                        sin(value * pi) * 9;
+
+                    final scale =
+                        1 + sin(value * pi) * 0.06;
+
+                    return Transform.translate(
+                      offset: Offset(0, -moveY),
+                      child: Transform.scale(
+                        scale: scale,
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: const Icon(
+                    Icons.favorite_rounded,
+                    size: 95,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
   Widget _buildOpenButton(String text) {
     return Container(

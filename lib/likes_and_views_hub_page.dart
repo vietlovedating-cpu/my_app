@@ -721,175 +721,221 @@ Future<void> _openBoost(BuildContext context) async {
             ),
           ),
           const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: Colors.grey.shade100,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 24,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                _buildServiceTile(
-                  icon: Icons.favorite_outline_rounded,
-                  title: isVi ? 'Ai thích tôi' : 'See Who Likes Me',
-                  subtitle: _buildLikesSubtitle(),
-                  trailing: _buildLikesPreview(),
-                  onTap: () => _openLockedPage(context, type: 'likes'),
-                  iconGradient: const [
-                    Color(0xFFFFF1E7),
-                    Color(0xFFFFE1CC),
-                  ],
-                  iconColor: const Color(0xFFF2A35A),
-                  showPremiumTag: true,
-                ),
-                Divider(
-                  color: Colors.grey.shade200,
-                  height: 1,
-                  thickness: 1,
-                ),
-                _buildServiceTile(
-  icon: Icons.favorite_rounded,
-  title: isVi ? 'Tôi đã thích ai' : 'Who I Liked',
-  subtitle: Text(
-    isVi
-        ? 'Xem lại những hồ sơ bạn đã thích'
-        : 'Review profiles you have liked',
-    style: const TextStyle(
-      fontSize: 15,
-      color: Colors.black45,
-      fontWeight: FontWeight.w500,
-    ),
-  ),
-  trailing: Container(
-    width: 28,
-    height: 28,
-    decoration: BoxDecoration(
-      color: Colors.grey.shade100,
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.chevron_right_rounded,
-      color: Colors.black38,
-      size: 20,
-    ),
-  ),
-  onTap: () => _openLockedPage(
-    context,
-    type: 'liked',
-  ),
-  iconGradient: const [
-    Color(0xFFFFEDF4),
-    Color(0xFFFFD6E7),
-  ],
-  iconColor: const Color(0xFFCC3D7A),
-  showPremiumTag: true,
-),
-
-Divider(
-  color: Colors.grey.shade200,
-  height: 1,
-  thickness: 1,
-),
-                _buildServiceTile(
- icon: Icons.rocket_launch_rounded,
-  title: isVi ? 'Boost hồ sơ' : 'Profile Boost',
-  subtitle: Text(
-    isVi
-        ? 'Làm nổi bật hồ sơ của bạn'
-        : 'Highlight your profile',
-    style: const TextStyle(
-      fontSize: 15,
-      height: 1.4,
-      color: Colors.black45,
-      fontWeight: FontWeight.w500,
-    ),
-  ),
-  trailing: Container(
-    width: 34,
-    height: 34,
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(
-        colors: [
-          Color(0xFFFFD76A),
-          Color(0xFFE9A91A),
+         Column(
+  children: [
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.grey.shade100,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
         ],
       ),
-      shape: BoxShape.circle,
-      boxShadow: [
-        BoxShadow(
-          color: const Color(0xFFE9A91A).withOpacity(0.25),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ],
+      child: _buildServiceTile(
+        icon: Icons.favorite_outline_rounded,
+        title: isVi ? 'Ai thích tôi' : 'See Who Likes Me',
+        subtitle: _buildLikesSubtitle(),
+        trailing: _buildLikesPreview(),
+        onTap: () => _openLockedPage(context, type: 'likes'),
+        iconGradient: const [
+          Color(0xFFFFF1E7),
+          Color(0xFFFFE1CC),
+        ],
+        iconColor: const Color(0xFFF2A35A),
+        showPremiumTag: true,
+      ),
     ),
-    child: const Icon(
-  Icons.rocket_launch_rounded,
-  color: Colors.white,
-  size: 20,
-),
-  ),
-  onTap: () => _openBoost(context),
-  iconGradient: const [
-    Color(0xFFFFF6D9),
-    Color(0xFFFFE9A6),
-  ],
-  iconColor: const Color(0xFFE2A11A),
-  showPremiumTag: true,
-),
-                Divider(
-  color: Colors.grey.shade200,
-  height: 1,
-  thickness: 1,
-),
 
-_buildServiceTile(
-  icon: Icons.close_rounded,
-  title: isVi ? 'Người tôi đã bỏ qua' : 'Who I Passed',
-  subtitle: Text(
-    isVi
-        ? 'Xem lại những hồ sơ bạn đã bỏ qua'
-        : 'Review profiles you have passed',
-    style: const TextStyle(
-      fontSize: 15,
-      color: Colors.black45,
-      fontWeight: FontWeight.w500,
+    const SizedBox(height: 16),
+
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.grey.shade100,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: _buildServiceTile(
+        icon: Icons.favorite_rounded,
+        title: isVi ? 'Tôi đã thích ai' : 'Who I Liked',
+        subtitle: Text(
+          isVi
+              ? 'Xem lại những hồ sơ bạn đã thích'
+              : 'Review profiles you have liked',
+          style: const TextStyle(
+            fontSize: 15,
+            color: Colors.black45,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.chevron_right_rounded,
+            color: Colors.black38,
+            size: 20,
+          ),
+        ),
+        onTap: () => _openLockedPage(
+          context,
+          type: 'liked',
+        ),
+        iconGradient: const [
+          Color(0xFFFFEDF4),
+          Color(0xFFFFD6E7),
+        ],
+        iconColor: const Color(0xFFCC3D7A),
+        showPremiumTag: true,
+      ),
     ),
-  ),
-  trailing: Container(
-    width: 28,
-    height: 28,
-    decoration: BoxDecoration(
-      color: Colors.grey.shade100,
-      shape: BoxShape.circle,
-    ),
-    child: const Icon(
-      Icons.chevron_right_rounded,
-      color: Colors.black38,
-      size: 20,
-    ),
-  ),
-  onTap: () => _openLockedPage(context, type: 'passed'),
-  iconGradient: const [
-    Color(0xFFEFF3FF),
-    Color(0xFFDDE7FF),
-  ],
-  iconColor: const Color(0xFF5C7CFA),
-  showPremiumTag: true,
-),
+
+    const SizedBox(height: 16),
+
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.grey.shade100,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: _buildServiceTile(
+        icon: Icons.rocket_launch_rounded,
+        title: isVi ? 'Boost hồ sơ' : 'Profile Boost',
+        subtitle: Text(
+          isVi
+              ? 'Làm nổi bật hồ sơ của bạn'
+              : 'Highlight your profile',
+          style: const TextStyle(
+            fontSize: 15,
+            height: 1.4,
+            color: Colors.black45,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFFD76A),
+                Color(0xFFE9A91A),
               ],
             ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE9A91A).withOpacity(0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
+          child: const Icon(
+            Icons.rocket_launch_rounded,
+            color: Colors.white,
+            size: 20,
+          ),
+        ),
+        onTap: () => _openBoost(context),
+        iconGradient: const [
+          Color(0xFFFFF6D9),
+          Color(0xFFFFE9A6),
+        ],
+        iconColor: const Color(0xFFE2A11A),
+        showPremiumTag: true,
+      ),
+    ),
+
+    const SizedBox(height: 16),
+
+    Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: Colors.grey.shade100,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: _buildServiceTile(
+        icon: Icons.close_rounded,
+        title: isVi ? 'Người tôi đã bỏ qua' : 'Who I Passed',
+        subtitle: Text(
+          isVi
+              ? 'Xem lại những hồ sơ bạn đã bỏ qua'
+              : 'Review profiles you have passed',
+          style: const TextStyle(
+            fontSize: 15,
+            color: Colors.black45,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.chevron_right_rounded,
+            color: Colors.black38,
+            size: 20,
+          ),
+        ),
+        onTap: () => _openLockedPage(
+          context,
+          type: 'passed',
+        ),
+        iconGradient: const [
+          Color(0xFFEFF3FF),
+          Color(0xFFDDE7FF),
+        ],
+        iconColor: const Color(0xFF5C7CFA),
+        showPremiumTag: true,
+      ),
+    ),
+  ],
+),
         ],
       ),
     );
