@@ -34,7 +34,7 @@ dependencies:
   url_launcher: ^6.3.0
   app_links: ^3.4.1
   flutter_local_notifications: ^17.0.0
-  in_app_purchase: 3.2.3
+  in_app_purchase: ^3.3.0
   http: ^1.2.2
   cloud_functions: ^5.5.0
   country_state_city: ^0.1.6
