@@ -8,6 +8,8 @@ const crypto = require("crypto");
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { onMessagePublished } =
+  require("firebase-functions/v2/pubsub");
 const APPLE_KEY_ID = "5Y96FGHGP6";
 const APPLE_ISSUER_ID = "6cd61427-575e-490b-99c4-79302d8872f8";
 const APPLE_BUNDLE_ID = "com.vietlovedating.app";
@@ -1578,6 +1580,183 @@ exports.syncGoogleVipSubscriptions = onSchedule(
           e.response?.data || e
         );
       }
+    }
+  }
+);
+exports.googlePlayVipNotification = onMessagePublished(
+  {
+    topic: "vietlove-google-billing",
+    region: "us-central1",
+    timeoutSeconds: 120,
+    memory: "256MiB",
+    secrets: ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"],
+  },
+  async (event) => {
+    const messageJson = event.data.message.json;
+
+    console.log(
+      "GOOGLE PLAY RTDN RECEIVED:",
+      JSON.stringify(messageJson)
+    );
+
+    const subscriptionNotification =
+      messageJson?.subscriptionNotification;
+
+    if (!subscriptionNotification) {
+      console.log(
+        "RTDN does not contain subscriptionNotification."
+      );
+      return;
+    }
+
+    const purchaseToken =
+      subscriptionNotification.purchaseToken || "";
+
+    const productId =
+      subscriptionNotification.subscriptionId || "";
+
+    const notificationType =
+      Number(subscriptionNotification.notificationType || 0);
+
+    if (!purchaseToken || !productId) {
+      console.log("Missing productId or purchaseToken.");
+      return;
+    }
+
+    const db = admin.firestore();
+
+    // Tìm đúng user sở hữu purchase token này
+    const usersSnap = await db
+      .collection("users")
+      .where("googlePurchaseToken", "==", purchaseToken)
+      .limit(2)
+      .get();
+
+    if (usersSnap.empty) {
+      console.error(
+        "No user found for Google purchase token:",
+        purchaseToken
+      );
+      return;
+    }
+
+    if (usersSnap.size > 1) {
+      console.error(
+        "Multiple users found for the same purchase token:",
+        purchaseToken
+      );
+      return;
+    }
+
+    const userDoc = usersSnap.docs[0];
+    const userData = userDoc.data() || {};
+
+    try {
+      // Luôn hỏi lại Google để lấy trạng thái chính xác
+      const googleInfo = await getGoogleSubscriptionInfo(
+        productId,
+        purchaseToken
+      );
+
+      const expiryTimeMillis = Number(
+        googleInfo.expiryTimeMillis || 0
+      );
+
+      if (!expiryTimeMillis) {
+        console.error(
+          "Google response missing expiryTimeMillis:",
+          googleInfo
+        );
+        return;
+      }
+
+      const expiresAt = new Date(expiryTimeMillis);
+      const now = new Date();
+      const isActive = expiresAt > now;
+
+      const previousExpiry =
+        userData.vipExpiresAt?.toDate?.() || null;
+
+      const renewed =
+        previousExpiry != null &&
+        expiresAt.getTime() > previousExpiry.getTime();
+
+      await userDoc.ref.set(
+        {
+          isVip: isActive,
+          vipUnlocked: isActive,
+          membership: isActive ? "vip" : "",
+          plan: isActive ? "vip" : "",
+          vipStatus: isActive ? "active" : "expired",
+
+          vipPlatform: "google_play",
+          vipProductId: productId,
+          googlePurchaseToken: purchaseToken,
+
+          vipExpiresAt:
+            admin.firestore.Timestamp.fromDate(expiresAt),
+
+          googleOrderId:
+            googleInfo.orderId ||
+            userData.googleOrderId ||
+            "",
+
+          googleAutoRenewing:
+            googleInfo.autoRenewing === true,
+
+          googlePaymentState:
+            googleInfo.paymentState ?? null,
+
+          googleAcknowledgementState:
+            googleInfo.acknowledgementState ?? null,
+
+          googleLastNotificationType: notificationType,
+
+          googleRtdnReceivedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          vipUpdatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+
+          vipExpiredHandled: !isActive,
+
+          ...(renewed
+            ? {
+                vipRenewCount:
+                  admin.firestore.FieldValue.increment(1),
+
+                vipLastRenewedAt:
+                  admin.firestore.FieldValue.serverTimestamp(),
+
+                vipReminder7dSent: false,
+                vipReminder3dSent: false,
+                vipReminder1dSent: false,
+              }
+            : {}),
+        },
+        { merge: true }
+      );
+
+      console.log(
+        "GOOGLE VIP RTDN UPDATED:",
+        userDoc.id,
+        {
+          productId,
+          notificationType,
+          isActive,
+          renewed,
+          expiresAt: expiresAt.toISOString(),
+        }
+      );
+    } catch (error) {
+      console.error(
+        "GOOGLE VIP RTDN VERIFY ERROR:",
+        userDoc.id,
+        error.response?.data || error
+      );
+
+      // Throw để Pub/Sub retry lại thay vì mất notification
+      throw error;
     }
   }
 );

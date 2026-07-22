@@ -375,18 +375,28 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
         data['maxAgePreference'] ?? data['preferredMaxAge'],
       );
 
-   selectedCountryFilter = _firstNonEmptyValue([
-  data['filterCountry'],
-  data['selectedCountry'],
-  data['country'],
-]);
+  final hasSavedCountryFilter =
+    data.containsKey('filterCountry');
 
-if (selectedCountryFilter!.isEmpty) {
-  selectedCountryFilter = null;
+if (hasSavedCountryFilter) {
+  // Đã từng Apply filter.
+  // Chỉ đọc filterCountry.
+  selectedCountryFilter =
+      (data['filterCountry'] ?? '')
+          .toString()
+          .trim();
+} else {
+  // User cũ chưa từng lưu filter.
+  selectedCountryFilter = _firstNonEmptyValue([
+    data['selectedCountry'],
+    data['country'],
+  ]);
 }
 
-final hasSavedCountryFilter =
-    data.containsKey('filterCountry');
+if (selectedCountryFilter == null ||
+    selectedCountryFilter!.trim().isEmpty) {
+  selectedCountryFilter = null;
+}
 
 if (hasSavedCountryFilter) {
   // User đã từng Apply filter.
@@ -433,13 +443,17 @@ selectedDistanceKm =
   if (!mounted) return;
 
   final data = doc.data() ?? {};
-final newFilterCountry = _firstNonEmptyValue([
-  data['filterCountry'],
-  data['selectedCountry'],
-  data['country'],
-]);
 final hasSavedCountryFilter =
     data.containsKey('filterCountry');
+
+final newFilterCountry = hasSavedCountryFilter
+    ? (data['filterCountry'] ?? '')
+        .toString()
+        .trim()
+    : _firstNonEmptyValue([
+        data['selectedCountry'],
+        data['country'],
+      ]);
 
 final newFilterState = hasSavedCountryFilter
     ? _firstNonEmptyValue([
