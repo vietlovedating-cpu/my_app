@@ -14,6 +14,7 @@ class ViewOtherProfilePage extends StatefulWidget {
   final bool hideLikeButton;
   final bool hidePassButton;
   final bool allowActionsForPassedProfile;
+  final bool allowFlowerForLikedProfile;
 
   const ViewOtherProfilePage({
     super.key,
@@ -24,6 +25,7 @@ class ViewOtherProfilePage extends StatefulWidget {
     this.hideLikeButton = false,
     this.hidePassButton = false,
     this.allowActionsForPassedProfile = false,
+    this.allowFlowerForLikedProfile = false,
   });
 
   @override
@@ -36,6 +38,9 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
   bool _isCheckingSwipe = true;
   bool _alreadyActed = false;
   bool _isProcessingAction = false;
+
+  String _currentSwipeAction = '';
+bool _isMatchedWithUser = false;
 
   String _tr(String vi, String en) => isVi ? vi : en;
 
@@ -70,42 +75,76 @@ class _ViewOtherProfilePageState extends State<ViewOtherProfilePage> {
   }
 
   Future<void> _checkExistingSwipe() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
+  final currentUser = FirebaseAuth.instance.currentUser;
 
-    if (currentUser == null || widget.userId.trim().isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _isCheckingSwipe = false;
-        _alreadyActed = false;
-      });
-      return;
-    }
+  if (currentUser == null || widget.userId.trim().isEmpty) {
+    if (!mounted) return;
 
-    try {
-      final docId = '${currentUser.uid}_${widget.userId}';
+    setState(() {
+      _isCheckingSwipe = false;
+      _alreadyActed = false;
+      _currentSwipeAction = '';
+      _isMatchedWithUser = false;
+    });
 
-      final doc = await FirebaseFirestore.instance
-          .collection('swipes')
-          .doc(docId)
-          .get();
-
-      final data = doc.data();
-      final action = (data?['action'] ?? '').toString().trim().toLowerCase();
-
-      if (!mounted) return;
-      setState(() {
-        _alreadyActed =
-            action == 'pass' || action == 'like' || action == 'flower';
-        _isCheckingSwipe = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isCheckingSwipe = false;
-        _alreadyActed = false;
-      });
-    }
+    return;
   }
+
+  try {
+    final currentUid = currentUser.uid;
+    final targetUid = widget.userId.trim();
+
+    final swipeDocId = '${currentUid}_$targetUid';
+
+    final ids = [currentUid, targetUid]..sort();
+    final matchId = ids.join('_');
+
+    final results = await Future.wait([
+      FirebaseFirestore.instance
+          .collection('swipes')
+          .doc(swipeDocId)
+          .get(),
+
+      FirebaseFirestore.instance
+          .collection('matches')
+          .doc(matchId)
+          .get(),
+    ]);
+
+    final swipeDoc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+    final matchDoc = results[1] as DocumentSnapshot<Map<String, dynamic>>;
+
+    final swipeData = swipeDoc.data();
+
+    final action = (swipeData?['action'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    if (!mounted) return;
+
+    setState(() {
+      _currentSwipeAction = action;
+      _isMatchedWithUser = matchDoc.exists;
+
+      _alreadyActed =
+          action == 'pass' ||
+          action == 'like' ||
+          action == 'flower';
+
+      _isCheckingSwipe = false;
+    });
+  } catch (_) {
+    if (!mounted) return;
+
+    setState(() {
+      _isCheckingSwipe = false;
+      _alreadyActed = false;
+      _currentSwipeAction = '';
+      _isMatchedWithUser = false;
+    });
+  }
+}
 
   Future<void> _handlePass(Map<String, dynamic> targetProfile) async {
     await _saveSwipe(
@@ -520,9 +559,10 @@ await _saveSwipe(
 
       if (!mounted) return didMatch;
 
-      setState(() {
-        _alreadyActed = true;
-      });
+     setState(() {
+  _alreadyActed = true;
+  _currentSwipeAction = action;
+});
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1953,42 +1993,70 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
     );
   }
 
-  Widget _buildFloatingActionBar(Map<String, dynamic> profile) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          if (!widget.hidePassButton)
-  _buildActionCircleButton(
-    onTap: _isProcessingAction ? null : () => _handlePass(profile),
-    icon: Icons.close_rounded,
-    iconColor: Colors.black87,
-    size: 64,
-  ),
+ Widget _buildFloatingActionBar(
+  Map<String, dynamic> profile,
+) {
+  final likedProfileFlowerOnly =
+      widget.allowFlowerForLikedProfile &&
+      _currentSwipeAction == 'like' &&
+      !_isMatchedWithUser;
+
+  return Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 18,
+      vertical: 14,
+    ),
+    decoration: BoxDecoration(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(30),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        // Trang "Tôi đã thích ai" không hiện Pass.
+        if (!likedProfileFlowerOnly &&
+            !widget.hidePassButton)
           _buildActionCircleButton(
-            onTap: _isProcessingAction ? null : () => _handleFlower(profile),
+            onTap: _isProcessingAction
+                ? null
+                : () => _handlePass(profile),
+            icon: Icons.close_rounded,
+            iconColor: Colors.black87,
+            size: 64,
+          ),
+
+        // Flower:
+        // - Trang Tôi đã thích ai: chỉ hiện khi chưa match
+        //   và swipe hiện tại vẫn là like.
+        // - Các trang bình thường: giữ nguyên.
+        if (!widget.allowFlowerForLikedProfile ||
+            likedProfileFlowerOnly)
+          _buildActionCircleButton(
+            onTap: _isProcessingAction
+                ? null
+                : () => _handleFlower(profile),
             icon: Icons.local_florist_rounded,
             iconColor: Colors.white,
             size: 72,
             backgroundColor: const Color(0xFFFFD54F),
           ),
-          if (!widget.hideLikeButton)
+
+        // Trang "Tôi đã thích ai" không hiện Like.
+        if (!likedProfileFlowerOnly &&
+            !widget.hideLikeButton)
           _buildActionCircleButton(
-            onTap: _isProcessingAction ? null : () => _handleLike(profile),
+            onTap: _isProcessingAction
+                ? null
+                : () => _handleLike(profile),
             icon: Icons.favorite_rounded,
             iconColor: Colors.white,
             size: 64,
             backgroundColor: const Color(0xFFE91E63),
           ),
-        ],
-      ),
-    );
-  }
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -2443,14 +2511,24 @@ final isRecentlyActive = _isRecentlyActive(p);
                   ],
                 ),
               ),
-              if (!_isCheckingSwipe &&
-    (!_alreadyActed || widget.allowActionsForPassedProfile))
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 12,
-                  child: _buildFloatingActionBar(p),
-                ),
+             if (!_isCheckingSwipe &&
+    (
+      !_alreadyActed ||
+
+      widget.allowActionsForPassedProfile ||
+
+      (
+        widget.allowFlowerForLikedProfile &&
+        _currentSwipeAction == 'like' &&
+        !_isMatchedWithUser
+      )
+    ))
+  Positioned(
+    left: 0,
+    right: 0,
+    bottom: 12,
+    child: _buildFloatingActionBar(p),
+  ),
             ],
           ),
         ),

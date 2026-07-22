@@ -486,12 +486,17 @@ else
         borderRadius: BorderRadius.circular(14),
       ),
     ),
-    items: [
-      const DropdownMenuItem<String>(
-        value: null,
-        child: Text('All Countries'),
+   items: [
+  DropdownMenuItem<String>(
+    value: null,
+    child: Text(
+      _label(
+        'Tất cả quốc gia',
+        'All Countries',
       ),
-      ...availableCountries.map((country) {
+    ),
+  ),
+  ...availableCountries.map((country) {
         return DropdownMenuItem<String>(
           value: country.name,
           child: Text(

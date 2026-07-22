@@ -31,7 +31,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.vietlovedating.app"
-    compileSdk flutter.compileSdkVersion
+    compileSdk 36
     ndkVersion flutter.ndkVersion
 
     compileOptions {
@@ -51,7 +51,7 @@ android {
     defaultConfig {
         applicationId "com.vietlovedating.app"
         minSdkVersion flutter.minSdkVersion
-        targetSdkVersion flutter.targetSdkVersion
+        targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }

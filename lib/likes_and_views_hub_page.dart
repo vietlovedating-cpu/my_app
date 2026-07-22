@@ -9,6 +9,7 @@ import 'upgrade_vip_page.dart';
 import 'who_likes_me_page.dart';
 import 'who_i_passed_page.dart';
 import 'boost_profile_page.dart';
+import 'who_i_liked_page.dart';
 
 
 class LikesAndViewsHubPage extends StatelessWidget {
@@ -175,11 +176,22 @@ return vipExpiresAt.toDate().isAfter(DateTime.now());
       builder: (_) => WhoLikesMePage(languageCode: languageCode),
     ),
   );
+} else if (type == 'liked') {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => WhoILikedPage(
+        languageCode: languageCode,
+      ),
+    ),
+  );
 } else if (type == 'passed') {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (_) => WhoIPassedPage(languageCode: languageCode),
+      builder: (_) => WhoIPassedPage(
+        languageCode: languageCode,
+      ),
     ),
   );
 }
@@ -745,6 +757,49 @@ Future<void> _openBoost(BuildContext context) async {
                   height: 1,
                   thickness: 1,
                 ),
+                _buildServiceTile(
+  icon: Icons.favorite_rounded,
+  title: isVi ? 'Tôi đã thích ai' : 'Who I Liked',
+  subtitle: Text(
+    isVi
+        ? 'Xem lại những hồ sơ bạn đã thích'
+        : 'Review profiles you have liked',
+    style: const TextStyle(
+      fontSize: 15,
+      color: Colors.black45,
+      fontWeight: FontWeight.w500,
+    ),
+  ),
+  trailing: Container(
+    width: 28,
+    height: 28,
+    decoration: BoxDecoration(
+      color: Colors.grey.shade100,
+      shape: BoxShape.circle,
+    ),
+    child: const Icon(
+      Icons.chevron_right_rounded,
+      color: Colors.black38,
+      size: 20,
+    ),
+  ),
+  onTap: () => _openLockedPage(
+    context,
+    type: 'liked',
+  ),
+  iconGradient: const [
+    Color(0xFFFFEDF4),
+    Color(0xFFFFD6E7),
+  ],
+  iconColor: const Color(0xFFCC3D7A),
+  showPremiumTag: true,
+),
+
+Divider(
+  color: Colors.grey.shade200,
+  height: 1,
+  thickness: 1,
+),
                 _buildServiceTile(
  icon: Icons.rocket_launch_rounded,
   title: isVi ? 'Boost hồ sơ' : 'Profile Boost',

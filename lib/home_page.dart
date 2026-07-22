@@ -375,19 +375,25 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
         data['maxAgePreference'] ?? data['preferredMaxAge'],
       );
 
-    selectedCountryFilter =
-    (data['filterCountry'] ??
-            data['selectedCountry'] ??
-            '')
-        .toString()
-        .trim();
+   selectedCountryFilter = _firstNonEmptyValue([
+  data['filterCountry'],
+  data['selectedCountry'],
+  data['country'],
+]);
 
 if (selectedCountryFilter!.isEmpty) {
   selectedCountryFilter = null;
 }
 
-selectedStateFilter =
-    (data['filterState'] ?? '').toString().trim();
+selectedStateFilter = _firstNonEmptyValue([
+  data['filterState'],
+  data['selectedState'],
+  data['state'],
+]);
+
+if (selectedStateFilter!.isEmpty) {
+  selectedStateFilter = null;
+}
 
 if (selectedStateFilter!.isEmpty) {
   selectedStateFilter = null;
@@ -416,16 +422,16 @@ selectedDistanceKm =
   if (!mounted) return;
 
   final data = doc.data() ?? {};
-final newFilterCountry =
-    (data['filterCountry'] ??
-            data['selectedCountry'] ??
-            '')
-        .toString()
-        .trim();
- final newFilterState =
-    (data['filterState'] ?? '')
-        .toString()
-        .trim();
+final newFilterCountry = _firstNonEmptyValue([
+  data['filterCountry'],
+  data['selectedCountry'],
+  data['country'],
+]);
+final newFilterState = _firstNonEmptyValue([
+  data['filterState'],
+  data['selectedState'],
+  data['state'],
+]);
 
   setState(() {
     currentUserData = data;
@@ -1297,20 +1303,28 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
     
   final profileGender = _normalizeGenderPreference(profile['gender']);
   final profileAge = _parseInt(profile['age']);
-  final profileCountry = _normalizeString(
-  profile['selectedCountry'] ??
-      profile['country'] ??
-      '',
+ final profileCountry = _normalizeString(
+  _firstNonEmptyValue([
+    profile['selectedCountry'],
+    profile['country'],
+  ]),
 );
 
+final profileStateKey = _normalizeStateKey(
+  _firstNonEmptyValue([
+    profile['selectedStateKey'],
+    profile['selectedState'],
+    profile['state'],
+    profile['stateLiving'],
+    profile['livingState'],
 
-  final profileStateKey = _normalizeStateKey(
-  profile['selectedStateKey'] ??
-      profile['selectedState'] ??
-      profile['state'] ??
-      profile['stateLiving'] ??
-      profile['livingState'] ??
-      '',
+    // Hỗ trợ dữ liệu cũ.
+    profile['filterStateKey'],
+    profile['filterState'],
+    profile['stateProvince'],
+    profile['province'],
+    profile['region'],
+  ]),
 );
 
 
@@ -2935,6 +2949,19 @@ List<String> _stringList(dynamic value) {
   String _normalizeString(dynamic value) {
     return (value ?? '').toString().trim().toLowerCase();
   }
+  String _firstNonEmptyValue(List<dynamic> values) {
+  for (final value in values) {
+    final result = (value ?? '').toString().trim();
+
+    if (result.isNotEmpty &&
+        result.toLowerCase() != 'null' &&
+        result.toLowerCase() != 'nan') {
+      return result;
+    }
+  }
+
+  return '';
+}
 String _normalizeStateKey(dynamic value) {
   final v = _normalizeString(value);
 
@@ -3841,6 +3868,64 @@ Widget _buildSmallBadge({
   );
 }
 
+Future<void> _openPhotoFullScreen(String imageUrl) async {
+  if (imageUrl.trim().isEmpty) return;
+
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.contain,
+                      placeholder: (context, url) {
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                      errorWidget: (context, url, error) {
+                        return const Icon(
+                          Icons.person,
+                          color: Colors.white,
+                          size: 80,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
   Widget _buildPhotoBlock({
   required String imageUrl,
   required Map<String, dynamic> targetProfile,
@@ -3864,29 +3949,34 @@ Widget _buildSmallBadge({
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            fit: BoxFit.cover,
-            width: double.infinity,
-            height: 300,
-            memCacheWidth: 900,
-            placeholder: (context, url) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFFCC3D7A),
-                ),
-              );
-            },
-            errorWidget: (context, url, error) {
-              return const Center(
-                child: Icon(
-                  Icons.person,
-                  size: 70,
-                  color: Colors.grey,
-                ),
-              );
-            },
-          ),
+         child: GestureDetector(
+  onTap: () {
+    _openPhotoFullScreen(imageUrl);
+  },
+  child: CachedNetworkImage(
+    imageUrl: imageUrl,
+    fit: BoxFit.cover,
+    width: double.infinity,
+    height: 300,
+    memCacheWidth: 900,
+    placeholder: (context, url) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFFCC3D7A),
+        ),
+      );
+    },
+    errorWidget: (context, url, error) {
+      return const Center(
+        child: Icon(
+          Icons.person,
+          size: 70,
+          color: Colors.grey,
+        ),
+      );
+    },
+  ),
+),
         ),
       ),
 
