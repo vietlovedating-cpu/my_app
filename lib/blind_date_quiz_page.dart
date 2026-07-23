@@ -1261,10 +1261,10 @@ for (final rankedCandidate in rankedAnswerCandidates) {
           ),
           const SizedBox(height: 10),
           Text(
-            _tr(
-              'Mỗi ngày bạn sẽ nhận 7 câu hỏi mới. Mỗi câu chỉ có 2 lựa chọn và bạn chỉ cần nhấn để trả lời. Sau khi hoàn thành, VietLove Dating sẽ tìm đúng 1 người chưa từng Match, Like, Flower, Pass, Block, Hidden hoặc Report với bạn và có câu trả lời giống bạn nhất. Nếu tìm được, bạn có thể xem hồ sơ của người đó và chọn nhận 1 Flower để gửi lời nhắn. Sang ngày mới, trò chơi sẽ tự động reset với 7 câu hỏi khác.',
-              'Every day you will receive 7 new questions. Each question has only 2 choices, and you only need to tap your answer. After you finish, VietLove Dating will find exactly 1 person you have never Matched, Liked, sent a Flower to, Passed, Blocked, Hidden or Reported, whose answers are most similar to yours. If someone is found, you can view their profile and choose whether to claim 1 Flower to send a message. The game resets automatically with 7 different questions the next day.',
-            ),
+           _tr(
+  'Mỗi ngày bạn sẽ nhận 7 câu hỏi mới. Mỗi câu chỉ có 2 lựa chọn và bạn chỉ cần nhấn để trả lời. Sau khi hoàn thành, VietLove Dating sẽ tìm đúng 1 người có câu trả lời giống bạn nhất. Nếu tìm được, bạn có thể xem hồ sơ của người đó và chọn nhận 1 Flower để gửi lời nhắn. Sang ngày mới, trò chơi sẽ tự động reset với 7 câu hỏi khác.',
+  'Every day you will receive 7 new questions. Each question has only 2 choices, and you simply tap your answer. After you finish, VietLove Dating will find the one person whose answers are most similar to yours. If a match is found, you can view their profile and choose to claim 1 Flower to send them a message. The game automatically resets the next day with 7 new questions.',
+),
             textAlign: TextAlign.center,
             style: TextStyle(
               color: Colors.white.withOpacity(0.94),
