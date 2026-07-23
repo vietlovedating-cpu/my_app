@@ -56,7 +56,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     'haveChildren': 'No',
 
     'religion': 'Buddhist',
-    'residentStatus': 'Australian Citizen',
+    'residentStatus': 'Citizen',
 
     'smoking': 'No',
     'drinking': 'Socially',
@@ -742,7 +742,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
           _buildInfoRow(
             icon: Icons.home_work_outlined,
             title: isVi ? 'Tình trạng cư trú' : 'Resident status',
-            value: isVi ? 'Công dân Úc' : 'Australian Citizen',
+            value: isVi ? 'Công dân' : 'Citizen',
           ),
           _buildDivider(),
           _buildInfoRow(

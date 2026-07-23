@@ -702,7 +702,7 @@ const SizedBox(height: 12),
                   value: tempResident,
                   items: const [
                     '',
-                    'australian_citizen',
+                    'citizen',
                     'permanent_resident',
                     'temporary_visa',
                     'student_visa',

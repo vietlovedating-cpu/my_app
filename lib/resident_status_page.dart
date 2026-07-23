@@ -56,9 +56,9 @@ class _ResidentStatusPageState extends State<ResidentStatusPage> {
 
   List<Map<String, String>> get _options => [
         {
-          'value': 'australian_citizen',
-          'vi': 'Công dân Úc',
-          'en': 'Australian Citizen',
+          'value': 'citizen',
+          'vi': 'Công dân',
+          'en': 'Citizen',
         },
         {
           'value': 'permanent_resident',

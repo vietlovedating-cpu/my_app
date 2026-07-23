@@ -117,8 +117,8 @@ async function createProfile(index, gender) {
 
     annualIncome: "80_99k",
 
-    residentStatus: "australian_citizen",
-    residentStatusLower: "australian_citizen",
+    residentStatus: "citizen",
+    residentStatusLower: "citizen",
 
     relationshipGoal: "serious_relationship",
 

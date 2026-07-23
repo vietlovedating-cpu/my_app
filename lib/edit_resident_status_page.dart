@@ -25,9 +25,9 @@ class _EditResidentStatusPageState extends State<EditResidentStatusPage> {
 
   final List<Map<String, String>> _options = const [
     {
-      'value': 'australian_citizen',
-      'vi': 'Công dân Úc',
-      'en': 'Australian Citizen',
+      'value': 'citizen',
+      'vi': 'Công dân',
+      'en': 'Citizen',
     },
     {
       'value': 'permanent_resident',
