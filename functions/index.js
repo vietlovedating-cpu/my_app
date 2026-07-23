@@ -2427,7 +2427,7 @@ exports.verifyGoogleVipPurchase = onCall(
       const oldData = userSnap.data() || {};
 
       const oldOrderId = oldData.googleOrderId || "";
-      const oldRenewCount = Number(oldData.renewCount || 0);
+      const oldRenewCount = Number(oldData.vipRenewCount || 0);
 
       const isRenew =
         oldOrderId &&
@@ -2455,13 +2455,13 @@ exports.verifyGoogleVipPurchase = onCall(
           googleAcknowledgementState:
             googleInfo.acknowledgementState ?? null,
 
-          renewCount: isRenew
-            ? oldRenewCount + 1
-            : oldRenewCount,
+        vipRenewCount: isRenew
+  ? oldRenewCount + 1
+  : oldRenewCount,
 
-          lastRenewAt: isRenew
-            ? admin.firestore.FieldValue.serverTimestamp()
-            : oldData.lastRenewAt || null,
+vipLastRenewedAt: isRenew
+  ? admin.firestore.FieldValue.serverTimestamp()
+  : oldData.vipLastRenewedAt || null,
 
           vipPlanTitleVi: plan.vipPlanTitleVi,
           vipPlanTitleEn: plan.vipPlanTitleEn,

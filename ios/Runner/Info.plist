@@ -48,19 +48,19 @@
 	 <string>http</string>
     </array>
 	<key>NSCameraUsageDescription</key>
-	<string>We need camera access so you can take profile photos.</string>
+<string>Allow camera access so you can take profile photos and verify your identity on VietLove Dating.</string>
 	<key>NSContactsUsageDescription</key>
-	<string>VietLoveDating uses contacts to help you avoid showing your profile to people in your phone contacts.</string>
+<string>Allow access to your contacts so you can invite friends to join VietLove Dating. For example, you can select a contact to send an invitation. Your contacts are only used for invitations and are not shared without your consent.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We use your location to support nearby matching and location-based features.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>We use your location to show nearby matches.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>We need permission to save photos when needed.</string>
+<string>Allow photo library access so you can save photos from VietLove Dating to your device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We use your photo library so you can upload profile photos and share images in the app.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>VietLoveDating needs microphone access so you can record and send voice messages.</string>
+   <key>NSMicrophoneUsageDescription</key>
+<string>Allow microphone access so you can record and send voice messages in chats on VietLove Dating.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UIBackgroundModes</key>
