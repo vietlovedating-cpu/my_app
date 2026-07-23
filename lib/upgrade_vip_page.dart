@@ -1213,11 +1213,10 @@ return true;
                     _featureItem(
   '❤️',
   _label(
-    'Xem những người bạn đã thích',
-    'See who you liked',
+    'Xem lại những người bạn đã thích',
+    'Review everyone you liked',
   ),
-),
-                    _featureItem(
+),            _featureItem(
                       '🔥',
                       _label(
                         'Nhiều cơ hội match nhanh hơn',
