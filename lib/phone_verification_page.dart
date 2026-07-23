@@ -7,12 +7,14 @@ import 'package:country_picker/country_picker.dart';
 class PhoneVerificationPage extends StatefulWidget {
   final String languageCode;
   final String firstName;
+  final bool isFromPrivacy;
 
   const PhoneVerificationPage({
-    super.key,
-    required this.languageCode,
-    required this.firstName,
-  });
+  super.key,
+  required this.languageCode,
+  required this.firstName,
+  this.isFromPrivacy = false,
+});
 
   @override
   State<PhoneVerificationPage> createState() => _PhoneVerificationPageState();
@@ -235,7 +237,12 @@ await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           ),
         ),
       );
-      Navigator.pushReplacement(
+     if (widget.isFromPrivacy) {
+  Navigator.pop(context, true);
+  return;
+}
+
+Navigator.pushReplacement(
   context,
   MaterialPageRoute(
     builder: (_) => IntroPage(

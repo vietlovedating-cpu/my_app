@@ -3,6 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'phone_verification_page.dart';
 
 
 class PrivacyProfilePage extends StatefulWidget {
@@ -98,33 +102,214 @@ class _PrivacyProfilePageState extends State<PrivacyProfilePage> {
     }
   }
 
-  Future<void> _handleHideFromContacts(bool value) async {
-    if (!value) {
-      setState(() => _hideFromContacts = false);
-      await _saveSetting('hideFromContacts', false);
-      return;
-    }
+String _normalizeContactPhone(String phone) {
+  return phone
+      .trim()
+      .replaceAll(RegExp(r'[^0-9+]'), '');
+}
+String _hashPhoneNumber(String normalizedPhone) {
+  return sha256
+      .convert(utf8.encode(normalizedPhone))
+      .toString();
+}
+Future<List<String>> _readContactPhoneHashes() async {
+  final contacts = await FlutterContacts.getContacts(
+    withProperties: true,
+  );
 
-    final allow = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
+  final phoneHashes = <String>{};
+
+  for (final contact in contacts) {
+    for (final phone in contact.phones) {
+      final normalized =
+          _normalizeContactPhone(phone.number);
+
+      if (normalized.isEmpty) {
+        continue;
+      }
+
+      phoneHashes.add(
+        _hashPhoneNumber(normalized),
+      );
+    }
+  }
+
+  return phoneHashes.toList();
+}
+Future<int> _syncHiddenContacts() async {
+  final phoneHashes =
+      await _readContactPhoneHashes();
+
+  final callable = FirebaseFunctions.instanceFor(
+    region: 'us-central1',
+  ).httpsCallable(
+    'syncHiddenContacts',
+  );
+
+  final result = await callable.call({
+    'phoneHashes': phoneHashes,
+  });
+
+  final rawData = result.data;
+
+  if (rawData is! Map) {
+    return 0;
+  }
+
+  final data = Map<String, dynamic>.from(
+    rawData,
+  );
+
+  return (data['hiddenCount'] as num?)?.toInt() ?? 0;
+}
+Future<void> _clearHiddenContacts() async {
+  final callable = FirebaseFunctions.instanceFor(
+    region: 'us-central1',
+  ).httpsCallable(
+    'clearHiddenContacts',
+  );
+
+  await callable.call();
+}
+  Future<void> _handleHideFromContacts(bool value) async {
+  if (!value) {
+  try {
+    setState(() => _hideFromContacts = false);
+
+    await _clearHiddenContacts();
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Đã tắt tính năng và xóa dữ liệu danh bạ đã đồng bộ.',
+            'The feature was disabled and synced contact data was deleted.',
+          ),
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint(
+      'CLEAR HIDDEN CONTACTS ERROR: $e',
+    );
+
+    if (!mounted) return;
+
+    setState(() => _hideFromContacts = true);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Không thể tắt cài đặt.',
+            'Could not disable this setting.',
+          ),
+        ),
+      ),
+    );
+  }
+
+  return;
+}
+final userSnapshot = await FirebaseFirestore.instance
+    .collection('users')
+    .doc(currentUser!.uid)
+    .get();
+
+final userData = userSnapshot.data() ?? {};
+
+final phoneNumber = (
+  userData['phoneNumber'] ??
+  userData['otpPhoneNumber'] ??
+  ''
+).toString().trim();
+
+final phoneVerified =
+    userData['phoneVerified'] == true;
+
+if (phoneNumber.isEmpty || !phoneVerified) {
+  if (!mounted) return;
+
+  setState(() => _hideFromContacts = false);
+
+  final verified = await Navigator.push<bool>(
+    context,
+    MaterialPageRoute(
+      builder: (_) => PhoneVerificationPage(
+        languageCode: widget.languageCode,
+        firstName:
+            (userData['firstName'] ?? '').toString(),
+        isFromPrivacy: true,
+      ),
+    ),
+  );
+
+  if (!mounted) return;
+
+  if (verified == true) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Đã xác minh số điện thoại. Vui lòng bật lại tính năng ẩn danh bạ.',
+            'Phone number verified. Please enable Hide from Contacts again.',
+          ),
+        ),
+      ),
+    );
+  }
+
+  return;
+}
+  final consentGranted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
             title: Text(
-              _tr('Cho phép truy cập danh bạ?', 'Allow access to contacts?'),
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            content: Text(
               _tr(
-                'Để ẩn hồ sơ của bạn khỏi những người trong danh bạ, ứng dụng cần quyền truy cập danh bạ của thiết bị.',
-                'To hide your profile from people in your contacts, the app needs permission to access your device contacts.',
+                'Ẩn hồ sơ với người trong danh bạ',
+                'Hide your profile from contacts',
+              ),
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
               ),
             ),
+           content: SingleChildScrollView(
+  child: Text(
+    _tr(
+      'Để giúp bạn không xuất hiện với những người đã lưu trong danh bạ, VietLove Dating sẽ truy cập số điện thoại trong danh bạ của bạn. Trước khi gửi dữ liệu lên máy chủ, ứng dụng sẽ chuyển mỗi số điện thoại thành mã bảo mật SHA-256 ngay trên thiết bị của bạn.\n\n'
+      'Chỉ các mã SHA-256 này được tải lên máy chủ để đối chiếu với tài khoản thành viên và xác định những hồ sơ cần được ẩn giữa bạn và những người trong danh bạ.\n\n'
+      'Số điện thoại gốc trong danh bạ không được tải lên máy chủ. Dữ liệu này chỉ được sử dụng cho tính năng "Ẩn hồ sơ của tôi trong danh bạ", không được sử dụng cho quảng cáo và không được bán hoặc chia sẻ với bên thứ ba.\n\n'
+      'Tính năng này hoàn toàn tự nguyện. Bạn vẫn có thể sử dụng tất cả các tính năng khác của ứng dụng nếu không đồng ý.',
+
+      'To help prevent your profile from appearing to people saved in your contacts, VietLove Dating will access the phone numbers stored in your contacts. Before any data is transmitted, each phone number is converted into a secure SHA-256 hash directly on your device.\n\n'
+      'Only these SHA-256 hashes are uploaded to our server to compare them with registered member accounts and identify which profiles should be hidden between you and people in your contacts.\n\n'
+      'Original contact phone numbers are never uploaded to our server. This data is used solely for the "Hide my profile from contacts" feature. It is not used for advertising and is never sold or shared with third parties.\n\n'
+      'This feature is completely optional. You can continue using all other app features if you choose not to enable it.',
+    ),
+    style: const TextStyle(
+      fontSize: 14.5,
+      height: 1.5,
+    ),
+  ),
+),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(_tr('Không', 'No')),
+                onPressed: () {
+                  Navigator.pop(dialogContext, false);
+                },
+                child: Text(
+                  _tr(
+                    'Không đồng ý',
+                    'Not Now',
+                  ),
+                ),
               ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
@@ -134,47 +319,110 @@ class _PrivacyProfilePageState extends State<PrivacyProfilePage> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                 ),
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(_tr('Cho phép', 'Allow')),
+                onPressed: () {
+                  Navigator.pop(dialogContext, true);
+                },
+                child: Text(
+                  _tr(
+                    'Đồng ý và tiếp tục',
+                    'Agree and Continue',
+                  ),
+                ),
               ),
             ],
-          ),
-        ) ??
-        false;
+          );
+        },
+      ) ??
+      false;
 
-    if (!allow) return;
+  if (!consentGranted) {
+    if (!mounted) return;
 
-    final granted = await FlutterContacts.requestPermission(readonly: true);
-
-if (granted) {
-      setState(() => _hideFromContacts = true);
-      await _saveSetting('hideFromContacts', true);
-
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _tr(
-              'Đã bật ẩn hồ sơ khỏi danh bạ.',
-              'Hide profile from contacts enabled.',
-            ),
-          ),
-        ),
-      );
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _tr(
-              'Bạn chưa cấp quyền truy cập danh bạ.',
-              'Contacts permission was not granted.',
-            ),
-          ),
-        ),
-      );
-    }
+    setState(() => _hideFromContacts = false);
+    return;
   }
+
+  final permissionGranted =
+      await FlutterContacts.requestPermission(readonly: true);
+
+  if (!permissionGranted) {
+    if (!mounted) return;
+
+    setState(() => _hideFromContacts = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Bạn chưa cấp quyền truy cập danh bạ.',
+            'Contacts permission was not granted.',
+          ),
+        ),
+      ),
+    );
+
+    return;
+  }
+ try {
+  setState(() => _hideFromContacts = true);
+
+  await FirebaseFirestore.instance
+      .collection('users')
+      .doc(currentUser!.uid)
+      .set({
+    'hideFromContacts': true,
+    'contactsConsentGranted': true,
+    'contactsConsentGrantedAt':
+        FieldValue.serverTimestamp(),
+    'contactsConsentVersion': '1.0',
+    'contactsUploadFormat': 'sha256',
+  }, SetOptions(merge: true));
+
+  final hiddenCount =
+      await _syncHiddenContacts();
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        _tr(
+          'Đã bật tính năng và ẩn $hiddenCount tài khoản trong danh bạ.',
+          'Enabled and hidden $hiddenCount accounts found in your contacts.',
+        ),
+      ),
+    ),
+  );
+} catch (e) {
+  debugPrint(
+    'SYNC HIDDEN CONTACTS ERROR: $e',
+  );
+
+  if (!mounted) return;
+
+  setState(() => _hideFromContacts = false);
+
+  try {
+    await _saveSetting(
+      'hideFromContacts',
+      false,
+    );
+  } catch (_) {}
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        _tr(
+          'Không thể đồng bộ danh bạ. Vui lòng thử lại.',
+          'Could not sync contacts. Please try again.',
+        ),
+      ),
+    ),
+  );
+}
+}
 
   Future<void> _showPauseAccountDialog() async {
     final confirm = await showDialog<bool>(
@@ -475,10 +723,10 @@ if (granted) {
                         'Ẩn hồ sơ của tôi trong danh bạ',
                         'Hide my profile from contacts',
                       ),
-                      subtitle: _tr(
-                        'Ứng dụng sẽ cần quyền truy cập danh bạ.',
-                        'The app will need access to your contacts.',
-                      ),
+                    subtitle: _tr(
+  'Tùy chọn tải mã SHA-256 của số điện thoại trong danh bạ lên máy chủ để ẩn hồ sơ với những người bạn biết.',
+  'Optionally uploads SHA-256 hashes of contact phone numbers to our server to hide your profile from people you know.',
+),
                       trailing: Switch(
                         value: _hideFromContacts,
                         activeColor: const Color(0xFFB83280),
@@ -1124,7 +1372,27 @@ class PrivacyPolicyPage extends StatelessWidget {
               ),
             ),
             _policyCard(
-              title: _tr('4. Quyền của bạn', '4. Your rights'),
+  title: _tr(
+    '4. Danh bạ và tính năng ẩn hồ sơ',
+    '4. Contacts and profile hiding',
+  ),
+ content: _tr(
+  'Nếu bạn tự nguyện bật tính năng "Ẩn hồ sơ của tôi trong danh bạ", VietLove Dating sẽ truy cập số điện thoại trong danh bạ của bạn. Trước khi gửi dữ liệu lên máy chủ, mỗi số điện thoại sẽ được chuyển thành mã bảo mật SHA-256 ngay trên thiết bị của bạn.\n\n'
+  'Chỉ các mã SHA-256 này được tải lên máy chủ để đối chiếu với tài khoản thành viên và xác định những hồ sơ cần được ẩn giữa bạn và những người trong danh bạ.\n\n'
+  'Số điện thoại gốc trong danh bạ không được tải lên máy chủ. Dữ liệu này chỉ được sử dụng cho tính năng "Ẩn hồ sơ của tôi trong danh bạ", không được sử dụng cho quảng cáo và không được bán hoặc chia sẻ với bên thứ ba.\n\n'
+  'Bạn có thể không cấp quyền truy cập danh bạ và vẫn tiếp tục sử dụng tất cả các tính năng khác của ứng dụng.',
+
+  'If you voluntarily enable "Hide my profile from contacts", VietLove Dating will access the phone numbers stored in your contacts. Before any data is transmitted, each phone number is converted into a secure SHA-256 hash directly on your device.\n\n'
+  'Only these SHA-256 hashes are uploaded to our server to compare them with registered member accounts and identify which profiles should be hidden between you and people in your contacts.\n\n'
+  'Original contact phone numbers are never uploaded to our server. This data is used solely for the "Hide my profile from contacts" feature. It is not used for advertising and is never sold or shared with third parties.\n\n'
+  'You may decline contact access and continue using all other features of the app.',
+),
+),
+            _policyCard(
+             title: _tr(
+  '5. Quyền của bạn',
+  '5. Your rights',
+),
               content: _tr(
                 'Bạn có thể chỉnh sửa hồ sơ, thay đổi cài đặt quyền riêng tư, tạm dừng tài khoản hoặc yêu cầu xóa tài khoản của mình.',
                 'You can edit your profile, change privacy settings, pause your account, or request deletion of your account.',

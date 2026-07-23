@@ -1,15 +1,55 @@
 const sgMail = require("@sendgrid/mail");
+const crypto = require("crypto");
 require("dotenv").config();
 
 const admin = require("firebase-admin");
 const functions = require("firebase-functions/v1");
 
-const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const {
+  onDocumentCreated,
+  onDocumentUpdated,
+  onDocumentWritten,
+} = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError, onRequest } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 
 admin.initializeApp();
+function normalizePhoneNumber(phone) {
+  let value = String(phone || "").trim();
+
+  // Giữ lại chữ số và dấu +
+  value = value.replace(/[^0-9+]/g, "");
+
+  // Chuyển 0011... thành +...
+  if (value.startsWith("0011")) {
+    value = `+${value.substring(4)}`;
+  }
+
+  // Chuyển 00... thành +...
+  if (value.startsWith("00")) {
+    value = `+${value.substring(2)}`;
+  }
+
+  // Nếu đã là số quốc tế thì giữ nguyên
+  if (value.startsWith("+")) {
+    return `+${value.substring(1).replace(/\D/g, "")}`;
+  }
+
+  // Không tự đoán country code
+  return value.replace(/\D/g, "");
+}
+
+function hashPhoneNumber(phone) {
+  const normalized = normalizePhoneNumber(phone);
+
+  if (!normalized) return "";
+
+  return crypto
+    .createHash("sha256")
+    .update(normalized, "utf8")
+    .digest("hex");
+}
 
 /*
 exports.deleteUnverifiedUserByEmail = onCall(async (request) => {
@@ -922,3 +962,404 @@ exports.cleanupDeletedUser = onUserDeleted(async (event) => {
   ...
 });
 */
+exports.syncHiddenContacts = onCall(
+  {
+    region: "us-central1",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in."
+      );
+    }
+
+    const currentUid = request.auth.uid;
+    const db = admin.firestore();
+
+const phoneHashes = Array.isArray(
+  request.data?.phoneHashes
+)
+  ? request.data.phoneHashes
+  : [];
+
+   const validHashRegex = /^[a-f0-9]{64}$/;
+
+const uniqueHashes = [
+  ...new Set(
+    phoneHashes
+      .map((hash) =>
+        String(hash || "")
+          .trim()
+          .toLowerCase()
+      )
+      .filter((hash) =>
+        validHashRegex.test(hash)
+      )
+  ),
+].slice(0, 5000);
+
+   if (uniqueHashes.length === 0) {
+      await db.collection("users").doc(currentUid).set(
+        {
+          hideFromContacts: true,
+          hiddenContactsCount: 0,
+          contactsSyncedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
+      );
+
+      return {
+        success: true,
+        hiddenCount: 0,
+      };
+    }
+
+    const matchedUserIds = new Set();
+    const chunkSize = 30;
+
+ for (
+  let i = 0;
+  i < uniqueHashes.length;
+  i += chunkSize
+) {
+  const chunk = uniqueHashes.slice(
+    i,
+    i + chunkSize
+  );
+
+      const snapshot = await db
+        .collection("users")
+       .where("phoneNumberHash", "in", chunk)
+        .get();
+
+      for (const doc of snapshot.docs) {
+        if (doc.id !== currentUid) {
+          matchedUserIds.add(doc.id);
+        }
+      }
+    }
+
+    const currentUserRef = db
+      .collection("users")
+      .doc(currentUid);
+
+    const hiddenContactsRef =
+      currentUserRef.collection("hiddenContacts");
+
+    const oldSnapshot =
+      await hiddenContactsRef.get();
+
+    const writer = db.bulkWriter();
+
+   for (const doc of oldSnapshot.docs) {
+  const oldHiddenUid = doc.id;
+
+  writer.delete(doc.ref);
+
+  writer.delete(
+    db
+      .collection("users")
+      .doc(oldHiddenUid)
+      .collection("hiddenByContacts")
+      .doc(currentUid)
+  );
+}
+
+    for (const hiddenUid of matchedUserIds) {
+      writer.set(
+        hiddenContactsRef.doc(hiddenUid),
+        {
+          userId: hiddenUid,
+          createdAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+          source: "device_contacts",
+        }
+      );
+
+      // Ẩn ngược lại để người trong danh bạ
+      // cũng không nhìn thấy user hiện tại.
+      writer.set(
+        db
+          .collection("users")
+          .doc(hiddenUid)
+          .collection("hiddenByContacts")
+          .doc(currentUid),
+        {
+          userId: currentUid,
+          createdAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+          source: "device_contacts",
+        }
+      );
+    }
+
+    await writer.close();
+
+    await currentUserRef.set(
+      {
+        hideFromContacts: true,
+        hiddenContactsCount: matchedUserIds.size,
+        contactsSyncedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+          contactsUploadFormat: "sha256",
+      },
+      {
+        merge: true,
+      }
+    );
+
+    return {
+      success: true,
+      hiddenCount: matchedUserIds.size,
+    };
+  }
+);
+exports.clearHiddenContacts = onCall(
+  {
+    region: "us-central1",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in."
+      );
+    }
+
+    const currentUid = request.auth.uid;
+    const db = admin.firestore();
+
+    const currentUserRef = db
+      .collection("users")
+      .doc(currentUid);
+
+    const hiddenContactsRef =
+      currentUserRef.collection("hiddenContacts");
+
+    const snapshot =
+      await hiddenContactsRef.get();
+
+    const writer = db.bulkWriter();
+
+    for (const doc of snapshot.docs) {
+      const hiddenUid = doc.id;
+
+      writer.delete(doc.ref);
+
+      // Xóa luôn quan hệ ẩn ngược chiều.
+      writer.delete(
+        db
+          .collection("users")
+          .doc(hiddenUid)
+          .collection("hiddenByContacts")
+          .doc(currentUid)
+      );
+    }
+
+    await writer.close();
+
+    await currentUserRef.set(
+      {
+        hideFromContacts: false,
+        contactsConsentGranted: false,
+        contactsConsentRevokedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+        hiddenContactsCount: 0,
+      },
+      {
+        merge: true,
+      }
+    );
+
+    return {
+      success: true,
+    };
+  }
+);
+
+exports.createUserPhoneNumberHash = onDocumentWritten(
+  {
+    document: "users/{userId}",
+    region: "us-central1",
+  },
+  async (event) => {
+    const afterSnapshot = event.data?.after;
+
+    if (!afterSnapshot?.exists) {
+      return;
+    }
+
+    const data = afterSnapshot.data() || {};
+
+    const phoneNumber = String(
+      data.phoneNumber ||
+      data.otpPhoneNumber ||
+      ""
+    ).trim();
+
+    if (!phoneNumber) {
+      return;
+    }
+
+    const phoneNumberHash = hashPhoneNumber(phoneNumber);
+
+    if (!phoneNumberHash) {
+      return;
+    }
+
+    // Tránh chạy lặp vô hạn
+    if (data.phoneNumberHash === phoneNumberHash) {
+      return;
+    }
+
+    await afterSnapshot.ref.set(
+      {
+        phoneNumberHash,
+        phoneNumberHashVersion: "sha256_v1",
+        phoneNumberHashUpdatedAt:
+          admin.firestore.FieldValue.serverTimestamp(),
+      },
+      {
+        merge: true,
+      }
+    );
+
+    console.log(
+      "PHONE HASH UPDATED:",
+      event.params.userId
+    );
+  }
+);
+
+
+exports.backfillUserPhoneNumberHashes = onRequest(
+  {
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "512MiB",
+  },
+  async (req, res) => {
+    try {
+      const secret = String(req.query.secret || "");
+
+      if (secret !== "vietlove_phone_hash_2026") {
+        res.status(403).send("Forbidden");
+        return;
+      }
+
+      const db = admin.firestore();
+
+      let lastDoc = null;
+      let scannedCount = 0;
+      let updatedCount = 0;
+      let skippedCount = 0;
+
+      while (true) {
+        let query = db
+          .collection("users")
+          .orderBy(admin.firestore.FieldPath.documentId())
+          .limit(400);
+
+        if (lastDoc) {
+          query = query.startAfter(lastDoc);
+        }
+
+        const snapshot = await query.get();
+
+        if (snapshot.empty) {
+          break;
+        }
+
+        const batch = db.batch();
+        let batchWriteCount = 0;
+
+        for (const doc of snapshot.docs) {
+          scannedCount++;
+
+          const data = doc.data() || {};
+
+          const phoneNumber = String(
+            data.phoneNumber ||
+            data.otpPhoneNumber ||
+            ""
+          ).trim();
+
+          if (!phoneNumber) {
+            skippedCount++;
+            continue;
+          }
+
+          const phoneNumberHash =
+            hashPhoneNumber(phoneNumber);
+
+          if (!phoneNumberHash) {
+            skippedCount++;
+            continue;
+          }
+
+          if (
+            data.phoneNumberHash === phoneNumberHash &&
+            data.phoneNumberHashVersion === "sha256_v1"
+          ) {
+            skippedCount++;
+            continue;
+          }
+
+          batch.set(
+            doc.ref,
+            {
+              phoneNumberHash,
+              phoneNumberHashVersion: "sha256_v1",
+              phoneNumberHashUpdatedAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+            },
+            {
+              merge: true,
+            }
+          );
+
+          batchWriteCount++;
+          updatedCount++;
+        }
+
+        if (batchWriteCount > 0) {
+          await batch.commit();
+        }
+
+        lastDoc =
+          snapshot.docs[snapshot.docs.length - 1];
+
+        if (snapshot.size < 400) {
+          break;
+        }
+      }
+
+      console.log("PHONE HASH BACKFILL COMPLETE", {
+        scannedCount,
+        updatedCount,
+        skippedCount,
+      });
+
+      res.status(200).json({
+        success: true,
+        scannedCount,
+        updatedCount,
+        skippedCount,
+      });
+    } catch (e) {
+      console.error(
+        "backfillUserPhoneNumberHashes error:",
+        e
+      );
+
+      res.status(500).json({
+        success: false,
+        error: String(e),
+      });
+    }
+  }
+);

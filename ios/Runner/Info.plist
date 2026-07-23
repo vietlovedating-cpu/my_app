@@ -50,7 +50,7 @@
 	<key>NSCameraUsageDescription</key>
 <string>Allow camera access so you can take profile photos and verify your identity on VietLove Dating.</string>
 	<key>NSContactsUsageDescription</key>
-<string>Allow access to your contacts so you can invite friends to join VietLove Dating. For example, you can select a contact to send an invitation. Your contacts are only used for invitations and are not shared without your consent.</string>
+<string>VietLove Dating accesses and uploads phone numbers from your contacts to our secure server to identify registered members and hide your profile from people you know. Contact data is used only for this optional privacy feature.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>We use your location to support nearby matching and location-based features.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

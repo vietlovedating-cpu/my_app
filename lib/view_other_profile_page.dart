@@ -1590,7 +1590,78 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
     ),
   );
 }
+Future<void> _openPhotoFullScreen(String imageUrl) async {
+  if (imageUrl.trim().isEmpty) return;
 
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (
+                        context,
+                        child,
+                        loadingProgress,
+                      ) {
+                        if (loadingProgress == null) {
+                          return child;
+                        }
+
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                      errorBuilder: (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return const Center(
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.white70,
+                            size: 80,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
   Widget _buildMainCirclePhoto(String imageUrl) {
     return Container(
       width: 200,
@@ -1613,7 +1684,13 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
           ),
         ],
       ),
-      child: ClipOval(
+      child: GestureDetector(
+  onTap: imageUrl.trim().isEmpty
+      ? null
+      : () {
+          _openPhotoFullScreen(imageUrl);
+        },
+  child: ClipOval(
         child: imageUrl.isNotEmpty
             ? Image.network(
                 imageUrl,
@@ -1633,9 +1710,10 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
             : const Center(
                 child: Icon(Icons.person, size: 74, color: Colors.grey),
               ),
-      ),
-    );
-  }
+           ),
+    ),
+  );
+}
 
   Widget _buildPhotoBlock(String imageUrl) {
     return Container(
@@ -1652,7 +1730,13 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
           ),
         ],
       ),
-      child: ClipRRect(
+      child: GestureDetector(
+  onTap: imageUrl.trim().isEmpty
+      ? null
+      : () {
+          _openPhotoFullScreen(imageUrl);
+        },
+  child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: imageUrl.isNotEmpty
             ? Image.network(
@@ -1681,10 +1765,10 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
                   color: Colors.grey,
                 ),
               ),
-      ),
-    );
-  }
-
+         ),
+    ),
+  );
+}
   Widget _buildPromptCard({
     required String question,
     required String answer,
