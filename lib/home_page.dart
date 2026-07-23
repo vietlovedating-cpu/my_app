@@ -332,6 +332,7 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       selectedMinAgeFilter = null;
       selectedMaxAgeFilter = null;
       selectedStateFilter = null;
+      selectedCountryFilter = null;
 
       selectedReligionFilter = null;
       selectedRelationshipGoalFilter = null;
@@ -360,13 +361,21 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
     if (_lastUid != user.uid) return;
 
     final data = doc.data() ?? {};
+    final hasSavedGenderFilter =
+    data.containsKey('genderPreference');
+
+final newGenderFilter = hasSavedGenderFilter
+    ? _normalizeGenderPreference(
+        data['genderPreference'],
+      )
+    : _normalizeGenderPreference(
+        data['datingPreference'],
+      );
 
     setState(() {
       currentUserData = data;
 
-      selectedGenderFilter = _normalizeGenderPreference(
-        data['datingPreference'] ?? data['genderPreference'],
-      );
+     selectedGenderFilter = newGenderFilter;
 
       selectedMinAgeFilter = _parseInt(
         data['minAgePreference'] ?? data['preferredMinAge'],
@@ -426,6 +435,71 @@ selectedDistanceKm =
 
       if (selectedMinAgeFilter == 0) selectedMinAgeFilter = null;
       if (selectedMaxAgeFilter == 0) selectedMaxAgeFilter = null;
+      selectedReligionFilter =
+    (data['filterReligion'] ?? '').toString().trim();
+if (selectedReligionFilter!.isEmpty) {
+  selectedReligionFilter = null;
+}
+
+selectedRelationshipGoalFilter =
+    (data['filterRelationshipGoal'] ?? '').toString().trim();
+if (selectedRelationshipGoalFilter!.isEmpty) {
+  selectedRelationshipGoalFilter = null;
+}
+
+selectedMaritalStatusFilter =
+    (data['filterMaritalStatus'] ?? '').toString().trim();
+if (selectedMaritalStatusFilter!.isEmpty) {
+  selectedMaritalStatusFilter = null;
+}
+
+selectedHeightFilter =
+    (data['filterHeight'] ?? '').toString().trim();
+if (selectedHeightFilter!.isEmpty) {
+  selectedHeightFilter = null;
+}
+
+selectedResidentStatusFilter =
+    (data['filterResidentStatus'] ?? '').toString().trim();
+if (selectedResidentStatusFilter!.isEmpty) {
+  selectedResidentStatusFilter = null;
+}
+
+selectedEducationFilter =
+    (data['filterEducation'] ?? '').toString().trim();
+if (selectedEducationFilter!.isEmpty) {
+  selectedEducationFilter = null;
+}
+
+selectedSmokingFilter =
+    (data['filterSmoking'] ?? '').toString().trim();
+if (selectedSmokingFilter!.isEmpty) {
+  selectedSmokingFilter = null;
+}
+
+selectedDrinkingFilter =
+    (data['filterDrinking'] ?? '').toString().trim();
+if (selectedDrinkingFilter!.isEmpty) {
+  selectedDrinkingFilter = null;
+}
+
+selectedHaveChildrenFilter =
+    (data['filterHaveChildren'] ?? '').toString().trim();
+if (selectedHaveChildrenFilter!.isEmpty) {
+  selectedHaveChildrenFilter = null;
+}
+
+selectedIncomeFilter =
+    (data['filterIncome'] ?? '').toString().trim();
+if (selectedIncomeFilter!.isEmpty) {
+  selectedIncomeFilter = null;
+}
+
+selectedPhotoVerifiedOnly =
+    data['filterPhotoVerifiedOnly'] == true;
+
+selectedNewHereOnly =
+    data['filterNewHereOnly'] == true;
 
       _profilesFuture = _loadProfilesWithDailyLimit();
     });
@@ -443,6 +517,16 @@ selectedDistanceKm =
   if (!mounted) return;
 
   final data = doc.data() ?? {};
+  final hasSavedGenderFilter =
+    data.containsKey('genderPreference');
+
+final newGenderFilter = hasSavedGenderFilter
+    ? _normalizeGenderPreference(
+        data['genderPreference'],
+      )
+    : _normalizeGenderPreference(
+        data['datingPreference'],
+      );
 final hasSavedCountryFilter =
     data.containsKey('filterCountry');
 
@@ -466,15 +550,93 @@ final newFilterState = hasSavedCountryFilter
         data['stateLiving'],
         data['state'],
       ]);
+      final newReligionFilter =
+    (data['filterReligion'] ?? '').toString().trim();
+
+final newRelationshipGoalFilter =
+    (data['filterRelationshipGoal'] ?? '').toString().trim();
+
+final newMaritalStatusFilter =
+    (data['filterMaritalStatus'] ?? '').toString().trim();
+
+final newHeightFilter =
+    (data['filterHeight'] ?? '').toString().trim();
+
+final newResidentStatusFilter =
+    (data['filterResidentStatus'] ?? '').toString().trim();
+
+final newEducationFilter =
+    (data['filterEducation'] ?? '').toString().trim();
+
+final newSmokingFilter =
+    (data['filterSmoking'] ?? '').toString().trim();
+
+final newDrinkingFilter =
+    (data['filterDrinking'] ?? '').toString().trim();
+
+final newHaveChildrenFilter =
+    (data['filterHaveChildren'] ?? '').toString().trim();
+
+final newIncomeFilter =
+    (data['filterIncome'] ?? '').toString().trim();
+
+final newPhotoVerifiedOnly =
+    data['filterPhotoVerifiedOnly'] == true;
+
+final newNewHereOnly =
+    data['filterNewHereOnly'] == true;
 
   setState(() {
     currentUserData = data;
+
+    selectedGenderFilter = newGenderFilter;
+    
 
 selectedCountryFilter =
     newFilterCountry.isEmpty ? null : newFilterCountry;
 
 selectedStateFilter =
     newFilterState.isEmpty ? null : newFilterState;
+    selectedReligionFilter =
+    newReligionFilter.isEmpty ? null : newReligionFilter;
+
+selectedRelationshipGoalFilter =
+    newRelationshipGoalFilter.isEmpty
+        ? null
+        : newRelationshipGoalFilter;
+
+selectedMaritalStatusFilter =
+    newMaritalStatusFilter.isEmpty
+        ? null
+        : newMaritalStatusFilter;
+
+selectedHeightFilter =
+    newHeightFilter.isEmpty ? null : newHeightFilter;
+
+selectedResidentStatusFilter =
+    newResidentStatusFilter.isEmpty
+        ? null
+        : newResidentStatusFilter;
+
+selectedEducationFilter =
+    newEducationFilter.isEmpty ? null : newEducationFilter;
+
+selectedSmokingFilter =
+    newSmokingFilter.isEmpty ? null : newSmokingFilter;
+
+selectedDrinkingFilter =
+    newDrinkingFilter.isEmpty ? null : newDrinkingFilter;
+
+selectedHaveChildrenFilter =
+    newHaveChildrenFilter.isEmpty
+        ? null
+        : newHaveChildrenFilter;
+
+selectedIncomeFilter =
+    newIncomeFilter.isEmpty ? null : newIncomeFilter;
+
+selectedPhotoVerifiedOnly = newPhotoVerifiedOnly;
+selectedNewHereOnly = newNewHereOnly;
 
     selectedDistanceKm =
         (data['maxDistanceKm'] as num?)?.toDouble();
@@ -1333,6 +1495,7 @@ bool _isRecentlyActive(Map<String, dynamic> profile) {
   return !difference.isNegative &&
       difference <= const Duration(days: 3);
 }
+
   bool _matchesFilters(Map<String, dynamic> profile) {
     
   final profileGender = _normalizeGenderPreference(profile['gender']);
@@ -1403,43 +1566,24 @@ if (selectedStateFilter == null ||
     return false;
   }
 }
+if (selectedDistanceKm != null &&
+    selectedDistanceKm! > 0) {
+  final myLat =
+      (currentUserData?['lat'] as num?)?.toDouble();
+  final myLng =
+      (currentUserData?['lng'] as num?)?.toDouble();
 
-  if (selectedDistanceKm != null) {
-    final myLat = (currentUserData?['lat'] as num?)?.toDouble();
-    final myLng = (currentUserData?['lng'] as num?)?.toDouble();
+  final profileLat =
+      (profile['lat'] as num?)?.toDouble();
+  final profileLng =
+      (profile['lng'] as num?)?.toDouble();
 
-    final profileLat = (profile['lat'] as num?)?.toDouble();
-    final profileLng = (profile['lng'] as num?)?.toDouble();
-
-    if (myLat == null ||
-        myLng == null ||
-        profileLat == null ||
-        profileLng == null) {
-      return true;
-    }if (selectedDistanceKm != null && selectedDistanceKm! > 0) {
-  final myLat = (currentUserData?['lat'] as num?)?.toDouble();
-  final myLng = (currentUserData?['lng'] as num?)?.toDouble();
-
-  final profileLat = (profile['lat'] as num?)?.toDouble();
-  final profileLng = (profile['lng'] as num?)?.toDouble();
-
-  if (myLat == null ||
-      myLng == null ||
-      profileLat == null ||
-      profileLng == null) {
-    return true;
-  }
-
-  final distanceKm = _calculateDistanceKm(
-    myLat,
-    myLng,
-    profileLat,
-    profileLng,
-  );
-
-  // Không return false ở đây nữa.
-}
-
+  // Nếu thiếu tọa độ thì không kết thúc hàm.
+  // Tiếp tục xuống kiểm tra các VIP filter.
+  if (myLat != null &&
+      myLng != null &&
+      profileLat != null &&
+      profileLng != null) {
     final distanceKm = _calculateDistanceKm(
       myLat,
       myLng,
@@ -1447,8 +1591,10 @@ if (selectedStateFilter == null ||
       profileLng,
     );
 
-    
+    // Không return false tại đây.
+    // Distance vẫn là filter mềm / ưu tiên gần.
   }
+}
 
   // VIP FILTERS: chỉ VIP mới lọc các mục dưới đây
   if (isVipUser) {
@@ -1459,11 +1605,12 @@ if (selectedStateFilter == null ||
 if (selectedNewHereOnly && !_isNewHere(profile)) {
   return false;
 }
-    if (selectedReligionFilter != null &&
-        selectedReligionFilter!.isNotEmpty &&
-        _normalizeString(profile['religion']) != selectedReligionFilter) {
-      return false;
-    }
+   if (selectedReligionFilter != null &&
+    selectedReligionFilter!.trim().isNotEmpty &&
+    _normalizeString(profile['religion']) !=
+        _normalizeString(selectedReligionFilter)) {
+  return false;
+}
 
     final relationshipGoal = _extractRelationshipGoalKey(profile);
     if (selectedRelationshipGoalFilter != null &&
@@ -2659,6 +2806,12 @@ Future<void> _openSocial({
   await _reloadCurrentUserData();
 
   if (!mounted) return;
+  debugPrint(
+  'VIP FILTER DEBUG: '
+  'isVipUser=$isVipUser, '
+  'now=${DateTime.now()}, '
+  'vipExpiresAt=${currentUserData?['vipExpiresAt']}',
+);
 
   final result = await showModalBottomSheet<dynamic>(
       context: context,
@@ -2768,10 +2921,47 @@ if (selectedStateFilter!.isEmpty) {
 
     if (!mounted || result == null) return;
 
-    if (result == 'reset_to_default') {
-      setState(() {});
-      return;
-    }
+   if (result == 'reset_to_default') {
+  final user = currentUser;
+
+  if (user != null) {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'genderPreference': selectedGenderFilter,
+      'minAgePreference': selectedMinAgeFilter,
+      'maxAgePreference': selectedMaxAgeFilter,
+      'filterCountry': selectedCountryFilter,
+      'filterState': selectedStateFilter,
+      'filterStateKey': selectedStateFilter == null
+          ? null
+          : _normalizeStateKey(selectedStateFilter),
+      'maxDistanceKm': selectedDistanceKm,
+
+      'filterReligion': null,
+      'filterRelationshipGoal': null,
+      'filterMaritalStatus': null,
+      'filterHeight': null,
+      'filterResidentStatus': null,
+      'filterEducation': null,
+      'filterSmoking': null,
+      'filterDrinking': null,
+      'filterHaveChildren': null,
+      'filterIncome': null,
+      'filterPhotoVerifiedOnly': false,
+      'filterNewHereOnly': false,
+    }, SetOptions(merge: true));
+  }
+
+  if (!mounted) return;
+
+  setState(() {
+    _profilesFuture = _loadProfilesWithDailyLimit();
+  });
+
+  return;
+}
 
     if (result is HomePageFilterResult) {
       setState(() {
@@ -2838,6 +3028,18 @@ if (user != null) {
         : _normalizeStateKey(selectedStateFilter),
 
     'maxDistanceKm': selectedDistanceKm,
+    'filterReligion': selectedReligionFilter,
+'filterRelationshipGoal': selectedRelationshipGoalFilter,
+'filterMaritalStatus': selectedMaritalStatusFilter,
+'filterHeight': selectedHeightFilter,
+'filterResidentStatus': selectedResidentStatusFilter,
+'filterEducation': selectedEducationFilter,
+'filterSmoking': selectedSmokingFilter,
+'filterDrinking': selectedDrinkingFilter,
+'filterHaveChildren': selectedHaveChildrenFilter,
+'filterIncome': selectedIncomeFilter,
+'filterPhotoVerifiedOnly': selectedPhotoVerifiedOnly,
+'filterNewHereOnly': selectedNewHereOnly,
   }, SetOptions(merge: true));
 }
 
@@ -3858,14 +4060,17 @@ Widget _buildSmallBadge({
     );
   }
 
-  Widget _buildMainCirclePhoto(String imageUrl) {
+ Widget _buildMainCirclePhoto(String imageUrl) {
   return Container(
     width: 200,
     height: 200,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: Colors.grey.shade200,
-      border: Border.all(color: Colors.white, width: 5),
+      border: Border.all(
+        color: Colors.white,
+        width: 5,
+      ),
       gradient: const LinearGradient(
         colors: [
           Color(0xFFFFE4EF),
@@ -3880,24 +4085,46 @@ Widget _buildSmallBadge({
         ),
       ],
     ),
-    child: ClipOval(
-      child: imageUrl.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              memCacheWidth: 600,
-              placeholder: (context, url) => const Center(
-                child: CircularProgressIndicator(color: Colors.pink),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: imageUrl.trim().isEmpty
+          ? null
+          : () {
+              _openPhotoFullScreen(imageUrl);
+            },
+      child: ClipOval(
+        child: imageUrl.isNotEmpty
+            ? CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                width: 200,
+                height: 200,
+                memCacheWidth: 600,
+                placeholder: (context, url) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFFCC3D7A),
+                    ),
+                  );
+                },
+                errorWidget: (context, url, error) {
+                  return const Center(
+                    child: Icon(
+                      Icons.person,
+                      size: 70,
+                      color: Colors.grey,
+                    ),
+                  );
+                },
+              )
+            : const Center(
+                child: Icon(
+                  Icons.person,
+                  size: 70,
+                  color: Colors.grey,
+                ),
               ),
-              errorWidget: (context, url, error) {
-                return const Center(
-                  child: Icon(Icons.person, size: 74, color: Colors.grey),
-                );
-              },
-            )
-          : const Center(
-              child: Icon(Icons.person, size: 74, color: Colors.grey),
-            ),
+      ),
     ),
   );
 }

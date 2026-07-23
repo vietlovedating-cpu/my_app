@@ -773,51 +773,147 @@ List<String> _extractRelationshipGoalKeys(
 
   return parts.join(', ');
 }
-  Widget _buildMainCirclePhoto(String imageUrl) {
-    return Container(
-      width: 205,
-      height: 205,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.grey.shade200,
-        border: Border.all(color: Colors.white, width: 5),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFFFFE4EF),
-            Color(0xFFFFF6FA),
-          ],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFCC3D7A).withOpacity(0.18),
-            blurRadius: 26,
-            offset: const Offset(0, 12),
+Future<void> _openPhotoFullScreen(String imageUrl) async {
+  if (imageUrl.trim().isEmpty) return;
+
+  await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (
+                        context,
+                        child,
+                        loadingProgress,
+                      ) {
+                        if (loadingProgress == null) {
+                          return child;
+                        }
+
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        );
+                      },
+                      errorBuilder: (
+                        context,
+                        error,
+                        stackTrace,
+                      ) {
+                        return const Center(
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.white70,
+                            size: 80,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(
+                    Icons.close,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
+      ),
+    ),
+  );
+}
+ Widget _buildMainCirclePhoto(String imageUrl) {
+  return Container(
+    width: 205,
+    height: 205,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Colors.grey.shade200,
+      border: Border.all(color: Colors.white, width: 5),
+      gradient: const LinearGradient(
+        colors: [
+          Color(0xFFFFE4EF),
+          Color(0xFFFFF6FA),
         ],
       ),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFFCC3D7A).withOpacity(0.18),
+          blurRadius: 26,
+          offset: const Offset(0, 12),
+        ),
+      ],
+    ),
+    child: GestureDetector(
+      onTap: () {
+        _openPhotoFullScreen(imageUrl);
+      },
       child: ClipOval(
         child: imageUrl.isNotEmpty
             ? Image.network(
                 imageUrl,
                 fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
+                loadingBuilder: (
+                  context,
+                  child,
+                  loadingProgress,
+                ) {
                   if (loadingProgress == null) return child;
+
                   return const Center(
-                    child: CircularProgressIndicator(color: Colors.pink),
+                    child: CircularProgressIndicator(
+                      color: Colors.pink,
+                    ),
                   );
                 },
-                errorBuilder: (context, error, stackTrace) {
+                errorBuilder: (
+                  context,
+                  error,
+                  stackTrace,
+                ) {
                   return const Center(
-                    child: Icon(Icons.person, size: 74, color: Colors.grey),
+                    child: Icon(
+                      Icons.person,
+                      size: 74,
+                      color: Colors.grey,
+                    ),
                   );
                 },
               )
             : const Center(
-                child: Icon(Icons.person, size: 74, color: Colors.grey),
+                child: Icon(
+                  Icons.person,
+                  size: 74,
+                  color: Colors.grey,
+                ),
               ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPhotoBlock(String imageUrl) {
     if (imageUrl.trim().isEmpty) return const SizedBox.shrink();
@@ -836,9 +932,13 @@ List<String> _extractRelationshipGoalKeys(
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Image.network(
+     child: ClipRRect(
+  borderRadius: BorderRadius.circular(28),
+  child: GestureDetector(
+    onTap: () {
+      _openPhotoFullScreen(imageUrl);
+    },
+    child: Image.network(
           imageUrl,
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
@@ -856,9 +956,10 @@ List<String> _extractRelationshipGoalKeys(
               ),
             );
           },
-        ),
+               ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildPromptCard({
