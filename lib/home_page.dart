@@ -1114,6 +1114,61 @@ final activeDay3Profiles = <Map<String, dynamic>>[];
 final normalProfiles = <Map<String, dynamic>>[];
 
 final random = Random(_dailyDiscoverShuffleSeed());
+void sortBySoftDistance(
+  List<Map<String, dynamic>> list,
+) {
+  final myLat =
+      (currentUserData?['lat'] as num?)?.toDouble();
+  final myLng =
+      (currentUserData?['lng'] as num?)?.toDouble();
+
+  final preferredDistance = selectedDistanceKm;
+
+  // Không có vị trí hoặc không chọn distance:
+  // giữ nguyên cách random cũ.
+  if (myLat == null ||
+      myLng == null ||
+      preferredDistance == null ||
+      preferredDistance <= 0) {
+    list.shuffle(random);
+    return;
+  }
+
+  double distanceOf(Map<String, dynamic> profile) {
+    final lat = (profile['lat'] as num?)?.toDouble();
+    final lng = (profile['lng'] as num?)?.toDouble();
+
+    // Profile thiếu tọa độ để xuống cuối,
+    // nhưng không bị loại khỏi Country/State/VIP filter.
+    if (lat == null || lng == null) {
+      return double.infinity;
+    }
+
+    return _calculateDistanceKm(
+      myLat,
+      myLng,
+      lat,
+      lng,
+    );
+  }
+
+  list.sort((a, b) {
+    final distanceA = distanceOf(a);
+    final distanceB = distanceOf(b);
+
+    final aInside =
+        distanceA <= preferredDistance;
+    final bInside =
+        distanceB <= preferredDistance;
+
+    // Người nằm trong khoảng đã chọn hiện trước.
+    if (aInside && !bInside) return -1;
+    if (!aInside && bInside) return 1;
+
+    // Trong cùng nhóm: gần trước, xa sau.
+    return distanceA.compareTo(distanceB);
+  });
+}
 
 for (final profile in profiles) {
   final boostExpiresAt = profile['boostExpiresAt'];
@@ -1156,12 +1211,12 @@ for (final profile in profiles) {
   normalProfiles.add(profile);
 }
 
-boostedProfiles.shuffle(random);
-onlineProfiles.shuffle(random);
-activeDay1Profiles.shuffle(random);
-activeDay2Profiles.shuffle(random);
-activeDay3Profiles.shuffle(random);
-normalProfiles.shuffle(random);
+sortBySoftDistance(boostedProfiles);
+sortBySoftDistance(onlineProfiles);
+sortBySoftDistance(activeDay1Profiles);
+sortBySoftDistance(activeDay2Profiles);
+sortBySoftDistance(activeDay3Profiles);
+sortBySoftDistance(normalProfiles);
 final mixedProfiles = <Map<String, dynamic>>[];
 
 // ===========================================================
