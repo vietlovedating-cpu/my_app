@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'utils/profile_health.dart';
+
 class EditRelationshipGoalPage extends StatefulWidget {
   final String languageCode;
 
@@ -15,12 +16,15 @@ class EditRelationshipGoalPage extends StatefulWidget {
       _EditRelationshipGoalPageState();
 }
 
-class _EditRelationshipGoalPageState extends State<EditRelationshipGoalPage> {
-  String? _selectedValue;
+class _EditRelationshipGoalPageState
+    extends State<EditRelationshipGoalPage> {
+  final List<String> _selectedValues = [];
+
   bool _isLoading = true;
   bool _isSaving = false;
 
   bool get isVi => widget.languageCode == 'vi';
+
   String _tr(String vi, String en) => isVi ? vi : en;
 
   final List<Map<String, String>> _options = const [
@@ -55,6 +59,7 @@ class _EditRelationshipGoalPageState extends State<EditRelationshipGoalPage> {
   Future<void> _loadCurrentData() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
+
       if (user == null) return;
 
       final doc = await FirebaseFirestore.instance
@@ -62,29 +67,53 @@ class _EditRelationshipGoalPageState extends State<EditRelationshipGoalPage> {
           .doc(user.uid)
           .get();
 
-      final data = doc.data() ?? {};
-      final value = (data['relationshipGoal'] ?? '').toString();
+      final data = doc.data() ?? <String, dynamic>{};
 
-      if (_options.any((e) => e['value'] == value)) {
-        _selectedValue = value;
+      final savedGoals = List<String>.from(
+        data['relationshipGoals'] ?? [],
+      );
+
+      _selectedValues
+        ..clear()
+        ..addAll(
+          savedGoals.where(
+            (value) => _options.any(
+              (option) => option['value'] == value,
+            ),
+          ),
+        );
+
+      // Hỗ trợ hồ sơ cũ chỉ có relationshipGoal.
+      if (_selectedValues.isEmpty) {
+        final oldValue =
+            (data['relationshipGoal'] ?? '').toString();
+
+        if (_options.any(
+          (option) => option['value'] == oldValue,
+        )) {
+          _selectedValues.add(oldValue);
+        }
       }
     } catch (_) {
+      // Giữ nguyên cách xử lý cũ.
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
 
   Future<void> _save() async {
-    if (_selectedValue == null) {
+    if (_selectedValues.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
           content: Text(
             _tr(
-              'Vui lòng chọn mục tiêu mối quan hệ',
-              'Please choose a relationship goal',
+              'Vui lòng chọn ít nhất một mục tiêu mối quan hệ',
+              'Please choose at least one relationship goal',
             ),
           ),
         ),
@@ -92,66 +121,97 @@ class _EditRelationshipGoalPageState extends State<EditRelationshipGoalPage> {
       return;
     }
 
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+    });
 
     try {
       final user = FirebaseAuth.instance.currentUser;
+
       if (user == null) return;
 
-     final userRef =
-    FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
 
-// Lưu mục tiêu mối quan hệ
-await userRef.set({
-  'relationshipGoal': _selectedValue,
-  'relationshipGoals': [_selectedValue],
-}, SetOptions(merge: true));
+      // Lưu nhiều mục tiêu mối quan hệ.
+      // Vẫn giữ relationshipGoal để không ảnh hưởng code cũ.
+      await userRef.set({
+        'relationshipGoal': _selectedValues.first,
+        'relationshipGoals':
+            List<String>.from(_selectedValues),
+      }, SetOptions(merge: true));
 
-// Đọc lại hồ sơ mới nhất
-final updatedDoc = await userRef.get();
-final updatedData = updatedDoc.data() ?? <String, dynamic>{};
+      // Đọc lại hồ sơ mới nhất.
+      final updatedDoc = await userRef.get();
 
-// Tính lại điểm hồ sơ
-final healthResult = calculateProfileHealth(updatedData);
+      final updatedData =
+          updatedDoc.data() ?? <String, dynamic>{};
 
-// Cập nhật điểm và trạng thái hồ sơ
-await userRef.set({
-  'profileScore': healthResult.score,
-  'profileCompleted': healthResult.score >= 50,
-}, SetOptions(merge: true));
+      // Tính lại điểm hồ sơ — giữ nguyên.
+      final healthResult =
+          calculateProfileHealth(updatedData);
 
-if (!mounted) return;
-Navigator.pop(context, _selectedValue);
+      // Cập nhật điểm và trạng thái hồ sơ — giữ nguyên.
+      await userRef.set({
+        'profileScore': healthResult.score,
+        'profileCompleted': healthResult.score >= 50,
+      }, SetOptions(merge: true));
+
+      if (!mounted) return;
+
+      Navigator.pop(
+        context,
+        List<String>.from(_selectedValues),
+      );
     } catch (_) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
-          content: Text(_tr('Lưu thất bại', 'Save failed')),
+          content: Text(
+            _tr('Lưu thất bại', 'Save failed'),
+          ),
         ),
       );
     } finally {
       if (mounted) {
-        setState(() => _isSaving = false);
+        setState(() {
+          _isSaving = false;
+        });
       }
     }
   }
 
   Widget _optionTile(Map<String, String> option) {
     final value = option['value']!;
-    final selected = _selectedValue == value;
+
+    final selected = _selectedValues.contains(value);
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
-      onTap: () {
-        setState(() {
-          _selectedValue = value;
-        });
-      },
+      onTap: _isSaving
+          ? null
+          : () {
+              setState(() {
+                if (_selectedValues.contains(value)) {
+                  _selectedValues.remove(value);
+                } else {
+                  _selectedValues.add(value);
+                }
+              });
+            },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFFFEEF5) : Colors.white,
+          color: selected
+              ? const Color(0xFFFFEEF5)
+              : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: selected
@@ -173,7 +233,9 @@ Navigator.pop(context, _selectedValue);
               ),
             ),
             Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              selected
+                  ? Icons.check_circle
+                  : Icons.circle_outlined,
               color: const Color(0xFFCC3D7A),
             ),
           ],
@@ -184,11 +246,18 @@ Navigator.pop(context, _selectedValue);
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+      padding: const EdgeInsets.fromLTRB(
+        18,
+        18,
+        18,
+        24,
+      ),
       child: Column(
         children: [
           Expanded(
@@ -203,11 +272,13 @@ Navigator.pop(context, _selectedValue);
             child: ElevatedButton(
               onPressed: _isSaving ? null : _save,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFCC3D7A),
+                backgroundColor:
+                    const Color(0xFFCC3D7A),
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius:
+                      BorderRadius.circular(18),
                 ),
               ),
               child: _isSaving
@@ -243,7 +314,10 @@ Navigator.pop(context, _selectedValue);
         foregroundColor: const Color(0xFF7A2E6E),
         centerTitle: true,
         title: Text(
-          _tr('Sửa mục tiêu mối quan hệ', 'Edit relationship goal'),
+          _tr(
+            'Sửa mục tiêu mối quan hệ',
+            'Edit relationship goal',
+          ),
           style: const TextStyle(
             fontWeight: FontWeight.w900,
             color: Color(0xFF7A2E6E),

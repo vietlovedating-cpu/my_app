@@ -114,10 +114,19 @@ void dispose() {
   String _normalize(String value) => value.trim().toLowerCase();
 
   String _capitalizeName(String text) {
-    final value = text.trim();
-    if (value.isEmpty) return '';
-    return value[0].toUpperCase() + value.substring(1).toLowerCase();
-  }
+  final value = text.trim();
+
+  if (value.isEmpty) return '';
+
+  return value
+      .split(RegExp(r'\s+'))
+      .map((word) {
+        if (word.isEmpty) return '';
+        return word[0].toUpperCase() +
+            word.substring(1).toLowerCase();
+      })
+      .join(' ');
+}
 
   String _resolveLanguageCode(Map<String, dynamic>? profile) {
     final candidates = [
