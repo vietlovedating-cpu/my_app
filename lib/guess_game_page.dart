@@ -409,11 +409,18 @@ class _GuessGamePageState extends State<GuessGamePage> {
           .collection('guessHiddenUsers')
           .get(),
 
-      // 6: Dữ liệu current user để kiểm tra preference.
-      _firestore
-          .collection('users')
-          .doc(currentUid)
-          .get(),
+    // 6: Dữ liệu current user để kiểm tra preference.
+_firestore
+    .collection('users')
+    .doc(currentUid)
+    .get(),
+
+// 7: Lịch sử các game Guess trước đây.
+_firestore
+    .collection('users')
+    .doc(currentUid)
+    .collection('guessGameDaily')
+    .get(),
     ]);
 
     final likedBySnapshot =
@@ -443,6 +450,9 @@ class _GuessGamePageState extends State<GuessGamePage> {
     final currentUserDoc =
         results[6]
             as DocumentSnapshot<Map<String, dynamic>>;
+            final guessHistorySnapshot =
+    results[7]
+        as QuerySnapshot<Map<String, dynamic>>;
 
     final currentUserData =
         currentUserDoc.data() ?? {};
@@ -626,14 +636,90 @@ debugPrint('GIU LAI LIKER: $likerUid');
       return;
     }
 
-    final random = Random();
+   final random = Random();
 
-    validRealLikers.shuffle(random);
+// Những người đã từng xuất hiện làm đáp án thật.
+final previouslyUsedRealLikerIds = <String>{};
 
-    final correctProfile = validRealLikers.first;
-    final correctUserId = _profileUid(
-      correctProfile,
+// Những người user đã đoán đúng.
+// Những người này sẽ không bao giờ xuất hiện lại.
+final correctlyGuessedLikerIds = <String>{};
+
+for (final historyDoc in guessHistorySnapshot.docs) {
+  final historyData = historyDoc.data();
+
+  final previousCorrectUserId =
+      (historyData['correctUserId'] ?? '')
+          .toString()
+          .trim();
+
+  if (previousCorrectUserId.isEmpty) {
+    continue;
+  }
+
+  previouslyUsedRealLikerIds.add(
+    previousCorrectUserId,
+  );
+
+  if (historyData['won'] == true) {
+    correctlyGuessedLikerIds.add(
+      previousCorrectUserId,
     );
+  }
+}
+
+// Chia người thật thành 2 nhóm:
+// 1. Người chưa từng xuất hiện.
+// 2. Người từng xuất hiện nhưng user đoán sai.
+final newRealLikers =
+    <Map<String, dynamic>>[];
+
+final previouslyWrongRealLikers =
+    <Map<String, dynamic>>[];
+
+for (final profile in validRealLikers) {
+  final uid = _profileUid(profile);
+
+  if (uid.isEmpty) continue;
+
+  // Đã đoán đúng thì không hiện lại.
+  if (correctlyGuessedLikerIds.contains(uid)) {
+    continue;
+  }
+
+  if (previouslyUsedRealLikerIds.contains(uid)) {
+    previouslyWrongRealLikers.add(profile);
+  } else {
+    newRealLikers.add(profile);
+  }
+}
+
+newRealLikers.shuffle(random);
+previouslyWrongRealLikers.shuffle(random);
+
+final availableRealLikers =
+    newRealLikers.isNotEmpty
+        ? newRealLikers
+        : previouslyWrongRealLikers;
+
+if (availableRealLikers.isEmpty) {
+  if (!mounted) return;
+
+  setState(() {
+    _isLoading = false;
+    _candidates = [];
+    _errorMessage = null;
+  });
+
+  return;
+}
+
+final correctProfile =
+    availableRealLikers.first;
+
+final correctUserId = _profileUid(
+  correctProfile,
+);
 
     // ==========================================================
     // CHỌN 3 NGƯỜI GIẢ
@@ -728,7 +814,9 @@ debugPrint(
     }
 
     // ==========================================================
-    // ẨN CẢ 4 KHỎI DISCOVER TRONG 3 NGÀY
+   // CHỈ ẨN 3 NGƯỜI GIẢ TRONG 3 NGÀY
+// Người thật không bị ẩn để có thể xuất hiện lại
+// nếu user từng đoán sai và đã hết người thật mới.
     // ==========================================================
 
     final hiddenUntil = DateTime.now().add(
@@ -756,26 +844,35 @@ debugPrint(
     });
 
     for (final candidateId in candidateIds) {
-      final guessHiddenRef = _firestore
-          .collection('users')
-          .doc(currentUid)
-          .collection('guessHiddenUsers')
-          .doc(candidateId);
+  final guessHiddenRef = _firestore
+      .collection('users')
+      .doc(currentUid)
+      .collection('guessHiddenUsers')
+      .doc(candidateId);
 
-      batch.set(
-        guessHiddenRef,
-        {
-          'userId': candidateId,
-          'source': 'guess_game',
-          'guessDateKey': _todayKey(),
-          'hiddenUntil': Timestamp.fromDate(
-            hiddenUntil,
-          ),
-          'createdAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-    }
+  // Người thật không bị ẩn.
+  // Nếu trước đây từng bị lưu hidden thì xóa luôn.
+  if (candidateId == correctUserId) {
+    batch.delete(guessHiddenRef);
+    continue;
+  }
+
+  // Chỉ ẩn 3 người giả trong 3 ngày
+  // để game ngày sau ưu tiên dùng người giả khác.
+  batch.set(
+    guessHiddenRef,
+    {
+      'userId': candidateId,
+      'source': 'guess_game_fake',
+      'guessDateKey': _todayKey(),
+      'hiddenUntil': Timestamp.fromDate(
+        hiddenUntil,
+      ),
+      'createdAt': FieldValue.serverTimestamp(),
+    },
+    SetOptions(merge: true),
+  );
+}
 
     await batch.commit();
 
@@ -1312,91 +1409,53 @@ debugPrint(
     return true;
   }
 
-  bool _isMutuallyCompatible({
-    required Map<String, dynamic> myProfile,
-    required Map<String, dynamic> otherProfile,
-  }) {
-    final myGender = _normalizeGender(
-      myProfile['gender'],
-    );
+ bool _isMutuallyCompatible({
+  required Map<String, dynamic> myProfile,
+  required Map<String, dynamic> otherProfile,
+}) {
+  final myPreference = _normalizeGender(
+    myProfile['datingPreference'] ??
+        myProfile['genderPreference'],
+  );
 
-    final myPreference = _normalizeGender(
-      myProfile['datingPreference'] ??
-          myProfile['genderPreference'],
-    );
+  final otherGender = _normalizeGender(
+    otherProfile['gender'],
+  );
 
-    final otherGender = _normalizeGender(
-      otherProfile['gender'],
-    );
+  final iLikeTheirGender =
+      myPreference == 'everyone' ||
+          myPreference == otherGender;
 
-    final otherPreference = _normalizeGender(
-      otherProfile['datingPreference'] ??
-          otherProfile['genderPreference'],
-    );
-
-    final iLikeTheirGender =
-        myPreference == 'everyone' ||
-            myPreference == otherGender;
-
-    final theyLikeMyGender =
-        otherPreference == 'everyone' ||
-            otherPreference == myGender;
-
-    if (!iLikeTheirGender ||
-        !theyLikeMyGender) {
-      return false;
-    }
-
-    final myAge = _parseInt(
-      myProfile['age'],
-    );
-
-    final otherAge = _parseInt(
-      otherProfile['age'],
-    );
-
-    final myMinAge = _parseInt(
-      myProfile['minAgePreference'] ??
-          myProfile['preferredMinAge'],
-    );
-
-    final myMaxAge = _parseInt(
-      myProfile['maxAgePreference'] ??
-          myProfile['preferredMaxAge'],
-    );
-
-    final otherMinAge = _parseInt(
-      otherProfile['minAgePreference'] ??
-          otherProfile['preferredMinAge'],
-    );
-
-    final otherMaxAge = _parseInt(
-      otherProfile['maxAgePreference'] ??
-          otherProfile['preferredMaxAge'],
-    );
-
-    if (myMinAge > 0 &&
-        otherAge < myMinAge) {
-      return false;
-    }
-
-    if (myMaxAge > 0 &&
-        otherAge > myMaxAge) {
-      return false;
-    }
-
-    if (otherMinAge > 0 &&
-        myAge < otherMinAge) {
-      return false;
-    }
-
-    if (otherMaxAge > 0 &&
-        myAge > otherMaxAge) {
-      return false;
-    }
-
-    return true;
+  if (!iLikeTheirGender) {
+    return false;
   }
+
+  final otherAge = _parseInt(
+    otherProfile['age'],
+  );
+
+  final myMinAge = _parseInt(
+    myProfile['minAgePreference'] ??
+        myProfile['preferredMinAge'],
+  );
+
+  final myMaxAge = _parseInt(
+    myProfile['maxAgePreference'] ??
+        myProfile['preferredMaxAge'],
+  );
+
+  if (myMinAge > 0 &&
+      otherAge < myMinAge) {
+    return false;
+  }
+
+  if (myMaxAge > 0 &&
+      otherAge > myMaxAge) {
+    return false;
+  }
+
+  return true;
+}
 
   // ============================================================
   // UI
