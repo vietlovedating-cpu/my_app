@@ -388,6 +388,12 @@ if (matchedUserId.isNotEmpty) {
           .collection('answers')
           .where('completed', isEqualTo: true)
           .get();
+          debugPrint('========== BLIND DATE DEBUG ==========');
+debugPrint('USER ĐANG CHƠI: ${user.uid}');
+debugPrint(
+  'NGƯỜI ĐÃ HOÀN THÀNH HÔM NAY: '
+  '${answerSnapshot.docs.map((doc) => doc.id).toList()}',
+);
 
      final rankedAnswerCandidates =
     <Map<String, dynamic>>[];
@@ -400,18 +406,25 @@ debugPrint(
       for (final answerDoc in answerSnapshot.docs) {
         final candidateUid = answerDoc.id.trim();
         if (candidateUid.isEmpty || candidateUid == user.uid) continue;
-       if (exclusions.contains(candidateUid)) {
+     if (exclusions.contains(candidateUid)) {
   debugPrint(
-    'BLIND DATE LOAI $candidateUid: NAM TRONG EXCLUSIONS',
+    '❌ LOẠI $candidateUid: NẰM TRONG EXCLUSIONS '
+    '(Like, Flower, Match, Hidden, Blocked hoặc Reported)',
   );
   continue;
 }
-
         final answerData = answerDoc.data();
         final candidateQuestionSetId =
             (answerData['questionSetId'] ?? '').toString().trim();
 
-        if (candidateQuestionSetId != currentQuestionSetId) continue;
+      if (candidateQuestionSetId != currentQuestionSetId) {
+  debugPrint(
+    '❌ LOẠI $candidateUid: KHÁC BỘ CÂU HỎI '
+    'candidate=$candidateQuestionSetId '
+    'current=$currentQuestionSetId',
+  );
+  continue;
+}
 
        final candidateAnswers = <String, String>{};
 final rawCandidateAnswers = answerData['answers'];
@@ -430,6 +443,10 @@ if (rawCandidateAnswers is Map) {
 
 
 if (candidateAnswers.length < 7) {
+  debugPrint(
+    '❌ LOẠI $candidateUid: CHỈ CÓ '
+    '${candidateAnswers.length}/7 CÂU TRẢ LỜI',
+  );
   continue;
 }
 
@@ -441,6 +458,9 @@ for (final question in _todayQuestions) {
     sameCount++;
   }
 }
+debugPrint(
+  '✅ SO SÁNH $candidateUid: GIỐNG $sameCount/7 CÂU',
+);
 
 rankedAnswerCandidates.add({
   'userId': candidateUid,
@@ -504,17 +524,12 @@ for (final rankedCandidate in rankedAnswerCandidates) {
   otherProfile: profile,
 )) {
   debugPrint(
-    'BLIND DATE LOAI $candidateUid: KHONG TUONG THICH '
-    'myGender=${myProfile['gender']}, '
+    '❌ LOẠI $candidateUid: KHÔNG ĐÚNG FILTER CỦA USER ĐANG CHƠI '
     'myPreference=${myProfile['datingPreference'] ?? myProfile['genderPreference']}, '
-    'myAge=${myProfile['age']}, '
-    'myMin=${myProfile['minAgePreference'] ?? myProfile['preferredMinAge']}, '
-    'myMax=${myProfile['maxAgePreference'] ?? myProfile['preferredMaxAge']}, '
-    'otherGender=${profile['gender']}, '
-    'otherPreference=${profile['datingPreference'] ?? profile['genderPreference']}, '
-    'otherAge=${profile['age']}, '
-    'otherMin=${profile['minAgePreference'] ?? profile['preferredMinAge']}, '
-    'otherMax=${profile['maxAgePreference'] ?? profile['preferredMaxAge']}',
+    'myMinAge=${myProfile['minAgePreference'] ?? myProfile['preferredMinAge']}, '
+    'myMaxAge=${myProfile['maxAgePreference'] ?? myProfile['preferredMaxAge']}, '
+    'candidateGender=${profile['gender']}, '
+    'candidateAge=${profile['age']}',
   );
   continue;
 }
@@ -658,15 +673,39 @@ for (final rankedCandidate in rankedAnswerCandidates) {
     final matchesByUsers =
         results[6] as QuerySnapshot<Map<String, dynamic>>;
 
-    for (final doc in sentSwipes.docs) {
-      final uid = (doc.data()['toUserId'] ?? '').toString().trim();
-      if (uid.isNotEmpty) excluded.add(uid);
-    }
+   for (final doc in sentSwipes.docs) {
+  final data = doc.data();
 
-    for (final doc in receivedSwipes.docs) {
-      final uid = (doc.data()['fromUserId'] ?? '').toString().trim();
-      if (uid.isNotEmpty) excluded.add(uid);
-    }
+  final uid =
+      (data['toUserId'] ?? '').toString().trim();
+
+  final action =
+      (data['action'] ?? '').toString().trim().toLowerCase();
+
+  // Pass không bị loại.
+  // Chỉ loại người mình đã Like hoặc gửi Flower.
+  if (uid.isNotEmpty &&
+      (action == 'like' || action == 'flower')) {
+    excluded.add(uid);
+  }
+}
+
+for (final doc in receivedSwipes.docs) {
+  final data = doc.data();
+
+  final uid =
+      (data['fromUserId'] ?? '').toString().trim();
+
+  final action =
+      (data['action'] ?? '').toString().trim().toLowerCase();
+
+  // Người đã Pass mình vẫn có thể được ghép Blind Date.
+  // Chỉ loại người đã Like hoặc gửi Flower cho mình.
+  if (uid.isNotEmpty &&
+      (action == 'like' || action == 'flower')) {
+    excluded.add(uid);
+  }
+}
 
     excluded.addAll(hidden.docs.map((doc) => doc.id.trim()));
     excluded.addAll(blocked.docs.map((doc) => doc.id.trim()));
@@ -1042,23 +1081,20 @@ for (final rankedCandidate in rankedAnswerCandidates) {
     required Map<String, dynamic> myProfile,
     required Map<String, dynamic> otherProfile,
   }) {
-    final myGender = _normalizeGender(myProfile['gender']);
+   
     final myPreference = _normalizeGender(
       myProfile['datingPreference'] ?? myProfile['genderPreference'],
     );
     final otherGender = _normalizeGender(otherProfile['gender']);
-    final otherPreference = _normalizeGender(
-      otherProfile['datingPreference'] ?? otherProfile['genderPreference'],
-    );
+
 
     final iLikeTheirGender =
-        myPreference == 'everyone' || myPreference == otherGender;
-    final theyLikeMyGender =
-        otherPreference == 'everyone' || otherPreference == myGender;
+    myPreference == 'everyone' ||
+    myPreference == otherGender;
 
-    if (!iLikeTheirGender || !theyLikeMyGender) return false;
+if (!iLikeTheirGender) return false;
 
-    final myAge = _parseInt(myProfile['age']);
+   
     final otherAge = _parseInt(otherProfile['age']);
 
     final myMinAge = _parseInt(
@@ -1067,17 +1103,11 @@ for (final rankedCandidate in rankedAnswerCandidates) {
     final myMaxAge = _parseInt(
       myProfile['maxAgePreference'] ?? myProfile['preferredMaxAge'],
     );
-    final otherMinAge = _parseInt(
-      otherProfile['minAgePreference'] ?? otherProfile['preferredMinAge'],
-    );
-    final otherMaxAge = _parseInt(
-      otherProfile['maxAgePreference'] ?? otherProfile['preferredMaxAge'],
-    );
+   
 
     if (myMinAge > 0 && otherAge < myMinAge) return false;
     if (myMaxAge > 0 && otherAge > myMaxAge) return false;
-    if (otherMinAge > 0 && myAge < otherMinAge) return false;
-    if (otherMaxAge > 0 && myAge > otherMaxAge) return false;
+ 
 
     return true;
   }
@@ -1119,7 +1149,7 @@ for (final rankedCandidate in rankedAnswerCandidates) {
   }
 
   Widget _buildBody() {
-    if (_errorMessage != null && !_completedToday) {
+   if (_errorMessage != null) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
@@ -1143,7 +1173,9 @@ for (final rankedCandidate in rankedAnswerCandidates) {
           const SizedBox(height: 20),
           Center(
             child: ElevatedButton(
-              onPressed: _loadTodayData,
+              onPressed: _completedToday
+    ? _findBestMatch
+    : _loadTodayData,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFCC3D7A),
               ),
@@ -1196,6 +1228,41 @@ for (final rankedCandidate in rankedAnswerCandidates) {
     if (_matchedProfile == null && _searchFinished) {
       return _buildNoMatchToday();
     }
+    if (_matchedProfile == null) {
+  return ListView(
+    physics: const AlwaysScrollableScrollPhysics(),
+    padding: const EdgeInsets.all(24),
+    children: [
+      const SizedBox(height: 120),
+      Text(
+        _tr(
+          'Kết quả chưa được tải. Vui lòng thử lại.',
+          'The result has not loaded. Please try again.',
+        ),
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Color(0xFF7A2E6E),
+          fontSize: 17,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+      const SizedBox(height: 20),
+      ElevatedButton(
+        onPressed: _findBestMatch,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFCC3D7A),
+        ),
+        child: Text(
+          _tr('Thử lại', 'Try again'),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    ],
+  );
+}
 
     return _buildMatchResult();
   }
