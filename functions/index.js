@@ -1399,18 +1399,37 @@ exports.addFemaleVipWhenProfileCompleted = onDocumentUpdated(
   },
   async (event) => {
     try {
-      // Chương trình kết thúc sau ngày 30/06/2026
-const promoEndDate = new Date("2026-06-15T23:59:59+10:00");
-
-if (new Date() > promoEndDate) {
-  return;
-}
+      const db = admin.firestore();
       const userId = event.params.userId;
 
       const before = event.data.before.data() || {};
       const after = event.data.after.data() || {};
+      console.log("START", userId);
+console.log("PROFILE COMPLETED:", before.profileCompleted, "->", after.profileCompleted);
+console.log("GENDER:", after.gender, after.genderLower);
+console.log("STATE:", after.selectedStateKey);
 
-      // Chỉ chạy khi user vừa hoàn thành profile
+      // Chương trình áp dụng từ 27/07/2026
+      // đến hết 31/08/2026, theo giờ Sydney.
+      const promoStartDate = new Date(
+        "2026-07-27T00:00:00+10:00"
+      );
+
+      const promoEndDate = new Date(
+        "2026-08-31T23:59:59.999+10:00"
+      );
+
+      const now = new Date();
+
+      if (
+        now < promoStartDate ||
+        now > promoEndDate
+      ) {
+        return;
+      }
+
+      // Chỉ chạy đúng lúc profileCompleted
+      // chuyển từ chưa hoàn thành sang true.
       if (
         before.profileCompleted === true ||
         after.profileCompleted !== true
@@ -1424,14 +1443,51 @@ if (new Date() > promoEndDate) {
         after.accountDeleted === true ||
         after.status === "deleted";
 
-      if (isDeleted) return;
+      if (isDeleted) {
+        return;
+      }
 
+      // Chỉ dành cho tài khoản được tạo
+      // từ ngày bắt đầu chương trình.
+      const authUser =
+        await admin.auth().getUser(userId);
+
+      const creationTime =
+        authUser.metadata.creationTime || "";
+
+      const accountCreatedAt =
+        new Date(creationTime);
+
+      if (
+        !creationTime ||
+        Number.isNaN(accountCreatedAt.getTime())
+      ) {
+        console.error(
+          "WELCOME GIFT: invalid account creation time:",
+          userId
+        );
+        return;
+      }
+
+      if (accountCreatedAt < promoStartDate) {
+        console.log(
+          "WELCOME GIFT: skip old account:",
+          userId,
+          accountCreatedAt.toISOString()
+        );
+        return;
+      }
+
+      // Kiểm tra cả genderLower và gender
+      // để không bỏ sót dữ liệu cũ.
       const genderText = String(
         after.genderLower ||
         after.gender ||
         after.sex ||
         ""
-      ).toLowerCase();
+      )
+        .trim()
+        .toLowerCase();
 
       const isFemale =
         genderText === "female" ||
@@ -1439,56 +1495,398 @@ if (new Date() > promoEndDate) {
         genderText === "nu" ||
         genderText === "nữ";
 
-      if (!isFemale) return;
+      if (!isFemale) {
+        return;
+      }
+      const countryText = String(
+  after.selectedCountry ||
+  after.country ||
+  after.filterCountry ||
+  after.countryCode ||
+  ""
+)
+  .trim()
+  .toLowerCase();
 
-      // Nếu đã từng nhận promo này rồi thì không cho nhận lại
-      if (after.vipPromoSource === "female_1_month_promo") {
+const isAustralia =
+  countryText === "australia" ||
+  countryText === "au" ||
+  countryText === "úc";
+
+if (!isAustralia) {
+  console.log(
+    "WELCOME GIFT: skip non-Australia user:",
+    userId,
+    countryText
+  );
+  return;
+}
+
+      // Chống cấp quà lần hai.
+      if (after.welcomeGiftGranted === true) {
         return;
       }
 
-      const now = new Date();
-      const promoExpiresAt = new Date(now);
-      promoExpiresAt.setMonth(promoExpiresAt.getMonth() + 1);
+      const stateText = [
+        after.selectedStateKey,
+        after.filterState,
+        after.selectedState,
+        after.state,
+        after.livingState,
+        after.currentLocation,
+      ]
+        .filter((value) => value != null)
+        .map((value) =>
+          String(value).trim().toLowerCase()
+        )
+        .join(" ");
 
-      await admin.firestore().collection("users").doc(userId).set(
-        {
-          isVip: true,
-          vipUnlocked: true,
-          membership: "vip",
-          plan: "vip",
+      const isNsw =
+        /\bnsw\b/.test(stateText) ||
+        stateText.includes("new south wales");
 
-          vipStatus: "active",
-          vipPlanId: "promo_1_month_female",
-          subscriptionType: "promo_1_month_female",
-          vipProductId: "promo_female_free_1_month",
-          vipPlatform: "promo",
+      const isVi =
+        String(after.languageCode || "")
+          .trim()
+          .toLowerCase() === "vi";
 
-          vipExpiresAt: admin.firestore.Timestamp.fromDate(promoExpiresAt),
+      const userRef =
+        db.collection("users").doc(userId);
 
-          vipPlanTitleVi: "VIP miễn phí 1 tháng",
-          vipPlanTitleEn: "Free VIP 1 month",
-          vipPriceTextVi: "Miễn phí",
-          vipPriceTextEn: "Free",
+      // =====================================================
+      // NSW: TẶNG VOUCHER NỐI MI 50%
+      // =====================================================
+      if (isNsw) {
+        const counterRef = db
+          .collection("voucherSettings")
+          .doc("lash");
 
-          vipPromoSource: "female_1_month_promo",
-          vipPromoStartedAt: admin.firestore.FieldValue.serverTimestamp(),
-          vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+       const voucherExpiresAt = new Date(now);
+voucherExpiresAt.setMonth(
+  voucherExpiresAt.getMonth() + 3
+);
 
-          vipReminder7dSent: false,
-          vipReminder3dSent: false,
-          vipReminder1dSent: false,
-          vipExpiredHandled: false,
-        },
-        { merge: true }
+        let voucherCode = "";
+        let giftGranted = false;
+
+        await db.runTransaction(
+          async (transaction) => {
+            const [
+              freshUserSnap,
+              counterSnap,
+            ] = await Promise.all([
+              transaction.get(userRef),
+              transaction.get(counterRef),
+            ]);
+
+            const freshUserData =
+              freshUserSnap.data() || {};
+
+            // Kiểm tra lại trong transaction để tránh
+            // hai lần chạy cấp hai mã khác nhau.
+            if (
+              freshUserData.welcomeGiftGranted ===
+              true
+            ) {
+              return;
+            }
+
+            const lastNumber =
+              counterSnap.exists
+                ? Number(
+                    counterSnap.data()?.lastNumber ||
+                      6000
+                  )
+                : 6000;
+
+            const safeLastNumber =
+              Number.isFinite(lastNumber)
+                ? lastNumber
+                : 6000;
+
+            const nextNumber =
+              safeLastNumber + 1;
+
+            voucherCode =
+              `LASH${nextNumber}`;
+
+            transaction.set(
+              counterRef,
+              {
+                lastNumber: nextNumber,
+                updatedAt:
+                  admin.firestore.FieldValue
+                    .serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            transaction.set(
+              userRef,
+              {
+                welcomeGiftGranted: true,
+                welcomeGiftType:
+                  "lash_voucher",
+
+                welcomeGiftCode:
+                  voucherCode,
+
+                lashVoucherCode:
+                  voucherCode,
+
+                welcomeGiftGrantedAt:
+                  admin.firestore.FieldValue
+                    .serverTimestamp(),
+
+                welcomeGiftExpiresAt:
+                  admin.firestore.Timestamp
+                    .fromDate(
+                      voucherExpiresAt
+                    ),
+
+                welcomeGiftPromotion:
+                  "female_new_member_2026",
+
+                voucherExpiresAt:
+                  admin.firestore.Timestamp
+                    .fromDate(
+                      voucherExpiresAt
+                    ),
+
+                voucherRedeemed: false,
+                voucherRedeemedAt: null,
+
+                voucherBusiness:
+                  "Chic House Lash & Beauty",
+
+                voucherDiscount:
+                  "50% OFF",
+
+                voucherLocation:
+                  "326 Illawarra Rd, Marrickville NSW 2204",
+
+                voucherInstagram:
+                  "chichouse9999",
+
+                voucherBookingUrl:
+                  "https://www.instagram.com/chichouse9999",
+
+                voucherBookingPolicy:
+                  "Appointment is confirmed after confirmation by Chic House Lash & Beauty.",
+
+                updatedAt:
+                  admin.firestore.FieldValue
+                    .serverTimestamp(),
+              },
+              { merge: true }
+            );
+
+            giftGranted = true;
+          }
+        );
+
+        if (!giftGranted) {
+          return;
+        }
+
+        await sendPushNotification({
+          token: after.fcmToken || "",
+          title: isVi
+            ? "🎁 Bạn đã nhận được quà!"
+            : "🎁 You received a gift!",
+          body: isVi
+            ? "Bạn đã nhận voucher giảm 50% tại Chic House Lash & Beauty. Mở mục Quà của bạn để xem mã."
+            : "You received a 50% OFF voucher at Chic House Lash & Beauty. Open Your Gift to view your code.",
+          data: {
+            route: "my_gift",
+            type: "welcome_gift",
+            giftType: "lash_voucher",
+          },
+        });
+
+        console.log(
+          "WELCOME LASH VOUCHER GRANTED:",
+          userId,
+          voucherCode,
+          voucherExpiresAt.toISOString()
+        );
+
+        return;
+      }
+
+      // =====================================================
+      // NGOÀI NSW: TẶNG 14 NGÀY VIP
+      // =====================================================
+      let finalVipExpiresAt = null;
+      let vipGiftGranted = false;
+
+      await db.runTransaction(
+        async (transaction) => {
+          const freshUserSnap =
+            await transaction.get(userRef);
+
+          const freshUserData =
+            freshUserSnap.data() || {};
+
+          if (
+            freshUserData.welcomeGiftGranted ===
+            true
+          ) {
+            return;
+          }
+
+          const existingVipExpiresAt =
+            freshUserData.vipExpiresAt
+              ?.toDate?.() || null;
+
+          const vipStartDate =
+            existingVipExpiresAt &&
+            existingVipExpiresAt > now
+              ? existingVipExpiresAt
+              : now;
+
+          finalVipExpiresAt =
+            new Date(vipStartDate);
+
+          finalVipExpiresAt.setDate(
+            finalVipExpiresAt.getDate() + 14
+          );
+
+          const hasActivePaidVip =
+            freshUserData.isVip === true &&
+            existingVipExpiresAt &&
+            existingVipExpiresAt > now &&
+            freshUserData.vipPlatform &&
+            freshUserData.vipPlatform !==
+              "promo";
+
+          const updateData = {
+            isVip: true,
+            vipUnlocked: true,
+            membership: "vip",
+            plan: "vip",
+            vipStatus: "active",
+
+            vipExpiresAt:
+              admin.firestore.Timestamp
+                .fromDate(
+                  finalVipExpiresAt
+                ),
+
+            vipPromoSource:
+              "female_new_member_14_days",
+
+            vipPromoStartedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+
+            vipGiftDays: 14,
+
+            vipUpdatedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+
+            vipReminder7dSent: false,
+            vipReminder3dSent: false,
+            vipReminder1dSent: false,
+            vipExpiredHandled: false,
+
+            welcomeGiftGranted: true,
+            welcomeGiftType:
+              "vip_14_days",
+
+            welcomeGiftGrantedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+
+            welcomeGiftExpiresAt:
+              admin.firestore.Timestamp
+                .fromDate(
+                  finalVipExpiresAt
+                ),
+
+            welcomeGiftPromotion:
+              "female_new_member_2026",
+
+            updatedAt:
+              admin.firestore.FieldValue
+                .serverTimestamp(),
+          };
+
+          // Không ghi đè thông tin thanh toán
+          // nếu người dùng đang có VIP trả phí.
+          if (!hasActivePaidVip) {
+            Object.assign(updateData, {
+              vipPlanId:
+                "promo_14_days_female",
+
+              subscriptionType:
+                "promo_14_days_female",
+
+              vipProductId:
+                "promo_female_free_14_days",
+
+              vipPlatform: "promo",
+
+              vipPlanTitleVi:
+                "VIP miễn phí 2 tuần",
+
+              vipPlanTitleEn:
+                "Free VIP for 2 weeks",
+
+              vipPriceTextVi:
+                "Miễn phí",
+
+              vipPriceTextEn:
+                "Free",
+            });
+          }
+
+          transaction.set(
+            userRef,
+            updateData,
+            { merge: true }
+          );
+
+          vipGiftGranted = true;
+        }
       );
 
-      console.log("Female 1 month VIP promo added:", userId);
+      if (
+        !vipGiftGranted ||
+        !finalVipExpiresAt
+      ) {
+        return;
+      }
+
+      await sendPushNotification({
+        token: after.fcmToken || "",
+        title: isVi
+          ? "🎁 Bạn đã nhận được quà!"
+          : "🎁 You received a gift!",
+        body: isVi
+          ? "Bạn đã được tặng 2 tuần VIP miễn phí. Quyền lợi VIP đã được kích hoạt."
+          : "You received 2 weeks of FREE VIP. Your VIP benefits are now active.",
+        data: {
+          route: "my_gift",
+          type: "welcome_gift",
+          giftType: "vip_14_days",
+        },
+      });
+
+      console.log(
+        "WELCOME 14-DAY VIP GRANTED:",
+        userId,
+        finalVipExpiresAt.toISOString()
+      );
     } catch (error) {
-      console.error("addFemaleVipWhenProfileCompleted error:", error);
+      console.error(
+        "addFemaleVipWhenProfileCompleted error:",
+        error
+      );
     }
   }
 );
-
 
 exports.syncGoogleVipSubscriptions = onSchedule(
   {

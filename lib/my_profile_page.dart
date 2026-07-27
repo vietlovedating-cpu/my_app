@@ -11,6 +11,7 @@ import 'account_page.dart';
 import 'notification_settings_page.dart';
 import 'privacy_profile_page.dart';
 import 'photo_verification_page.dart';
+import 'my_gift_page.dart';
 import 'utils/profile_health.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -1939,6 +1940,7 @@ Widget _buildProfileHealthCard({
     ),
   );
 }
+
   Widget _buildMyProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
     final facebookUrl =
@@ -2477,6 +2479,58 @@ Future<void> _openSocial({
         elevation: 0,
         foregroundColor: const Color(0xFF7A2E6E),
         centerTitle: true,
+        leading: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+  stream: FirebaseAuth.instance.currentUser == null
+      ? null
+      : FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .snapshots(),
+  builder: (context, snapshot) {
+    final profile = snapshot.data?.data();
+
+    final hasWelcomeGift =
+        profile?['welcomeGiftGranted'] == true;
+
+    if (!hasWelcomeGift) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(left: 10),
+      child: IconButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => MyGiftPage(
+                languageCode: widget.languageCode,
+              ),
+            ),
+          );
+        },
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.92),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.card_giftcard_rounded,
+            color: Color(0xFFB83280),
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  },
+),
         title: const Row(
   mainAxisSize: MainAxisSize.min,
   children: [
@@ -2531,7 +2585,28 @@ class ProfileSettingsPage extends StatelessWidget {
   bool get isVi => languageCode == 'vi';
 
   String _tr(String vi, String en) => isVi ? vi : en;
+Future<void> _openInstagram() async {
+  final appUri = Uri.parse(
+    'instagram://user?username=chichouse9999',
+  );
 
+  final webUri = Uri.parse(
+    'https://www.instagram.com/chichouse9999',
+  );
+
+  if (await canLaunchUrl(appUri)) {
+    await launchUrl(
+      appUri,
+      mode: LaunchMode.externalApplication,
+    );
+    return;
+  }
+
+  await launchUrl(
+    webUri,
+    mode: LaunchMode.externalApplication,
+  );
+}
   @override
   Widget build(BuildContext context) {
    return Scaffold(
