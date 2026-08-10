@@ -6401,7 +6401,7 @@ return _buildHomeProfile(profiles.first, isVi);
           ),
           BottomNavigationBarItem(
   icon: const Icon(Icons.sports_esports_rounded),
-  label: _label('Games', 'Games'),
+  label: _label('Activities', 'Activities'),
 ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.workspace_premium),

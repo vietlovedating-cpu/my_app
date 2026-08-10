@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'guess_game_page.dart';
 import 'lucky_spin_page.dart';
 import 'blind_date_quiz_page.dart';
+import 'language_exchange_page_updated.dart';
 
 class MiniGamePage extends StatefulWidget {
   final String languageCode;
@@ -90,6 +91,16 @@ void _openLuckySpinPage() {
     ),
   );
 }
+void _openLanguageExchangePage() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LanguageExchangePage(
+        languageCode: widget.languageCode,
+      ),
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +155,9 @@ void _openLuckySpinPage() {
               const SizedBox(height: 20),
 
 _buildBlindDateQuizCard(),
+const SizedBox(height: 20),
+
+_buildLanguageExchangeCard(),
             ],
           ),
         ),
@@ -570,7 +584,90 @@ _buildBlindDateQuizCard(),
     ),
   );
 }
+Widget _buildLanguageExchangeCard() {
+  return InkWell(
+    onTap: _openLanguageExchangePage,
+    borderRadius: BorderRadius.circular(28),
+    child: Container(
+      width: double.infinity,
+      height: 240,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF5D74D3),
+            Color(0xFF7E57C2),
+          ],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF5D74D3).withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _tr(
+                      'Trao đổi ngôn ngữ',
+                      'Language Exchange',
+                    ),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
 
+                  const SizedBox(height: 10),
+
+                  Text(
+                    _tr(
+                      'Luyện tiếng Anh hoặc tiếng Việt và kết nối với mọi người trên toàn thế giới.',
+                      'Practice English or Vietnamese and connect with people worldwide.',
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.92),
+                      fontSize: 14,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const Spacer(),
+
+                  _buildOpenButton(
+                    _tr('Khám phá', 'Explore'),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            const Icon(
+              Icons.translate_rounded,
+              size: 90,
+              color: Colors.white,
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
   Widget _buildOpenButton(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(
