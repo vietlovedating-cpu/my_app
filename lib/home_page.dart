@@ -5149,7 +5149,7 @@ Widget _buildSocialMediaSection({
       case 2:
         return isVi ? 'Match' : 'Match';
       case 3:
-        return isVi ? 'Games' : 'Games';
+        return isVi ? 'Vietlove' : 'Vietlove';
       case 4:
         return isVi ? 'Nâng cấp' : 'Upgrade';
       case 5:

@@ -120,10 +120,10 @@ void _openLanguageExchangePage() {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _tr(
-                  'Chọn trò chơi',
-                  'Choose a game',
-                ),
+               _tr(
+  'Khám phá VietLove',
+  'Explore VietLove',
+),
                 style: const TextStyle(
                   fontSize: 26,
                   fontWeight: FontWeight.w900,
@@ -132,10 +132,10 @@ void _openLanguageExchangePage() {
               ),
               const SizedBox(height: 7),
               Text(
-                _tr(
-                  'Chơi game, khám phá điều bất ngờ và nhận phần thưởng.',
-                  'Play, discover surprises and earn rewards.',
-                ),
+               _tr(
+  'Kết nối, học hỏi, vui chơi và khám phá những trải nghiệm mới.',
+  'Connect, learn, play and discover new experiences.',
+),
                 style: TextStyle(
                   fontSize: 15,
                   height: 1.4,
