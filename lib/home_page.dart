@@ -40,7 +40,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Timer? _onlineTimer;
 
   bool _isProcessingAction = false;
-  int _selectedBottomIndex = 0;
+  int _selectedBottomIndex = 3;
 Set<String> _myContactPhones = {};
 Set<String> _myContactEmails = {};
 bool _contactsLoaded = false;
@@ -326,7 +326,7 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       currentUserData = null;
 
       _isProcessingAction = false;
-      _selectedBottomIndex = 0;
+      _selectedBottomIndex = 3;
 
       selectedGenderFilter = null;
       selectedMinAgeFilter = null;

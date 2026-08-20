@@ -144,20 +144,23 @@ void _openLanguageExchangePage() {
               ),
               const SizedBox(height: 24),
 
-              // Game 1: Guess
-              _buildGuessCard(),
+             // Language Exchange
+_buildLanguageExchangeCard(),
 
-              const SizedBox(height: 20),
-
-              // Game 2: Lucky Spin
-              _buildLuckySpinCard(),
-
-              const SizedBox(height: 20),
-
-_buildBlindDateQuizCard(),
 const SizedBox(height: 20),
 
-_buildLanguageExchangeCard(),
+// Guess
+_buildGuessCard(),
+
+const SizedBox(height: 20),
+
+// Lucky Spin
+_buildLuckySpinCard(),
+
+const SizedBox(height: 20),
+
+// Blind Date Quiz
+_buildBlindDateQuizCard(),
             ],
           ),
         ),
