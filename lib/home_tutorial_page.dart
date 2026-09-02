@@ -18,6 +18,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
   final GlobalKey _photoLikeKey = GlobalKey();
   final GlobalKey _actionButtonsKey = GlobalKey();
   final GlobalKey _promptLikeKey = GlobalKey();
+  final GlobalKey _breakTheIceKey = GlobalKey();
 
   int _tutorialStep = 0;
   bool _showTutorial = true;
@@ -122,6 +123,11 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
           'Bấm tim bên dưới câu trả lời để thích Prompt và có thể comment.Người ấy sẽ biết bạn đã thích và comment ảnh nào.Nếu người ấy cũng thích bạn, hai bạn sẽ Match.',
     },
     {
+  'title': '🧊 Phá băng',
+  'description':
+      'Chọn một câu trả lời để thể hiện sự quan tâm. Lựa chọn của bạn cũng sẽ gửi một lượt Thích. Nếu cả hai cùng dùng Phá băng và Match, câu trả lời của hai bạn sẽ được hiển thị trong chat.',
+},
+    {
       'title': 'Bạn đã sẵn sàng!',
       'description':
           'Bây giờ bạn đã biết cách sử dụng trang Khám phá của VietLove Dating.',
@@ -159,6 +165,11 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
       'description':
           'Tap the heart below an answer to like and comment on that specific Prompt. They will see which Prompt you liked. If they like you back, you will Match.',
     },
+    {
+  'title': '🧊 Break the Ice',
+  'description':
+      'Choose an answer to show your interest. Your choice also sends a Like. If you both use Break the Ice and Match, your answers will be revealed in chat.',
+},
     {
       'title': 'You are ready!',
       'description':
