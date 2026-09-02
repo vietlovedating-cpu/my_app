@@ -2002,6 +2002,36 @@ final didMatch = await _saveSwipe(
   });
 }
 }
+Future<void> _saveBreakTheIceAnswer({
+  required Map<String, dynamic> targetProfile,
+  required String answer,
+}) async {
+  final user = currentUser;
+  if (user == null) return;
+
+  final targetUid =
+      (targetProfile['uid'] ?? targetProfile['docId'] ?? '')
+          .toString()
+          .trim();
+
+  if (targetUid.isEmpty) return;
+
+  final ids = [user.uid, targetUid]..sort();
+  final pairId = ids.join('_');
+
+  await FirebaseFirestore.instance
+      .collection('breakTheIce')
+      .doc(pairId)
+      .set({
+    'userIds': ids,
+
+    'answers': {
+      user.uid: answer,
+    },
+
+    'updatedAt': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+}
  Future<void> _handleLike({
   required Map<String, dynamic> targetProfile,
 }) async {
@@ -5227,7 +5257,138 @@ Widget _buildSocialMediaSection({
       ),
     );
   }
+Widget _buildBreakTheIceCard({
+  required Map<String, dynamic> targetProfile,
+}) {
+  final isVi = widget.languageCode == 'vi';
 
+ final question = isVi
+    ? 'Buổi hẹn đầu tiên lý tưởng của bạn là gì?'
+    : 'What sounds like a perfect first date?';
+
+final options = [
+  {
+    'key': 'coffee',
+    'label': isVi ? '☕ Cà phê' : '☕ Coffee',
+  },
+  {
+    'key': 'dinner',
+    'label': isVi ? '🍽️ Ăn tối' : '🍽️ Dinner',
+  },
+  {
+  'key': 'road_trip',
+  'label': isVi ? '🚗 Đi road trip' : '🚗 Road trip',
+},
+{
+  'key': 'netflix',
+  'label': '📺 Netflix',
+},
+  {
+    'key': 'beach',
+    'label': isVi ? '🏖️ Đi biển' : '🏖️ Beach',
+  },
+  {
+    'key': 'dog_walk',
+    'label': isVi ? '🐶 Dắt cún đi dạo' : '🐶 Dog walk',
+  },
+];
+  return Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(22),
+      border: Border.all(
+        color: const Color(0xFFFFD6E7),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isVi ? '🧊 Phá băng' : '🧊 Break the Ice',
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF7A2E6E),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Text(
+          question,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+         children: options.map((option) {
+  return InkWell(
+    borderRadius: BorderRadius.circular(22),
+    onTap: () async {
+      await _saveBreakTheIceAnswer(
+        targetProfile: targetProfile,
+        answer: option['key']!,
+      );
+
+      await _handleLike(
+        targetProfile: targetProfile,
+      );
+    },
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 10,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF1F6),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: const Color(0xFFFFC8DC),
+        ),
+      ),
+      child: Text(
+        option['label']!,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    ),
+  );
+}).toList(),
+        ),
+
+        const SizedBox(height: 10),
+
+        Text(
+          isVi
+              ? 'Chọn một câu trả lời để phá băng 💕'
+              : 'Pick an answer to break the ice 💕',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    ),
+  );
+}
   Widget _buildHomeProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
     final prompts = _extractPrompts(profile, isVi);
@@ -5477,6 +5638,11 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
   photoIndex: 1,
 ),
                 ],
+                const SizedBox(height: 14),
+
+_buildBreakTheIceCard(
+  targetProfile: profile,
+),
                 if (getPrompt(0)['question']!.isNotEmpty ||
                     getPrompt(0)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),

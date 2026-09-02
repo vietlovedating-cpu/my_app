@@ -84,6 +84,9 @@ Timer? _recordTimer;
   String _otherUserPhotoUrl = '';
   String _otherUserName = '';
   int? _otherUserAge;
+  String? _myBreakTheIceAnswer;
+String? _otherBreakTheIceAnswer;
+bool _isLoadingBreakTheIce = true;
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -1626,6 +1629,7 @@ void initState() {
   super.initState();
   _loadCurrentUserInfo();
   _loadOtherUserInfo();
+  _loadBreakTheIceAnswers();
   _markIncomingMessagesAsRead();
 
   _audioPlayer.onPlayerComplete.listen((_) {
@@ -1683,7 +1687,205 @@ _isSendingVoiceNotifier.dispose();
 });
     } catch (_) {}
   }
+  String _breakTheIceAnswerLabel(String? answer) {
+  switch (answer) {
+    case 'coffee':
+      return _tr('☕ Cà phê', '☕ Coffee');
 
+    case 'dinner':
+      return _tr('🍽️ Ăn tối', '🍽️ Dinner');
+
+    case 'road_trip':
+      return _tr('🚗 Đi road trip', '🚗 Road trip');
+
+    case 'netflix':
+      return '📺 Netflix';
+
+    case 'beach':
+      return _tr('🏖️ Đi biển', '🏖️ Beach');
+
+    case 'dog_walk':
+      return _tr(
+        '🐶 Dắt cún đi dạo',
+        '🐶 Dog walk',
+      );
+
+    default:
+      return '';
+  }
+}
+Widget _buildBreakTheIceResultCard() {
+  if (_isLoadingBreakTheIce) {
+    return const SizedBox.shrink();
+  }
+
+  final myAnswer = _myBreakTheIceAnswer?.trim() ?? '';
+  final otherAnswer = _otherBreakTheIceAnswer?.trim() ?? '';
+
+  // Chỉ hiện khi CẢ HAI đều đã trả lời Break the Ice.
+  if (myAnswer.isEmpty || otherAnswer.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  final sameAnswer = myAnswer == otherAnswer;
+
+  final myLabel = _breakTheIceAnswerLabel(myAnswer);
+  final otherLabel = _breakTheIceAnswerLabel(otherAnswer);
+
+  if (myLabel.isEmpty || otherLabel.isEmpty) {
+    return const SizedBox.shrink();
+  }
+
+  final otherName = _effectiveOtherUserName.trim().isNotEmpty
+      ? _effectiveOtherUserName.trim()
+      : _tr('Người ấy', 'Your match');
+
+  return Container(
+    width: double.infinity,
+    margin: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF7FB),
+      borderRadius: BorderRadius.circular(20),
+      border: Border.all(
+        color: const Color(0xFFFFD5E6),
+      ),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _tr(
+            '🧊 Phá băng',
+            '🧊 Break the Ice',
+          ),
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF8A2F6A),
+          ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Text(
+          _tr(
+            'Buổi hẹn đầu tiên lý tưởng của bạn là gì?',
+            'What sounds like a perfect first date?',
+          ),
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            height: 1.35,
+          ),
+        ),
+
+        const SizedBox(height: 14),
+
+        Text(
+          '${_tr('Bạn', 'You')}: $myLabel',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+
+        const SizedBox(height: 7),
+
+        Text(
+          '$otherName: $otherLabel',
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        Text(
+          sameAnswer
+              ? _tr(
+                  '💕 Hai bạn đã chọn cùng một câu trả lời!',
+                  '💕 You both picked the same answer!',
+                )
+              : _tr(
+                  '😄 Hai lựa chọn khác nhau — biết đâu lại có thêm chuyện để nói.',
+                  '😄 Different picks — maybe you can decide together.',
+                ),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            height: 1.35,
+            color: Colors.black54,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+Future<void> _loadBreakTheIceAnswers() async {
+  final currentUser = FirebaseAuth.instance.currentUser;
+
+  if (currentUser == null) {
+    if (mounted) {
+      setState(() {
+        _isLoadingBreakTheIce = false;
+      });
+    }
+    return;
+  }
+
+  try {
+    final ids = [
+      currentUser.uid,
+      widget.otherUserId,
+    ]..sort();
+
+    final pairId = ids.join('_');
+
+    final doc = await FirebaseFirestore.instance
+        .collection('breakTheIce')
+        .doc(pairId)
+        .get();
+
+    if (!mounted) return;
+
+    if (!doc.exists) {
+      setState(() {
+        _myBreakTheIceAnswer = null;
+        _otherBreakTheIceAnswer = null;
+        _isLoadingBreakTheIce = false;
+      });
+      return;
+    }
+
+    final data = doc.data() ?? {};
+
+    final rawAnswers = data['answers'];
+
+    final answers = rawAnswers is Map
+        ? Map<String, dynamic>.from(rawAnswers)
+        : <String, dynamic>{};
+
+    setState(() {
+      _myBreakTheIceAnswer =
+          answers[currentUser.uid]?.toString().trim();
+
+      _otherBreakTheIceAnswer =
+          answers[widget.otherUserId]?.toString().trim();
+
+      _isLoadingBreakTheIce = false;
+    });
+  } catch (e) {
+    debugPrint('LOAD BREAK THE ICE ERROR: $e');
+
+    if (!mounted) return;
+
+    setState(() {
+      _isLoadingBreakTheIce = false;
+    });
+  }
+}
   Future<void> _loadOtherUserInfo() async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -3057,10 +3259,13 @@ final bubble = GestureDetector(
 
       final docs = snapshot.data?.docs ?? [];
 
-     if (docs.isEmpty) {
+   if (docs.isEmpty) {
   return ListView(
     padding: const EdgeInsets.fromLTRB(18, 24, 18, 18),
     children: [
+      _buildBreakTheIceResultCard(),
+      const SizedBox(height: 14),
+
       Text(
         _tr(
           'Chưa biết bắt đầu thế nào?',
@@ -3133,13 +3338,19 @@ final bubble = GestureDetector(
   );
 }
 
-      return ListView.builder(
-        controller: _scrollController,
-        reverse: true,
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
-        itemCount: docs.length,
-        itemBuilder: (context, index) {
-          final data = docs[index].data() as Map<String, dynamic>;
+     return ListView.builder(
+  controller: _scrollController,
+  reverse: true,
+  padding: const EdgeInsets.fromLTRB(12, 14, 12, 10),
+  itemCount: docs.length + 1,
+  itemBuilder: (context, index) {
+
+    // Break the Ice nằm ở đầu cuộc trò chuyện.
+    if (index == docs.length) {
+      return _buildBreakTheIceResultCard();
+    }
+
+    final data = docs[index].data() as Map<String, dynamic>;
 
           final senderId = (data['senderId'] ?? '').toString();
           final text = (data['text'] ?? '').toString();
