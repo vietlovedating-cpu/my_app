@@ -1412,11 +1412,11 @@ console.log("STATE:", after.selectedStateKey);
       // Chương trình áp dụng từ 27/07/2026
       // đến hết 31/08/2026, theo giờ Sydney.
       const promoStartDate = new Date(
-        "2026-08-25T00:00:00+10:00"
+        "2026-09-25T00:00:00+10:00"
       );
 
       const promoEndDate = new Date(
-        "2026-08-31T23:59:59.999+10:00"
+        "2026-09-31T23:59:59.999+10:00"
       );
 
       const now = new Date();

@@ -2315,7 +2315,7 @@ Future<bool> _consumePurchasedFlowerIfNeeded() async {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '🎉🎉 It’s a Match with $targetName 🎉🎉',
+                  '🎉🎉 You’re connected with $targetName 🎉🎉',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 24,

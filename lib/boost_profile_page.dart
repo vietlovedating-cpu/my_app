@@ -144,8 +144,8 @@ class _BoostProfilePageState extends State<BoostProfilePage> {
                 const SizedBox(height: 14),
                 Text(
                   isVi
-                      ? 'Hồ sơ của bạn sẽ được ưu tiên hiển thị trên trang Khám phá.'
-                      : 'Your profile will receive priority placement on Discover.',
+                      ? 'Hồ sơ của bạn sẽ được ưu tiên hiển thị trên trang Kết Nối Vietlove.'
+                      : 'Your profile will receive priority placement on VietLove Connections.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 16,

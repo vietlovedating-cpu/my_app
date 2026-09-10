@@ -1771,8 +1771,8 @@ Widget _buildProfileHealthCard({
   profileHealth.score < 50
       ? _tr(
           isVi,
-          'Hồ sơ dưới 50% sẽ không được hiển thị trên trang Khám phá.',
-          'Profiles below 50% will not appear on the Discover page.',
+          'Hồ sơ dưới 50% sẽ không được hiển thị trên trang Kết Nối Vietlove.',
+          'Profiles below 50% will not appear on the VietLove Connections.',
         )
       : _tr(
           isVi,

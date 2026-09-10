@@ -231,14 +231,14 @@ class _BlindDateQuizPageState extends State<BlindDateQuizPage> {
         await _findBestMatch();
       }
     } catch (e) {
-      debugPrint('LOAD BLIND DATE QUIZ ERROR: $e');
+      debugPrint('LOAD Interest Match Quiz ERROR: $e');
 
       if (!mounted) return;
       setState(() {
         _isLoading = false;
         _errorMessage = _tr(
-          'Không thể tải Blind Date Quiz. Vui lòng thử lại.',
-          'Unable to load Blind Date Quiz. Please try again.',
+          'Không thể tải Interest Match Quiz. Vui lòng thử lại.',
+          'Unable to load Interest Match Quiz. Please try again.',
         );
       });
     }
@@ -603,14 +603,14 @@ for (final rankedCandidate in rankedAnswerCandidates) {
         _isFindingMatch = false;
       });
     } catch (e) {
-      debugPrint('FIND BLIND DATE MATCH ERROR: $e');
+      debugPrint('FIND Interest Match ERROR: $e');
 
       if (!mounted) return;
       setState(() {
         _isFindingMatch = false;
         _errorMessage = _tr(
-          'Không thể tìm Blind Date Match. Vui lòng thử lại.',
-          'Unable to find your Blind Date Match. Please try again.',
+          'Không thể tìm Interest Match. Vui lòng thử lại.',
+          'Unable to find your Interest Match. Please try again.',
         );
       });
     }
@@ -985,8 +985,8 @@ for (final doc in receivedSwipes.docs) {
                 const SizedBox(height: 16),
                 Text(
                   _tr(
-                    'Hãy dùng Flower này để gửi lời nhắn cho Blind Date Match của bạn hôm nay ❤️',
-                    'Use this Flower to send a message to your Blind Date Match today ❤️',
+                    'Hãy dùng Flower này để gửi lời nhắn cho người có cùng sở thích với bạn hôm nay ❤️',
+                    'Use this Flower to send a message to someone who shares your interests today ❤️',
                   ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -1126,7 +1126,7 @@ if (!iLikeTheirGender) return false;
         foregroundColor: const Color(0xFF7A2E6E),
         centerTitle: true,
         title: Text(
-          _tr('Blind Date Quiz', 'Blind Date Quiz'),
+          _tr('Bạn Cùng Sở Thích', 'Like-Minded Friend'),
           style: const TextStyle(
             color: Color(0xFF7A2E6E),
             fontSize: 21,
@@ -1316,8 +1316,8 @@ if (!iLikeTheirGender) return false;
           const SizedBox(height: 12),
           Text(
             _tr(
-              'Tìm Blind Date Match hôm nay',
-              'Find today\'s Blind Date Match',
+              'Tìm Bạn Cùng Sở Thích hôm nay',
+              'Find today\'s Like-Minded Friend',
             ),
             textAlign: TextAlign.center,
             style: const TextStyle(
@@ -1545,8 +1545,8 @@ if (!iLikeTheirGender) return false;
 
       Text(
         _tr(
-          'Bạn đã hoàn thành Blind Date Quiz hôm nay! ❤️',
-          'You completed today\'s Blind Date Quiz! ❤️',
+          'Bạn đã hoàn thành Interest Match Quiz hôm nay! ❤️',
+          'You completed today\'s Interest Match Quiz! ❤️',
         ),
         textAlign: TextAlign.center,
         style: const TextStyle(
@@ -1640,8 +1640,8 @@ if (!iLikeTheirGender) return false;
       children: [
         Text(
           _tr(
-            '❤️ Blind Date Match hôm nay',
-            '❤️ Today\'s Blind Date Match',
+            '❤️ Bạn Cùng Sở Thích hôm nay',
+            '❤️ Today\'s Like-Minded Friend',
           ),
           textAlign: TextAlign.center,
           style: const TextStyle(
@@ -1753,8 +1753,8 @@ if (!iLikeTheirGender) return false;
               'You claimed 1 Flower today',
             ),
             message: _tr(
-              'Hãy dùng Flower này để gửi lời nhắn cho Blind Date Match của bạn ❤️',
-              'Use this Flower to message your Blind Date Match ❤️',
+              'Hãy dùng Flower này để gửi lời nhắn cho người bạn cùng sở thích với bạn ❤️',
+              'Use this Flower to send a message to someone who shares your interests today ❤️',
             ),
             color: const Color(0xFF267B45),
             background: const Color(0xFFE8F8EE),
@@ -1769,8 +1769,8 @@ if (!iLikeTheirGender) return false;
               'You declined the Flower',
             ),
            message: _tr(
-  'Bạn đã từ chối nhận Flower miễn phí hôm nay.\n\nBạn vẫn có thể xem hồ sơ, gửi Like hoặc gửi Flower nếu bạn đang có Flower trong tài khoản.\n\nHãy quay lại vào ngày mai để tham gia Blind Date Quiz mới ❤️',
-  'You declined today\'s free Flower.\n\nYou can still view the profile, send a Like, or send a Flower if you already have Flowers in your account.\n\nCome back tomorrow for a new Blind Date Quiz ❤️',
+  'Bạn đã từ chối nhận Flower miễn phí hôm nay.\n\nBạn vẫn có thể xem hồ sơ, gửi Like hoặc gửi Flower nếu bạn đang có Flower trong tài khoản.\n\nHãy quay lại vào ngày mai để tham gia Interest Match Quiz mới ❤️',
+  'You declined today\'s free Flower.\n\nYou can still view the profile, send a Like, or send a Flower if you already have Flowers in your account.\n\nCome back tomorrow for a new Interest Match Quiz ❤️',
 ),
             color: const Color(0xFF8B2E63),
             background: const Color(0xFFFFEDF4),
@@ -1812,8 +1812,8 @@ if (!iLikeTheirGender) return false;
           const SizedBox(height: 10),
           Text(
             _tr(
-              'Bạn có muốn nhận Flower này không? Chỉ khi bạn bấm Nhận, Flower mới được cộng vào số dư của bạn. Hãy dùng Flower này để gửi lời nhắn cho Blind Date Match hôm nay.',
-              'Would you like to claim this Flower? It will only be added to your balance after you tap Claim. Use it to send a message to today\'s Blind Date Match.',
+              'Bạn có muốn nhận Flower này không? Chỉ khi bạn bấm Nhận, Flower mới được cộng vào số dư của bạn. Hãy dùng Flower này để gửi lời nhắn cho Interest Match hôm nay.',
+              'Would you like to claim this Flower? It will only be added to your balance after you tap Claim. Use it to send a message to today\'s Interest Match.',
             ),
             textAlign: TextAlign.center,
             style: TextStyle(

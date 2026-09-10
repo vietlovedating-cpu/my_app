@@ -351,8 +351,8 @@ final result = await showDialog<String?>(
           ),
           title: Text(
             _tr(
-              'Viết vài lời cho người bạn thích nhé!',
-              'Write a few words to someone you like!',
+              'Gửi vài lời đến người bạn thích nhé! Họ sẽ nhận được tin nhắn của bạn ngay lập tức.',
+              'Say something to someone you like! They’ll receive your message instantly.',
             ),
             style: const TextStyle(
               fontWeight: FontWeight.w800,
@@ -800,7 +800,7 @@ await _saveSwipe(
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '🎉🎉 It’s a Match with $targetName 🎉🎉',
+                  '🎉🎉 You’re connected with $targetName 🎉🎉',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 24,

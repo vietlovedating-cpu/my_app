@@ -9,12 +9,13 @@ import 'language_exchange_page_updated.dart';
 
 class MiniGamePage extends StatefulWidget {
   final String languageCode;
+  final VoidCallback? onConnectTap;
 
   const MiniGamePage({
     super.key,
     required this.languageCode,
+    this.onConnectTap,
   });
-
   @override
   State<MiniGamePage> createState() => _MiniGamePageState();
 }
@@ -119,17 +120,17 @@ void _openLanguageExchangePage() {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-               _tr(
-  'Khám phá VietLove',
-  'Explore VietLove',
+             Text(
+  _tr(
+    'Bạn muốn kết nối theo cách nào?',
+    'How would you like to connect?',
+  ),
+  style: const TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.w900,
+    color: Color(0xFF7A2E6E),
+  ),
 ),
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF7A2E6E),
-                ),
-              ),
               const SizedBox(height: 7),
               Text(
                _tr(
@@ -142,25 +143,93 @@ void _openLanguageExchangePage() {
                   color: Colors.grey.shade700,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-             // Language Exchange
-_buildLanguageExchangeCard(),
+Row(
+  children: [
+    Expanded(
+  child: _buildConnectionButton(
+    icon: Icons.translate_rounded,
+    title: _tr('Trao đổi ngôn ngữ', 'Language Exchange'),
+    onTap: _openLanguageExchangePage,
+    colors: const [
+      Color(0xFF5D74D3),
+      Color(0xFF7E57C2),
+    ],
+  ),
+),
+    const SizedBox(width: 12),
+   Expanded(
+  child: _buildConnectionButton(
+    icon: Icons.people_alt_rounded,
+    title: _tr('Bạn cùng sở thích', 'Shared Interests'),
+    onTap: _openBlindDateQuizPage,
+    colors: const [
+      Color(0xFFFF8A65),
+      Color(0xFFFF5A7A),
+    ],
+  ),
+),
+  ],
+),
 
-const SizedBox(height: 20),
+const SizedBox(height: 12),
 
-// Guess
-_buildGuessCard(),
+Row(
+  children: [
+    Expanded(
+  child: _buildConnectionButton(
+    icon: Icons.favorite_rounded,
+    title: _tr('Mối quan hệ', 'Relationship'),
+    onTap: () {
+      widget.onConnectTap?.call();
+    },
+    colors: const [
+      Color(0xFFE91E63),
+      Color(0xFFFF6B9A),
+    ],
+  ),
+),
+    const SizedBox(width: 12),
+   Expanded(
+  child: _buildConnectionButton(
+    icon: Icons.celebration_rounded,
+    title: _tr('Giải trí', 'Entertainment'),
+    onTap: _openLuckySpinPage,
+    colors: const [
+      Color(0xFFFF729A),
+      Color(0xFFE83D78),
+    ],
+  ),
+),
+  ],
+),
+            const SizedBox(height: 12),
 
-const SizedBox(height: 20),
+Row(
+  children: [
+    const Spacer(),
 
-// Lucky Spin
-_buildLuckySpinCard(),
+    Expanded(
+  flex: 2,
+  child: _buildConnectionButton(
+    icon: Icons.visibility_rounded,
+    title: _tr(
+      'Kết nối bí ẩn',
+      'Mystery Connection',
+    ),
+    onTap: _openGuessPage,
+    colors: const [
+  Color(0xFF26A69A),
+  Color(0xFF42A5F5),
+],
+  ),
+),
 
-const SizedBox(height: 20),
+    const Spacer(),
+  ],
+),
 
-// Blind Date Quiz
-_buildBlindDateQuizCard(),
             ],
           ),
         ),
@@ -512,8 +581,11 @@ _buildBlindDateQuizCard(),
                     crossAxisAlignment:
                         CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Blind Date Quiz',
+                      Text(
+  _tr(
+     'Bạn cùng sở thích',
+    'Friends with Shared Interests',
+  ),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 29,
@@ -667,6 +739,59 @@ Widget _buildLanguageExchangeCard() {
             ),
           ],
         ),
+      ),
+    ),
+  );
+}
+Widget _buildConnectionButton({
+  required IconData icon,
+  required String title,
+  required VoidCallback onTap,
+  required List<Color> colors,
+}) {
+  return InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(22),
+    child: Container(
+      height: 130,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+      gradient: LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: colors,
+),
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+         Icon(
+  icon,
+  size: 36,
+  color: Colors.white,
+),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+           style: const TextStyle(
+  fontSize: 15,
+  fontWeight: FontWeight.w800,
+  color: Colors.white,
+  height: 1.2,
+),
+          ),
+        ],
       ),
     ),
   );

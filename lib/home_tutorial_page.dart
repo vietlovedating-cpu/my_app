@@ -15,10 +15,10 @@ class HomeTutorialPage extends StatefulWidget {
 class _HomeTutorialPageState extends State<HomeTutorialPage> {
   final ScrollController _scrollController = ScrollController();
 
-  final GlobalKey _photoLikeKey = GlobalKey();
-  final GlobalKey _actionButtonsKey = GlobalKey();
+  final GlobalKey _photoFlowerKey = GlobalKey();
   final GlobalKey _promptLikeKey = GlobalKey();
   final GlobalKey _breakTheIceKey = GlobalKey();
+  final GlobalKey _nextProfileKey = GlobalKey();
 
   int _tutorialStep = 0;
   bool _showTutorial = true;
@@ -95,42 +95,32 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     {
       'title': 'Chào mừng bạn đến với VietLove Dating',
       'description':
-          'Mình sẽ hướng dẫn nhanh cách sử dụng các nút trên trang Khám phá.',
+          'Mình sẽ hướng dẫn nhanh cách sử dụng trang Kết Nối VietLove.',
     },
     {
-      'title': 'Pass',
+      'title': 'Flower trên ảnh',
       'description':
-          'Bấm nút X để bỏ qua hồ sơ này. Người đó sẽ không biết bạn đã bấm Pass.',
-    },
-    {
-      'title': 'Flower',
-      'description':
-          'Gửi Flower để thể hiện bạn đặc biệt quan tâm. Người đó sẽ nhận được lời nhắn của bạn.',
-    },
-    {
-      'title': 'Like',
-      'description':
-          'Bấm tim để thích hồ sơ. Nếu người đó cũng thích bạn, hai bạn sẽ Match.',
-    },
-    {
-      'title': 'Like ảnh',
-      'description':
-          'Bấm biểu tượng tim trên ảnh để thích riêng ảnh đó và có thể comment.Người ấy sẽ biết bạn đã thích và comment ảnh nào.Nếu người ấy cũng thích bạn, hai bạn sẽ Match.',
+          'Bấm Flower trên ảnh để thể hiện bạn đặc biệt quan tâm đến người này.',
     },
     {
       'title': 'Like Prompt',
       'description':
-          'Bấm tim bên dưới câu trả lời để thích Prompt và có thể comment.Người ấy sẽ biết bạn đã thích và comment ảnh nào.Nếu người ấy cũng thích bạn, hai bạn sẽ Match.',
+          'Bấm tim bên dưới câu trả lời để thích Prompt. Nếu hai bạn cùng thích nhau, hai bạn sẽ Match.',
     },
     {
-  'title': '🧊 Phá băng',
-  'description':
-      'Chọn một câu trả lời để thể hiện sự quan tâm. Lựa chọn của bạn cũng sẽ gửi một lượt Thích. Nếu cả hai cùng dùng Phá băng và Match, câu trả lời của hai bạn sẽ được hiển thị trong chat.',
-},
+      'title': 'Phá băng',
+      'description':
+          'Phá băng nằm ở cuối hồ sơ. Chọn một câu trả lời để thể hiện sự quan tâm. Lựa chọn của bạn cũng sẽ gửi một lượt Thích.',
+    },
+    {
+      'title': 'Hồ sơ kế tiếp',
+      'description':
+          'Nút Pass nằm ở cuối hồ sơ. Bấm "Hồ sơ kế tiếp →" để bỏ qua hồ sơ này và xem người tiếp theo.',
+    },
     {
       'title': 'Bạn đã sẵn sàng!',
       'description':
-          'Bây giờ bạn đã biết cách sử dụng trang Khám phá của VietLove Dating.',
+          'Bây giờ bạn đã biết cách sử dụng trang Kết Nối VietLove.',
     },
   ];
 
@@ -138,42 +128,32 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     {
       'title': 'Welcome to VietLove Dating',
       'description':
-          'Here is a quick guide to using the buttons on the Discover page.',
+          'Here is a quick guide to using the VietLove Connections page.',
     },
     {
-      'title': 'Pass',
+      'title': 'Flower on a photo',
       'description':
-          'Tap X to skip this profile. The other person will not know that you passed.',
-    },
-    {
-      'title': 'Flower',
-      'description':
-          'Send a Flower to show special interest. The person will receive your message.',
-    },
-    {
-      'title': 'Like',
-      'description':
-          'Tap the heart to like a profile. If they also like you, you will Match.',
-    },
-    {
-      'title': 'Like a photo',
-      'description':
-          'Tap the heart on a photo to like and comment on that specific photo. They will see which photo you liked. If they like you back, you will Match.',
+          'Tap Flower on a photo to show that you are especially interested in this person.',
     },
     {
       'title': 'Like a Prompt',
       'description':
-          'Tap the heart below an answer to like and comment on that specific Prompt. They will see which Prompt you liked. If they like you back, you will Match.',
+          'Tap the heart below an answer to like that Prompt. If you both like each other, you will Match.',
     },
     {
-  'title': '🧊 Break the Ice',
-  'description':
-      'Choose an answer to show your interest. Your choice also sends a Like. If you both use Break the Ice and Match, your answers will be revealed in chat.',
-},
+      'title': 'Break the Ice',
+      'description':
+          'Break the Ice is at the end of the profile. Choose an answer to show your interest. Your choice also sends a Like.',
+    },
+    {
+      'title': 'Next profile',
+      'description':
+          'Pass is at the end of the profile. Tap "Next profile →" to skip this profile and view the next person.',
+    },
     {
       'title': 'You are ready!',
       'description':
-          'You now know how to use the VietLove Dating Discover page.',
+          'You now know how to use the VietLove Connections page.',
     },
   ];
 
@@ -213,34 +193,29 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     });
 
     await Future<void>.delayed(
-      const Duration(milliseconds: 100),
+      const Duration(milliseconds: 120),
     );
 
     if (!mounted) return;
 
     switch (step) {
       case 1:
+        await _scrollToKey(_photoFlowerKey);
+        break;
+
       case 2:
-      case 3:
-        await _scrollToKey(_actionButtonsKey);
-        break;
-
-      case 4:
-        await _scrollToKey(_photoLikeKey);
-        break;
-
-      case 5:
         await _scrollToKey(_promptLikeKey);
         break;
 
-      case 6:
-        if (_scrollController.hasClients) {
-          await _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-          );
-        }
+      case 3:
+        await _scrollToKey(_breakTheIceKey);
+        break;
+
+      case 4:
+        await _scrollToKey(_nextProfileKey);
+        break;
+
+      default:
         break;
     }
   }
@@ -274,9 +249,6 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
     });
   }
 
-  bool _isActionHighlighted(int step) {
-    return _tutorialStep == step;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -295,7 +267,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
           ),
         ),
         title: Text(
-          isVi ? 'Hướng dẫn sử dụng' : 'Discover Tutorial',
+          isVi ? 'Hướng dẫn sử dụng' : 'VietLove Connections Tutorial',
           style: const TextStyle(
             color: Color(0xFF4A2C40),
             fontWeight: FontWeight.w800,
@@ -329,14 +301,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
               children: [
                 _buildMainPhotoCard(),
 
-                const SizedBox(height: 22),
-
-                Container(
-                  key: _actionButtonsKey,
-                  child: _buildActionButtons(),
-                ),
-
-                const SizedBox(height: 30),
+              const SizedBox(height: 22),
 
                 _buildSectionTitle(
                   isVi ? 'Thông tin về Nana' : 'About Nana',
@@ -362,7 +327,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
 
                 _buildPhotoCard(
                   imagePath: photos.length > 1 ? photos[1] : photos.first,
-                  showLikeButton: true,
+                  showFlowerButton: true,
                 ),
 
                 const SizedBox(height: 18),
@@ -377,7 +342,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
                         ? 'Kể một câu chuyện vui và mang cho tôi một ly cà phê đá ngon.'
                         : tutorialProfile['prompt2Answer'].toString(),
                     showLikeButton: true,
-                    highlightLikeButton: _tutorialStep == 5,
+                    highlightLikeButton: _tutorialStep == 2,
                   ),
                 ),
 
@@ -385,7 +350,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
 
                 _buildPhotoCard(
                   imagePath: photos.length > 2 ? photos[2] : photos.first,
-                  showLikeButton: true,
+                  showFlowerButton: true,
                 ),
 
                 const SizedBox(height: 18),
@@ -405,7 +370,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
                 if (photos.length > 3)
                   _buildPhotoCard(
                     imagePath: photos[3],
-                    showLikeButton: true,
+                    showFlowerButton: true,
                   ),
 
                 const SizedBox(height: 18),
@@ -413,10 +378,28 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
                 if (photos.length > 4)
                   _buildPhotoCard(
                     imagePath: photos[4],
-                    showLikeButton: true,
+                    showFlowerButton: true,
                   ),
 
                 const SizedBox(height: 30),
+
+                Container(
+                  key: _breakTheIceKey,
+                  child: _buildBreakTheIceCard(
+                    highlighted: _tutorialStep == 3,
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                Container(
+                  key: _nextProfileKey,
+                  child: _buildNextProfileButton(
+                    highlighted: _tutorialStep == 4,
+                  ),
+                ),
+
+                const SizedBox(height: 22),
 
                 Center(
                   child: Text(
@@ -481,12 +464,12 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
           ),
 
           Positioned(
-            key: _photoLikeKey,
+            key: _photoFlowerKey,
             right: 18,
             top: 34,
-            child: _buildSmallLikeButton(
-              highlighted: _tutorialStep == 4,
-            ),
+           child: _buildSmallFlowerButton(
+  highlighted: _tutorialStep == 4,
+),
           ),
 
           Positioned(
@@ -581,104 +564,6 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
                   ),
                 ],
               ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActionButtons() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildActionButton(
-          icon: Icons.close_rounded,
-          label: 'Pass',
-          size: 62,
-          iconSize: 34,
-          backgroundColor: Colors.white,
-          iconColor: Colors.grey.shade700,
-          highlighted: _isActionHighlighted(1),
-        ),
-        _buildActionButton(
-          icon: Icons.local_florist_rounded,
-          label: 'Flower',
-          size: 72,
-          iconSize: 36,
-          backgroundColor: const Color(0xFFFFD54F),
-          iconColor: Colors.white,
-          highlighted: _isActionHighlighted(2),
-        ),
-        _buildActionButton(
-          icon: Icons.favorite_rounded,
-          label: isVi ? 'Thích' : 'Like',
-          size: 64,
-          iconSize: 34,
-          backgroundColor: const Color(0xFFE91E63),
-          iconColor: Colors.white,
-          highlighted: _isActionHighlighted(3),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required double size,
-    required double iconSize,
-    required Color backgroundColor,
-    required Color iconColor,
-    required bool highlighted,
-  }) {
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 250),
-      scale: highlighted ? 1.18 : 1,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: highlighted
-                    ? const Color(0xFFCC3D7A)
-                    : Colors.grey.shade200,
-                width: highlighted ? 4 : 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: highlighted
-                      ? const Color(0xFFCC3D7A).withOpacity(0.35)
-                      : Colors.black.withOpacity(0.12),
-                  blurRadius: highlighted ? 22 : 12,
-                  spreadRadius: highlighted ? 4 : 0,
-                  offset: const Offset(0, 7),
-                ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: iconSize,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: highlighted
-                  ? FontWeight.w900
-                  : FontWeight.w700,
-              color: highlighted
-                  ? const Color(0xFFCC3D7A)
-                  : const Color(0xFF4A2C40),
             ),
           ),
         ],
@@ -926,7 +811,7 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
 
   Widget _buildPhotoCard({
     required String imagePath,
-    required bool showLikeButton,
+    required bool showFlowerButton,
   }) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
@@ -939,11 +824,11 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
               borderRadius: BorderRadius.zero,
             ),
           ),
-          if (showLikeButton)
+          if (showFlowerButton)
             Positioned(
               right: 16,
               bottom: 16,
-              child: _buildSmallLikeButton(),
+              child: _buildSmallFlowerButton(),
             ),
         ],
       ),
@@ -984,6 +869,192 @@ class _HomeTutorialPageState extends State<HomeTutorialPage> {
           Icons.favorite_rounded,
           color: Color(0xFFE91E63),
           size: 27,
+        ),
+      ),
+    );
+  }
+Widget _buildSmallFlowerButton({
+  bool highlighted = false,
+}) {
+  return AnimatedScale(
+    duration: const Duration(milliseconds: 250),
+    scale: highlighted ? 1.25 : 1,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: highlighted
+              ? const Color(0xFFCC3D7A)
+              : Colors.white,
+          width: highlighted ? 4 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: highlighted
+                ? const Color(0xFFCC3D7A).withOpacity(0.4)
+                : Colors.black.withOpacity(0.16),
+            blurRadius: highlighted ? 20 : 10,
+            spreadRadius: highlighted ? 4 : 0,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.local_florist_rounded,
+        color: Color(0xFFE91E63),
+        size: 27,
+      ),
+    ),
+  );
+}
+  Widget _buildBreakTheIceCard({
+    required bool highlighted,
+  }) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 250),
+      scale: highlighted ? 1.02 : 1,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(
+            color: highlighted
+                ? const Color(0xFFCC3D7A)
+                : const Color(0xFFFFD5E6),
+            width: highlighted ? 3 : 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: highlighted
+                  ? const Color(0xFFCC3D7A).withOpacity(0.22)
+                  : const Color(0xFFCC3D7A).withOpacity(0.08),
+              blurRadius: highlighted ? 24 : 16,
+              spreadRadius: highlighted ? 2 : 0,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.ac_unit_rounded,
+                  color: Color(0xFFCC3D7A),
+                  size: 24,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    isVi ? 'Phá băng' : 'Break the Ice',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      color: Color(0xFF4A2C40),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isVi
+                  ? 'Chọn một câu trả lời để phá băng. Lựa chọn của bạn cũng sẽ gửi một lượt Thích.'
+                  : 'Choose an answer to break the ice. Your choice also sends a Like.',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.45,
+                color: Colors.grey.shade700,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildIceAnswer(
+              isVi ? 'Một buổi hẹn cà phê ☕' : 'A coffee date ☕',
+            ),
+            const SizedBox(height: 10),
+            _buildIceAnswer(
+              isVi ? 'Đi ăn món Việt cùng nhau' : 'Try Vietnamese food together',
+            ),
+            const SizedBox(height: 10),
+            _buildIceAnswer(
+              isVi ? 'Đi dạo và trò chuyện' : 'Go for a walk and talk',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIceAnswer(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 13,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4F8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFFFFD5E6),
+        ),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 15,
+          color: Color(0xFF6F3657),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNextProfileButton({
+    required bool highlighted,
+  }) {
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 250),
+      scale: highlighted ? 1.03 : 1,
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: () {},
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFF8B2E63),
+            backgroundColor: Colors.white,
+            side: BorderSide(
+              color: highlighted
+                  ? const Color(0xFFCC3D7A)
+                  : const Color(0xFFFFB7D2),
+              width: highlighted ? 3 : 1.5,
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 22,
+              vertical: 15,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            shadowColor: const Color(0xFFCC3D7A).withOpacity(0.20),
+            elevation: highlighted ? 4 : 0,
+          ),
+          child: Text(
+            isVi ? 'Hồ sơ kế tiếp →' : 'Next profile →',
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
         ),
       ),
     );

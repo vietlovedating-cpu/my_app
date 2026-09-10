@@ -658,12 +658,12 @@ if (phoneNumber.isEmpty || !phoneVerified) {
 _settingsTile(
   icon: Icons.school_outlined,
   title: _tr(
-    'Hiển thị hướng dẫn Trang khám phá',
-    'Show Discover tutorial',
+    'Hiển thị hướng dẫn Trang Kết Nối Vietlove',
+    'Show VietLove Connections tutorial',
   ),
   subtitle: _tr(
-    'Bật để xem lại hướng dẫn khi mở Trang khám phá.',
-    'Turn on to show the Discover tutorial the next time you open Discover.',
+    'Bật để xem lại hướng dẫn khi mở Trang Kết Nối Vietlove.',
+    'Turn on to show the Discover tutorial the next time you open VietLove Connections.',
   ),
   trailing: Switch(
     value: _showHomeTutorial,

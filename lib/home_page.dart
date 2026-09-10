@@ -1892,7 +1892,7 @@ Future<void> _handleContentLike({
           borderRadius: BorderRadius.circular(22),
         ),
         title: Text(
-          isVi ? 'Gửi lời nhắn cùng lượt thích' : 'Send a message with your like',
+          isVi ? 'Thêm lời nhắn vào lượt thích (tuỳ chọn)' : 'Add a message to your Like (optional)',
           style: const TextStyle(
             fontWeight: FontWeight.w800,
           ),
@@ -2162,8 +2162,8 @@ final remaining = freeRemaining + purchasedRemaining;
           ),
           title: Text(
             isVi
-                ? 'Viết vài lời cho người bạn thích nhé!'
-                : 'Write a few words to someone you like!',
+                ? 'Gửi vài lời đến người bạn thích nhé! Họ sẽ nhận được tin nhắn của bạn ngay lập tức.'
+                : 'Say something to someone you like! They’ll receive your message instantly.',
             style: const TextStyle(
               fontWeight: FontWeight.w800,
             ),
@@ -2713,7 +2713,7 @@ Future<void> _sendMatchNotification(
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '🎉🎉 It’s a Match with $targetName 🎉🎉',
+                  '🎉🎉 You’re connected with $targetName 🎉🎉',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 24,
@@ -2725,7 +2725,7 @@ Future<void> _sendMatchNotification(
                 Text(
                   isVi
                       ? '$targetName và bạn đã có duyên với nhau 💘💘💘'
-                      : 'You and $targetName liked each other 💘💘💘',
+                      : 'Looks like you and $targetName share a mutual interest 💘💘💘',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 18,
@@ -4335,16 +4335,13 @@ Future<void> _openPhotoFullScreen(String imageUrl) async {
           elevation: 5,
           child: InkWell(
             customBorder: const CircleBorder(),
-            onTap: _isProcessingAction
-                ? null
-                : () {
-                    _handleContentLike(
-                      targetProfile: targetProfile,
-                      contentType: 'photo',
-                      contentIndex: photoIndex,
-                      contentText: imageUrl,
-                    );
-                  },
+           onTap: _isProcessingAction
+    ? null
+    : () {
+        _handleFlower(
+          targetProfile: targetProfile,
+        );
+      },
             child: Container(
               width: 50,
               height: 50,
@@ -4355,11 +4352,11 @@ Future<void> _openPhotoFullScreen(String imageUrl) async {
                   color: const Color(0xFFFFD5E6),
                 ),
               ),
-              child: const Icon(
-                Icons.favorite_rounded,
-                color: Color(0xFFCC3D7A),
-                size: 27,
-              ),
+             child: const Icon(
+  Icons.local_florist_rounded,
+  color: Color(0xFFCC3D7A),
+  size: 27,
+),
             ),
           ),
         ),
@@ -4969,9 +4966,9 @@ Widget _buildSocialMediaSection({
           ),
         ],
       ),
-      child: Column(
-        children: items
-            .map(
+     child: Column(
+  children: items
+      .map(
               (item) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Row(
@@ -5185,7 +5182,7 @@ Widget _buildSocialMediaSection({
       case 5:
         return isVi ? 'Hồ sơ của tôi' : 'My Profile';
       default:
-        return isVi ? 'Khám phá' : 'Discover';
+        return isVi ? 'Kết nối Vietlove' : 'VietLove Connections';
     }
   }
 
@@ -5218,45 +5215,42 @@ Widget _buildSocialMediaSection({
   }
 
   Widget _buildFloatingActionBar(Map<String, dynamic> profile) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(30),
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+    decoration: BoxDecoration(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(30),
+    ),
+  child: Align(
+  alignment: Alignment.centerRight,
+ child: OutlinedButton(
+    onPressed: _isProcessingAction
+        ? null
+        : () => _handlePass(targetProfile: profile),
+        style: OutlinedButton.styleFrom(
+  padding: const EdgeInsets.symmetric(
+    horizontal: 22,
+    vertical: 14,
+  ),
+  side: const BorderSide(
+    color: Color(0xFF8A2F6A),
+    width: 1.5,
+  ),
+  shape: RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(14),
+  ),
+),
+    child: Text(
+      isVi ? 'Hồ sơ tiếp theo →' : 'Next profile →',
+      style: const TextStyle(
+        fontSize: 19,
+        fontWeight: FontWeight.w600,
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildActionCircleButton(
-            onTap: _isProcessingAction
-                ? null
-                : () => _handlePass(targetProfile: profile),
-            icon: Icons.close_rounded,
-            iconColor: Colors.black87,
-            size: 64,
-          ),
-          _buildActionCircleButton(
-            onTap: _isProcessingAction
-                ? null
-                : () => _handleFlower(targetProfile: profile),
-            icon: Icons.local_florist_rounded,
-            iconColor: Colors.white,
-            size: 72,
-            backgroundColor: const Color(0xFFFFD54F),
-          ),
-          _buildActionCircleButton(
-            onTap: _isProcessingAction
-                ? null
-                : () => _handleLike(targetProfile: profile),
-            icon: Icons.favorite_rounded,
-            iconColor: Colors.white,
-            size: 64,
-            backgroundColor: const Color(0xFFE91E63),
-          ),
-        ],
-      ),
-    );
-  }
+    ),
+  ),
+),
+  );
+}
 Widget _buildBreakTheIceCard({
   required Map<String, dynamic> targetProfile,
 }) {
@@ -5378,8 +5372,8 @@ final options = [
 
         Text(
           isVi
-              ? 'Chọn một câu trả lời để phá băng 💕'
-              : 'Pick an answer to break the ice 💕',
+              ? 'Chọn một câu trả lời đồng nghĩa với việc gửi lượt thích 💕'
+              : 'Choosing an answer will send a Like 💕',
           style: TextStyle(
             fontSize: 12,
             color: Colors.grey.shade600,
@@ -5618,16 +5612,16 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
   if (livingState.isNotEmpty)
   _InfoItem(
     icon: Icons.location_on_outlined,
-    label: _label('Khu vực', 'Location'),
+    label: _label('Nơi sống', 'Location'),
     text: livingState,
   ),
 
-    if (gender.isNotEmpty)
-      _InfoItem(
-        icon: Icons.person_outline_rounded,
-        label: _label('Giới tính', 'Gender'),
-        text: gender,
-      ),
+   if (bornDisplay.isNotEmpty)
+  _InfoItem(
+    icon: Icons.public,
+    label: _label('Nơi sinh', 'Born'),
+    text: bornDisplay,
+  ),
   ],
 ),
                 if (getPhoto(1).isNotEmpty) ...[
@@ -5640,9 +5634,6 @@ relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
                 ],
                 const SizedBox(height: 14),
 
-_buildBreakTheIceCard(
-  targetProfile: profile,
-),
                 if (getPrompt(0)['question']!.isNotEmpty ||
                     getPrompt(0)['answer']!.isNotEmpty) ...[
                   const SizedBox(height: 14),
@@ -5678,12 +5669,12 @@ if ((profile['voicePromptAudioUrl'] ?? '')
                 ],
                 _buildInfoSlide(
                   items: [
-                    if (bornDisplay.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.public,
-                        label: _label('Nơi sinh', 'Born'),
-                        text: bornDisplay,
-                      ),
+                   if (gender.isNotEmpty)
+  _InfoItem(
+    icon: Icons.person_outline_rounded,
+    label: _label('Giới tính', 'Gender'),
+    text: gender,
+  ),
                     if (religion.isNotEmpty)
                       _InfoItem(
                         icon: Icons.auto_awesome_outlined,
@@ -5774,9 +5765,9 @@ if (_extractRelationshipGoalKeys(profile).isNotEmpty)
         color: const Color(0xFFFFD6E7),
       ),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+  child: Column(
+  crossAxisAlignment: CrossAxisAlignment.start,
+  children: [
         Text(
           _label(
             '💕 Mục tiêu hẹn hò',
@@ -5877,38 +5868,67 @@ if (showSocialMedia &&
     instagramUrl: instagramUrl,
     tiktokUrl: tiktokUrl,
   ),
+  const SizedBox(height: 14),
+
+_buildBreakTheIceCard(
+  targetProfile: profile,
+),
 
 const SizedBox(height: 10),
+_buildFloatingActionBar(profile),
+
+const SizedBox(height: 24),
               ],
             ),
           ),
         ),
         Positioned(
-          top: 118,
-          right: 18,
-          child: Material(
-            color: Colors.black.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => _showSafetyActionsSheet(profile),
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: Icon(
-                  Icons.shield_outlined,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
+  top: 118,
+  right: 18,
+  child: Column(
+    children: [
+      // REPORT / SAFETY
+      Material(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () => _showSafetyActionsSheet(profile),
+          child: const Padding(
+            padding: EdgeInsets.all(9),
+            child: Icon(
+              Icons.shield_outlined,
+              color: Colors.white,
+              size: 22,
             ),
           ),
         ),
-        Positioned(
-          left: 18,
-          right: 18,
-          bottom: 18,
-          child: _buildFloatingActionBar(profile),
+      ),
+
+      const SizedBox(height: 10),
+
+      // FILTER
+      Material(
+        color: const Color(0xFFCC3D7A),
+        borderRadius: BorderRadius.circular(22),
+        elevation: 4,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: _openFilterSheet,
+          child: const Padding(
+            padding: EdgeInsets.all(10),
+            child: Icon(
+              Icons.tune_rounded,
+              color: Colors.white,
+              size: 23,
+            ),
+          ),
         ),
+      ),
+    ],
+  ),
+),
+
       ],
     );
   }
@@ -6417,9 +6437,14 @@ return _buildHomeProfile(profiles.first, isVi);
     if (_selectedBottomIndex == 2) {
   return MatchPage(languageCode: widget.languageCode);
 }
-   if (_selectedBottomIndex == 3) {
+ if (_selectedBottomIndex == 3) {
   return MiniGamePage(
     languageCode: widget.languageCode,
+    onConnectTap: () {
+      setState(() {
+        _selectedBottomIndex = 0;
+      });
+    },
   );
 }
 
@@ -6485,45 +6510,44 @@ return _buildHomeProfile(profiles.first, isVi);
       letterSpacing: 0.2,
     ),
   ),
-  actions: _selectedBottomIndex == 0
-      ? [
-          Container(
-            margin: const EdgeInsets.only(right: 10),
-            child: IconButton(
-              icon: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.tune_rounded,
-                  color: Color(0xFFB83280),
-                  size: 22,
+ actions: null,
+),
+    body: Container(
+  decoration: _selectedBottomIndex == 0
+      ? const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFFDDEA),
+              Color(0xFFFFEFF5),
+              Color(0xFFFFFFFF),
+            ],
+          ),
+        )
+      : null,
+  child: _selectedBottomIndex == 0
+      ? Stack(
+          children: [
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: Image.asset(
+                  'assets/images/cherry_lixi.png',
+                  width: MediaQuery.of(context).size.width,
+                  fit: BoxFit.fitWidth,
+                  alignment: Alignment.topLeft,
                 ),
               ),
-              onPressed: _openFilterSheet,
             ),
-          ),
-        ]
-      : null,
+
+            _buildBody(),
+          ],
+        )
+      : _buildBody(),
 ),
-      body: Container(
-        decoration: _selectedBottomIndex == 0
-            ? const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFDDEA),
-                    Color(0xFFFFEFF5),
-                    Color(0xFFFFFFFF),
-                  ],
-                ),
-              )
-            : null,
-        child: _buildBody(),
-      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedBottomIndex,
       onTap: (index) async {

@@ -384,6 +384,15 @@ exports.sendGroupMessageNotification = onDocumentCreated(
     try {
       const message = event.data.data();
       const groupId = event.params.groupId;
+      const languageExchangeGroupIds = [
+  "english_exchange",
+  "vietnamese_exchange",
+];
+
+if (!languageExchangeGroupIds.includes(groupId)) {
+  console.log("Skip notification - hidden/old group:", groupId);
+  return;
+}
       const messageId = event.params.messageId;
       const db = admin.firestore();
 
@@ -446,6 +455,8 @@ await senderMemberRef.set(
 );
 
       const groupTitles = {
+        english_exchange: "English Exchange",
+vietnamese_exchange: "Vietnamese Exchange",
         weekend_coffee: "Weekend Coffee",
         hiking_camping: "Hiking & Camping",
         speed_dating: "Speed Dating",
@@ -468,8 +479,12 @@ await senderMemberRef.set(
 
         if (!receiverId || receiverId === senderId) continue;
 
-        const expiresAt = memberData.expiresAt?.toDate?.();
-        if (!expiresAt || expiresAt < new Date()) continue;
+      if (
+  memberData.membershipActive !== true ||
+  memberData.freeGroup !== true
+) {
+  continue;
+}
 
         const userSnap = await admin
           .firestore()
