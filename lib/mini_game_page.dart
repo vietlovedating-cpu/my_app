@@ -120,15 +120,18 @@ void _openLanguageExchangePage() {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-             Text(
-  _tr(
-    'Bạn muốn kết nối theo cách nào?',
-    'How would you like to connect?',
-  ),
-  style: const TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.w900,
-    color: Color(0xFF7A2E6E),
+            Center(
+  child: Text(
+    _tr(
+      'Bạn muốn kết nối theo cách nào?',
+      'How would you like to connect?',
+    ),
+    textAlign: TextAlign.center,
+    style: const TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.w900,
+      color: Color(0xFF7A2E6E),
+    ),
   ),
 ),
               const SizedBox(height: 7),
