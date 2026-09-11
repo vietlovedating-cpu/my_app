@@ -25,6 +25,7 @@ class _MiniGamePageState extends State<MiniGamePage>
   late final AnimationController _guessAnimationController;
   late final AnimationController _spinAnimationController;
   late final AnimationController _blindDateAnimationController;
+  late final AnimationController _connectionAnimationController;
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -51,6 +52,10 @@ class _MiniGamePageState extends State<MiniGamePage>
   vsync: this,
   duration: const Duration(milliseconds: 1800),
 )..repeat(reverse: true);
+_connectionAnimationController = AnimationController(
+  vsync: this,
+  duration: const Duration(milliseconds: 1600),
+)..repeat(reverse: true);
   }
 
   @override
@@ -58,6 +63,7 @@ class _MiniGamePageState extends State<MiniGamePage>
     _guessAnimationController.dispose();
     _spinAnimationController.dispose();
     _blindDateAnimationController.dispose();
+    _connectionAnimationController.dispose();
     super.dispose();
   }
 
@@ -776,10 +782,23 @@ Widget _buildConnectionButton({
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-         Icon(
-  icon,
-  size: 36,
-  color: Colors.white,
+       AnimatedBuilder(
+  animation: _connectionAnimationController,
+  builder: (context, child) {
+    final value = _connectionAnimationController.value;
+
+ final scale = 1.0 + sin(value * pi) * 0.22;
+
+    return Transform.scale(
+      scale: scale,
+      child: child,
+    );
+  },
+  child: Icon(
+    icon,
+    size: 36,
+    color: Colors.white,
+  ),
 ),
           const SizedBox(height: 12),
           Text(
