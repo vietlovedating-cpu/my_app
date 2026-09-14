@@ -5882,52 +5882,7 @@ const SizedBox(height: 24),
             ),
           ),
         ),
-        Positioned(
-  top: 118,
-  right: 18,
-  child: Column(
-    children: [
-      // REPORT / SAFETY
-      Material(
-        color: Colors.black.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: () => _showSafetyActionsSheet(profile),
-          child: const Padding(
-            padding: EdgeInsets.all(9),
-            child: Icon(
-              Icons.shield_outlined,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-        ),
-      ),
-
-      const SizedBox(height: 10),
-
-      // FILTER
-      Material(
-        color: const Color(0xFFCC3D7A),
-        borderRadius: BorderRadius.circular(22),
-        elevation: 4,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: _openFilterSheet,
-          child: const Padding(
-            padding: EdgeInsets.all(10),
-            child: Icon(
-              Icons.tune_rounded,
-              color: Colors.white,
-              size: 23,
-            ),
-          ),
-        ),
-      ),
-    ],
-  ),
-),
+      
 
       ],
     );
@@ -6385,45 +6340,97 @@ const SizedBox(height: 24),
           }
 
           final profiles = snapshot.data ?? [];
+return Stack(
+  fit: StackFit.expand,
+  children: [
+    // NỘI DUNG PROFILE / KHÔNG CÓ PROFILE
+    if (profiles.isEmpty)
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _label(
+                  _dailyDiscoverLimitReached
+                      ? 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
+                      : 'Không có hồ sơ nào phù hợp với bộ lọc hiện tại.\nHãy thử thay đổi bộ lọc nhé. ❤️',
+                  _dailyDiscoverLimitReached
+                      ? 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
+                      : 'No profiles match your current filters.\nTry adjusting your filters. ❤️',
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
 
-         if (profiles.isEmpty) {
-  return Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
+              if (_dailyDiscoverLimitReached) ...[
+                const SizedBox(height: 24),
+                _buildDailyDiscoverCountdown(),
+              ],
+            ],
+          ),
+        ),
+      )
+    else
+      _buildHomeProfile(profiles.first, isVi),
+
+    // REPORT + FILTER LUÔN NẰM ĐÚNG VỊ TRÍ CŨ
+    Positioned(
+      top: 118,
+      right: 18,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            _label(
-  _dailyDiscoverLimitReached
-      ? isVipUser
-          ? 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
-          : 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
-      : 'Không có hồ sơ nào phù hợp với bộ lọc hiện tại.\nHãy thử thay đổi bộ lọc nhé. ❤️',
-  _dailyDiscoverLimitReached
-      ? isVipUser
-          ? 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
-          : 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
-      : 'No profiles match your current filters.\nTry adjusting your filters. ❤️',
-),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
+          // REPORT
+          Material(
+            color: Colors.black.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(22),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: profiles.isEmpty
+                  ? null
+                  : () => _showSafetyActionsSheet(profiles.first),
+              child: Padding(
+                padding: const EdgeInsets.all(9),
+                child: Icon(
+                  Icons.shield_outlined,
+                  color:
+                      profiles.isEmpty ? Colors.white54 : Colors.white,
+                  size: 22,
+                ),
+              ),
             ),
           ),
 
-          if (_dailyDiscoverLimitReached) ...[
-            const SizedBox(height: 24),
-            _buildDailyDiscoverCountdown(),
-          ],
+          const SizedBox(height: 10),
+
+          // FILTER - LUÔN HIỆN VÀ LUÔN BẤM ĐƯỢC
+          Material(
+            color: const Color(0xFFCC3D7A),
+            borderRadius: BorderRadius.circular(22),
+            elevation: 4,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(22),
+              onTap: _openFilterSheet,
+              child: const Padding(
+                padding: EdgeInsets.all(10),
+                child: Icon(
+                  Icons.tune_rounded,
+                  color: Colors.white,
+                  size: 23,
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     ),
-  );
-}
-
-return _buildHomeProfile(profiles.first, isVi);
+  ],
+);
+   
         },
       );
     }
