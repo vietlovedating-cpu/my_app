@@ -2,10 +2,15 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'guess_game_page.dart';
 import 'lucky_spin_page.dart';
 import 'blind_date_quiz_page.dart';
 import 'language_exchange_page_updated.dart';
+
+bool _pausedAccountReminderShown = false;
 
 class MiniGamePage extends StatefulWidget {
   final String languageCode;
@@ -28,6 +33,7 @@ class _MiniGamePageState extends State<MiniGamePage>
   late final AnimationController _connectionAnimationController;
 
   bool get isVi => widget.languageCode == 'vi';
+  
 
   String _tr(String vi, String en) {
     return isVi ? vi : en;
@@ -56,8 +62,119 @@ _connectionAnimationController = AnimationController(
   vsync: this,
   duration: const Duration(milliseconds: 1600),
 )..repeat(reverse: true);
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  _checkPausedAccount();
+});
   }
+Future<void> _checkPausedAccount() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
 
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    if (!mounted) return;
+
+    final isPaused = doc.data()?['isPaused'] == true;
+
+ if (isPaused && !_pausedAccountReminderShown) {
+  _pausedAccountReminderShown = true;
+  await _showPausedAccountDialog();
+}
+  } catch (e) {
+    debugPrint('Error checking paused account: $e');
+  }
+}
+Future<void> _showPausedAccountDialog() async {
+  if (!mounted) return;
+
+  final shouldResume = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return AlertDialog(
+        title: Text(
+          _tr(
+            'Tài khoản đang tạm dừng',
+            'Account is paused',
+          ),
+        ),
+        content: Text(
+          _tr(
+            'Hồ sơ của bạn hiện đang bị ẩn. Bạn có muốn mở lại tài khoản để tiếp tục kết nối không?',
+            'Your profile is currently hidden. Would you like to resume your account and continue connecting?',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              _tr(
+                'Mở lại tài khoản',
+                'Resume account',
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+ if (shouldResume == true) {
+  await _resumePausedAccount();
+}
+}
+Future<void> _resumePausedAccount() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  try {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'isPaused': false,
+      'showOnDiscover': true,
+      'pausedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Tài khoản của bạn đã được mở lại.',
+            'Your account has been resumed.',
+          ),
+        ),
+      ),
+    );
+  } catch (e) {
+    debugPrint('Error resuming account: $e');
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          _tr(
+            'Không thể mở lại tài khoản. Vui lòng thử lại.',
+            'Could not resume account. Please try again.',
+          ),
+        ),
+      ),
+    );
+  }
+}
   @override
   void dispose() {
     _guessAnimationController.dispose();

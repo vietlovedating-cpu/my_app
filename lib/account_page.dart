@@ -21,8 +21,34 @@ class AccountPage extends StatefulWidget {
 
 class _AccountPageState extends State<AccountPage> {
   bool _isLoading = false;
+  bool _isPaused = false;
 
   bool get isVi => widget.languageCode == 'vi';
+  @override
+void initState() {
+  super.initState();
+  _loadPauseStatus();
+}
+
+Future<void> _loadPauseStatus() async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isPaused = doc.data()?['isPaused'] == true;
+    });
+  } catch (e) {
+    debugPrint('Error loading pause status: $e');
+  }
+}
 
   String _tr(String vi, String en) => isVi ? vi : en;
 
@@ -89,9 +115,18 @@ class _AccountPageState extends State<AccountPage> {
 
       if (!mounted) return;
 
-      _showSnackBar(
-        _tr('Tài khoản đã được tạm dừng.', 'Your account has been paused.'),
-      );
+     if (!mounted) return;
+
+setState(() {
+  _isPaused = true;
+});
+
+_showSnackBar(
+  _tr(
+    'Tài khoản đã được tạm dừng.',
+    'Your account has been paused.',
+  ),
+);
     } catch (e) {
       _showSnackBar(
         _tr(
@@ -105,7 +140,67 @@ class _AccountPageState extends State<AccountPage> {
       }
     }
   }
+Future<void> _resumeAccount() async {
+  final user = FirebaseAuth.instance.currentUser;
 
+  if (user == null) {
+    _showSnackBar(
+      _tr('Bạn chưa đăng nhập.', 'You are not logged in.'),
+    );
+    return;
+  }
+
+  final confirmed = await _showConfirmDialog(
+    title: _tr('Mở lại tài khoản', 'Resume account'),
+    message: _tr(
+      'Bạn có muốn mở lại tài khoản và hiển thị hồ sơ của mình không?',
+      'Do you want to resume your account and make your profile visible again?',
+    ),
+    confirmText: _tr('Mở lại', 'Resume'),
+    cancelText: 'Cancel',
+    isDestructive: false,
+  );
+
+  if (confirmed != true) return;
+
+  try {
+    setState(() => _isLoading = true);
+
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .set({
+      'isPaused': false,
+      'showOnDiscover': true,
+      'pausedAt': FieldValue.delete(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (!mounted) return;
+
+    setState(() {
+      _isPaused = false;
+    });
+
+    _showSnackBar(
+      _tr(
+        'Tài khoản của bạn đã được mở lại.',
+        'Your account has been resumed.',
+      ),
+    );
+  } catch (e) {
+    _showSnackBar(
+      _tr(
+        'Không thể mở lại tài khoản. Vui lòng thử lại.',
+        'Could not resume account. Please try again.',
+      ),
+    );
+  } finally {
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+}
   Future<void> _deleteAccount() async {
   final user = FirebaseAuth.instance.currentUser;
 
@@ -1018,16 +1113,25 @@ SizedBox(
                 children: [
                   _buildLogoutButton(),
                   const SizedBox(height: 22),
-                  _buildItem(
-                    icon: Icons.pause_circle_outline_rounded,
-                    iconColor: const Color(0xFFD94B8A),
-                    title: _tr('Tạm dừng tài khoản', 'Pause account'),
-                    subtitle: _tr(
-                      'Tạm ẩn hồ sơ của bạn cho đến khi bạn quay lại.',
-                      'Temporarily hide your profile until you come back.',
-                    ),
-                    onTap: _pauseAccount,
-                  ),
+                _buildItem(
+  icon: _isPaused
+      ? Icons.play_circle_outline_rounded
+      : Icons.pause_circle_outline_rounded,
+  iconColor: const Color(0xFFD94B8A),
+  title: _isPaused
+      ? _tr('Mở lại tài khoản', 'Resume account')
+      : _tr('Tạm dừng tài khoản', 'Pause account'),
+  subtitle: _isPaused
+      ? _tr(
+          'Hiển thị lại hồ sơ của bạn và tiếp tục sử dụng VietLove.',
+          'Make your profile visible again and continue using VietLove.',
+        )
+      : _tr(
+          'Tạm ẩn hồ sơ của bạn cho đến khi bạn quay lại.',
+          'Temporarily hide your profile until you come back.',
+        ),
+  onTap: _isPaused ? _resumeAccount : _pauseAccount,
+),
                   _buildItem(
                     icon: Icons.delete_outline_rounded,
                     iconColor: const Color(0xFFF44336),

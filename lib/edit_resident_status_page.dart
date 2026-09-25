@@ -112,6 +112,7 @@ class _EditResidentStatusPageState extends State<EditResidentStatusPage> {
 // Lưu tình trạng cư trú
 await userRef.set({
   'residentStatus': _selectedValue,
+  'residentStatusLower': _selectedValue,
   'residencyStatus': _selectedValue,
 }, SetOptions(merge: true));
 

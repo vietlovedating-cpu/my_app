@@ -978,9 +978,10 @@ Widget _buildDailyDiscoverCountdown() {
  final results = await Future.wait<dynamic>([
   _loadLikedMeData(),
 
-  FirebaseFirestore.instance
-      .collection('users')
-      .get(),
+ FirebaseFirestore.instance
+    .collection('users')
+    .where('profileCompleted', isEqualTo: true)
+    .get(),
 
   FirebaseFirestore.instance
       .collection('swipes')
