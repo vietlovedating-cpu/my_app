@@ -1416,7 +1416,7 @@ console.log("STATE:", after.selectedStateKey);
       );
 
       const promoEndDate = new Date(
-        "2026-09-31T23:59:59.999+10:00"
+        "2026-10-10T23:59:59.999+10:00"
       );
 
       const now = new Date();

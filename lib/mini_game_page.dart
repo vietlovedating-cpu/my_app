@@ -9,6 +9,7 @@ import 'guess_game_page.dart';
 import 'lucky_spin_page.dart';
 import 'blind_date_quiz_page.dart';
 import 'language_exchange_page_updated.dart';
+import 'entertainment_page.dart';
 
 bool _pausedAccountReminderShown = false;
 
@@ -194,7 +195,8 @@ Future<void> _resumePausedAccount() async {
       ),
     );
   }
-void _openLuckySpinPage() {
+
+  void _openLuckySpinPage() {
   Navigator.push(
     context,
     MaterialPageRoute(
@@ -203,7 +205,18 @@ void _openLuckySpinPage() {
       ),
     ),
   );
-} 
+}
+
+void _openEntertainmentPage() {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => EntertainmentPage(
+        languageCode: widget.languageCode,
+      ),
+    ),
+  );
+}
 
  void _openBlindDateQuizPage() {
   Navigator.push(
@@ -276,7 +289,7 @@ Row(
     Expanded(
   child: _buildConnectionButton(
     icon: Icons.translate_rounded,
-    title: _tr('Trao đổi ngôn ngữ', 'Language Exchange'),
+    title: _tr('Học Tiếng Anh', 'Study English'),
     onTap: _openLanguageExchangePage,
     colors: const [
       Color(0xFF5D74D3),
@@ -320,8 +333,8 @@ Row(
    Expanded(
   child: _buildConnectionButton(
     icon: Icons.celebration_rounded,
-    title: _tr('Giải trí', 'Entertainment'),
-    onTap: _openLuckySpinPage,
+   title: _tr('Giải trí', 'Entertainment'),
+onTap: _openEntertainmentPage,
     colors: const [
       Color(0xFFFF729A),
       Color(0xFFE83D78),

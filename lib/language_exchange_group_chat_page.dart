@@ -114,6 +114,16 @@ void initState() {
   _loadDeletedUsers();
 }
   Future<void> _loadMembership() async {
+      if (widget.group.id == 'english_exchange') {
+    if (!mounted) return;
+
+    setState(() {
+      _membershipLoading = false;
+      _hasActiveMembership = true;
+    });
+
+    return;
+  }
     if (!_isLanguageExchangeGroup) {
       if (!mounted) return;
       setState(() {

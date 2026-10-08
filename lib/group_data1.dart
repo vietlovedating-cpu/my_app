@@ -40,12 +40,12 @@ const List<DatingGroupItem> kDatingGroups = [
     id: 'english_exchange',
     imageAsset: 'assets/groups/coffee_weekend.jpg',
     monthlyPrice: 0,
-    titleVi: '🇬🇧 Luyện tiếng Anh',
-    titleEn: '🇬🇧 English Exchange',
+    titleVi: '🇬🇧 Nhóm Chat',
+    titleEn: '🇬🇧 Group Chat',
     subtitleVi: 'Luyện tiếng Anh cùng mọi người trên thế giới',
     subtitleEn: 'Practice English with people around the world',
     detailTitleVi: 'Luyện tiếng Anh cùng nhau 🇬🇧',
-    detailTitleEn: 'English Exchange 🇬🇧',
+    detailTitleEn: 'Group Chat 🇬🇧',
     detailBodyVi:
         'Đây là nhóm miễn phí dành cho những người muốn luyện tiếng Anh và kết nối với mọi người trên khắp thế giới.\n\n'
         'Bạn có thể trò chuyện, kết bạn, thực hành tiếng Anh hằng ngày và giúp nhau cải thiện kỹ năng ngôn ngữ một cách tự nhiên.\n\n'

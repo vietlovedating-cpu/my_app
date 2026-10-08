@@ -5215,41 +5215,47 @@ Widget _buildSocialMediaSection({
     );
   }
 
-  Widget _buildFloatingActionBar(Map<String, dynamic> profile) {
+ Widget _buildFloatingActionBar(Map<String, dynamic> profile) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-    decoration: BoxDecoration(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(30),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildActionCircleButton(
+          onTap: _isProcessingAction
+              ? null
+              : () => _handlePass(targetProfile: profile),
+          icon: Icons.close_rounded,
+          iconColor: Colors.grey.shade700,
+          size: 64,
+          backgroundColor: Colors.white,
+        ),
+
+        const SizedBox(width: 28),
+
+        _buildActionCircleButton(
+          onTap: _isProcessingAction
+              ? null
+              : () => _handleLike(targetProfile: profile),
+          icon: Icons.favorite_rounded,
+          iconColor: const Color(0xFFCC3D7A),
+          size: 72,
+          backgroundColor: const Color(0xFFFFDDEA),
+        ),
+
+        const SizedBox(width: 28),
+
+        _buildActionCircleButton(
+          onTap: _isProcessingAction
+              ? null
+              : () => _handleFlower(targetProfile: profile),
+          icon: Icons.local_florist_rounded,
+          iconColor: const Color(0xFFCC3D7A),
+          size: 64,
+          backgroundColor: Colors.white,
+        ),
+      ],
     ),
-  child: Align(
-  alignment: Alignment.centerRight,
- child: OutlinedButton(
-    onPressed: _isProcessingAction
-        ? null
-        : () => _handlePass(targetProfile: profile),
-        style: OutlinedButton.styleFrom(
-  padding: const EdgeInsets.symmetric(
-    horizontal: 22,
-    vertical: 14,
-  ),
-  side: const BorderSide(
-    color: Color(0xFF8A2F6A),
-    width: 1.5,
-  ),
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(14),
-  ),
-),
-    child: Text(
-      isVi ? 'Hồ sơ tiếp theo →' : 'Next profile →',
-      style: const TextStyle(
-        fontSize: 19,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  ),
-),
   );
 }
 Widget _buildBreakTheIceCard({
@@ -5875,15 +5881,16 @@ _buildBreakTheIceCard(
   targetProfile: profile,
 ),
 
-const SizedBox(height: 10),
-_buildFloatingActionBar(profile),
-
-const SizedBox(height: 24),
               ],
             ),
           ),
         ),
-      
+              Positioned(
+          left: 0,
+          right: 0,
+          bottom: 10,
+          child: _buildFloatingActionBar(profile),
+        ),
 
       ],
     );
