@@ -27,6 +27,7 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
   final List<String?> existingPhotoUrls = List<String?>.filled(5, null);
   final List<XFile?> newPhotos = List<XFile?>.filled(5, null);
   final List<Uint8List?> newPhotoBytes = List<Uint8List?>.filled(5, null);
+  List<String> _originalPhotoUrls = [];
 
   bool isSaving = false;
   bool isLoading = true;
@@ -63,6 +64,8 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
           }
         }
       }
+
+      _originalPhotoUrls = List<String>.from(urls.take(5));
 
       for (int i = 0; i < urls.length && i < 5; i++) {
         existingPhotoUrls[i] = urls[i];
@@ -196,13 +199,44 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
   Future<void> _savePhotoUrlsToFirestore({
     required String uid,
     required List<String> allPhotoUrls,
+    required bool photosChanged,
   }) async {
-    await FirebaseFirestore.instance.collection('users').doc(uid).set({
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(uid);
+
+    final userUpdate = <String, dynamic>{
       'photoUrls': allPhotoUrls,
       'photos': allPhotoUrls,
       'mainPhotoUrl': allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
       'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+
+    if (photosChanged) {
+      userUpdate['photoVerified'] = false;
+      userUpdate['photoVerificationStatus'] = 'pending';
+      userUpdate['photoVerificationSubmittedAt'] =
+          FieldValue.serverTimestamp();
+
+      final batch = FirebaseFirestore.instance.batch();
+      batch.set(userRef, userUpdate, SetOptions(merge: true));
+      batch.set(
+        FirebaseFirestore.instance
+            .collection('photo_verification_requests')
+            .doc(uid),
+        {
+          'uid': uid,
+          'photoVerified': false,
+          'photoVerificationStatus': 'pending',
+          'mainPhotoUrl':
+              allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
+          'photoVerificationSubmittedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+    } else {
+      await userRef.set(userUpdate, SetOptions(merge: true));
+    }
   }
 
   Future<void> _savePhotos() async {
@@ -246,10 +280,14 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
         }
       }
 
+      final photosChanged =
+          !listEquals(_originalPhotoUrls, allPhotoUrls);
+
       await _savePhotoUrlsToFirestore(
-  uid: user.uid,
-  allPhotoUrls: allPhotoUrls,
-);
+        uid: user.uid,
+        allPhotoUrls: allPhotoUrls,
+        photosChanged: photosChanged,
+      );
 
 // Đọc lại hồ sơ mới nhất
 final userRef =

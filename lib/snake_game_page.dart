@@ -46,16 +46,85 @@ class _SnakeGamePageState extends State<SnakeGamePage> {
   String _tr(String vi, String en) {
     return isVi ? vi : en;
   }
+  
+void _showHowToPlay() {
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return AlertDialog(
+        backgroundColor: const Color(0xFF0B1713),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(
+            color: Color(0xFF39FF88),
+          ),
+        ),
+        title: Text(
+          _tr(
+            '🐍 Cách chơi Snake',
+            '🐍 How to Play Snake',
+          ),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Color(0xFFB8FF00),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          _tr(
+            'Vuốt lên, xuống, trái hoặc phải để điều khiển rắn.\n\n'
+            'Bạn cũng có thể dùng các nút mũi tên bên dưới.\n\n'
+            'Ăn thức ăn màu hồng để được 10 điểm. '
+            'Tránh đâm vào tường hoặc thân rắn!',
+            'Swipe up, down, left or right to steer the snake.\n\n'
+            'You can also use the arrow buttons below.\n\n'
+            'Eat the pink food to score 10 points. '
+            'Avoid the walls and your own tail!',
+          ),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            height: 1.5,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF39FF88),
+              foregroundColor: const Color(0xFF07100C),
+            ),
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+            },
+            child: Text(
+              _tr('Bắt đầu chơi', 'Let’s Play'),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   // ============================================================
   // INIT
   // ============================================================
 
-  @override
-  void initState() {
-    super.initState();
-    _reset();
-  }
+ 
+@override
+void initState() {
+  super.initState();
+  _reset();
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!mounted) return;
+    _showHowToPlay();
+  });
+}
+
 
   // ============================================================
   // RESET

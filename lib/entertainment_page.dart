@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'lucky_spin_page.dart';
 import 'snake_game_page.dart';
 import 'breakout_game_page.dart';
-import 'neon_pong_page.dart';
+import 'tetris_game_page.dart';
+
 
 
 class EntertainmentPage extends StatelessWidget {
@@ -66,19 +67,20 @@ class EntertainmentPage extends StatelessWidget {
   }
 
   // ============================================================
-  // NEON PONG
+  // TETRIS
   // ============================================================
 
-  void _openNeonPong(BuildContext context) {
+  void _openTetris(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => NeonPongPage(
+        builder: (_) => TetrisGamePage(
           languageCode: languageCode,
         ),
       ),
     );
   }
+
 
   // ============================================================
   // NEON RUNNER
@@ -277,41 +279,31 @@ class EntertainmentPage extends StatelessWidget {
                 ),
               ),
 
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
 
               // ==================================================
-              // NEON PONG
+              // TETRIS
               // ==================================================
 
               _GameCard(
-                icon:
-                    Icons.sports_tennis_rounded,
-
-                title:
-                    'Neon Pong',
-
+                icon: Icons.view_quilt_rounded,
+                title: 'Tetris',
                 description: _tr(
-                  'Đánh bóng và vượt qua đối thủ.',
-                  'Hit the ball and beat your opponent.',
+                  'Xoay và xếp gạch để lấp đầy hàng.',
+                  'Rotate and stack falling blocks to complete rows.',
                 ),
-
                 gradient: const [
-                  Color(0xFF00F5FF),
-                  Color(0xFF1769AA),
+                  Color(0xFF00D9FF),
+                  Color(0xFF6A35D4),
                 ],
-
                 buttonText: _tr(
                   'Chơi ngay',
                   'Play now',
                 ),
-
-                onTap: () =>
-                    _openNeonPong(
-                  context,
-                ),
+                onTap: () => _openTetris(context),
               ),
+
+          
 
               const SizedBox(
                 height: 20,
