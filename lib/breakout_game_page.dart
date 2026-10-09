@@ -193,9 +193,15 @@ class _BreakoutGamePageState extends State<BreakoutGamePage> {
   }
 
   void _startGame() {
+    // After losing, replay the level immediately before the one where the
+    // player lost. If they lost Level 1, restart Level 1.
     if (_gameOver) {
-      _prepareLevel(resetProgress: true);
+      if (_level > 1) {
+        _level--;
+      }
+      _prepareLevel();
     } else if (_won) {
+      // Only move to the next level after all bricks have actually been cleared.
       _level++;
       _prepareLevel();
     }
@@ -305,6 +311,11 @@ class _BreakoutGamePageState extends State<BreakoutGamePage> {
   @override
   void initState() {
     super.initState();
+
+    // Build the Level 1 bricks before the first game tick.
+    // Without this, _bricks is empty and every() returns true,
+    // so the game can incorrectly show "Level Complete" immediately.
+    _prepareLevel(resetProgress: true);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
