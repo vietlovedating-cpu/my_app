@@ -363,21 +363,34 @@ void initState() {
                 // RESET / PLAY AGAIN
                 // ==================================================
 
-                if (!started || gameOver)
-                  TextButton(
-                    onPressed: _reset,
-                    child: Text(
-                      gameOver
-                          ? _tr(
-                              'Chơi lại',
-                              'Play Again',
-                            )
-                          : _tr(
-                              'Đặt lại',
-                              'Reset',
-                            ),
-                    ),
-                  ),
+              if (!started || gameOver)
+  TextButton(
+    style: TextButton.styleFrom(
+      foregroundColor: const Color(0xFF39FF88),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 10,
+      ),
+    ),
+    onPressed: _reset,
+    child: Text(
+      gameOver
+          ? _tr(
+              'Chơi lại',
+              'Play Again',
+            )
+          : _tr(
+              'Đặt lại',
+              'Reset',
+            ),
+      style: const TextStyle(
+        color: Color(0xFF39FF88),
+        fontWeight: FontWeight.w900,
+        fontSize: 18,
+        letterSpacing: 0.3,
+      ),
+    ),
+  ),
               ],
             ),
           ),
