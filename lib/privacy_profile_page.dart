@@ -283,15 +283,9 @@ if (phoneNumber.isEmpty || !phoneVerified) {
            content: SingleChildScrollView(
   child: Text(
     _tr(
-      'Để giúp bạn không xuất hiện với những người đã lưu trong danh bạ, VietLove Dating sẽ truy cập số điện thoại trong danh bạ của bạn. Trước khi gửi dữ liệu lên máy chủ, ứng dụng sẽ chuyển mỗi số điện thoại thành mã bảo mật SHA-256 ngay trên thiết bị của bạn.\n\n'
-      'Chỉ các mã SHA-256 này được tải lên máy chủ để đối chiếu với tài khoản thành viên và xác định những hồ sơ cần được ẩn giữa bạn và những người trong danh bạ.\n\n'
-      'Số điện thoại gốc trong danh bạ không được tải lên máy chủ. Dữ liệu này chỉ được sử dụng cho tính năng "Ẩn hồ sơ của tôi trong danh bạ", không được sử dụng cho quảng cáo và không được bán hoặc chia sẻ với bên thứ ba.\n\n'
-      'Tính năng này hoàn toàn tự nguyện. Bạn vẫn có thể sử dụng tất cả các tính năng khác của ứng dụng nếu không đồng ý.',
+      'Những người trong danh bạ của bạn sẽ không nhìn thấy hồ sơ của bạn trên VietLoveDating',
 
-      'To help prevent your profile from appearing to people saved in your contacts, VietLove Dating will access the phone numbers stored in your contacts. Before any data is transmitted, each phone number is converted into a secure SHA-256 hash directly on your device.\n\n'
-      'Only these SHA-256 hashes are uploaded to our server to compare them with registered member accounts and identify which profiles should be hidden between you and people in your contacts.\n\n'
-      'Original contact phone numbers are never uploaded to our server. This data is used solely for the "Hide my profile from contacts" feature. It is not used for advertising and is never sold or shared with third parties.\n\n'
-      'This feature is completely optional. You can continue using all other app features if you choose not to enable it.',
+      'People in your contacts won’t be able to see your profile on VietLoveDating.',
     ),
     style: const TextStyle(
       fontSize: 14.5,
