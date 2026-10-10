@@ -3,7 +3,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'language_exchange_group_chat_page.dart';
+import 'group_chat_welcome_page.dart';
 import 'group_data1.dart';
 // ============================================================
 // LANGUAGE EXCHANGE PAGE
@@ -182,24 +185,131 @@ const SizedBox(height: 16),
 // STUDY TOGETHER
 // ==================================================
 
+
 _StudyTogetherCard(
   isVi: isVi,
-  onTap: () {
+  onTap: () async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            label(
+              'Vui lòng đăng nhập trước khi vào nhóm.',
+              'Please log in before entering the group.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     final group = kDatingGroups.firstWhere(
       (g) => g.id == 'english_exchange',
     );
 
+    bool hasAcceptedRules = false;
+
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final userData = userDoc.data();
+      final acceptedRules = userData?['acceptedGroupRules'];
+
+      hasAcceptedRules = acceptedRules is Map &&
+          acceptedRules['english_exchange'] == true;
+    } catch (e) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            label(
+              'Không thể kiểm tra nội quy. Vui lòng thử lại.',
+              'Could not check the group rules. Please try again.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    // Đã đồng ý trước đó: vào thẳng group chat.
+    if (hasAcceptedRules) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => LanguageExchangeGroupChatPage(
+            languageCode: languageCode,
+            group: group,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Chưa đồng ý: hiện Welcome như bình thường.
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => LanguageExchangeGroupChatPage(
-          languageCode: 'en',
-          group: group,
+        builder: (welcomeContext) => GroupChatWelcomePage(
+          languageCode: languageCode,
+          onAgree: () async {
+            try {
+              // Lưu trạng thái đồng ý vào Firestore.
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .set(
+                {
+                  'acceptedGroupRules': {
+                    'english_exchange': true,
+                  },
+                },
+                SetOptions(merge: true),
+              );
+
+              if (!welcomeContext.mounted) return;
+
+              // Lưu thành công mới chuyển vào chat.
+              Navigator.pushReplacement(
+                welcomeContext,
+                MaterialPageRoute(
+                  builder: (_) => LanguageExchangeGroupChatPage(
+                    languageCode: languageCode,
+                    group: group,
+                  ),
+                ),
+              );
+            } catch (e) {
+              if (!welcomeContext.mounted) return;
+
+              ScaffoldMessenger.of(welcomeContext).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    label(
+                      'Không lưu được xác nhận nội quy. Vui lòng thử lại.',
+                      'Could not save your agreement. Please try again.',
+                    ),
+                  ),
+                ),
+              );
+            }
+          },
         ),
       ),
     );
   },
 ),
+
+const SizedBox(height: 16),
+
 
 const SizedBox(height: 16),
           ],

@@ -241,7 +241,100 @@ Future<void> _loadDeletedUsers() async {
   }
 
 
+  // Simple client-side language filter for the Study Together group.
+  // This intentionally checks whole words/phrases to reduce accidental matches.
+  String? _findInappropriateTerm(String text) {
+    final normalized = text.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    const blockedTerms = <String>[
+      // English profanity
+      'fuck', 'fucking', 'fucked', 'motherfucker', 'shit', 'bullshit',
+      'bitch', 'asshole', 'arsehole', 'dickhead', 'cunt', 'cocksucker',
+      'blowjob', 'handjob',
+      // English insults
+      'idiot', 'stupid', 'dumb', 'moron', 'retard', 'worthless',
+      // Vietnamese profanity (with common accented/unaccented forms)
+      'đụ má', 'du ma', 'địt mẹ', 'dit me', 'địt', 'đéo', 'deo',
+      'đụ', 'vãi lồn', 'vai lon', 'lồn', 'cặc',
+      'bú cu', 'bu cu', 'địt nhau', 'dit nhau',
+      // Vietnamese insults
+      'đồ ngu', 'do ngu', 'thằng ngu', 'thang ngu', 'con ngu',
+      'đồ khốn', 'do khon', 'đồ chó', 'do cho',
+    ];
+
+    for (final term in blockedTerms) {
+      final escaped = RegExp.escape(term);
+      // Treat letters/numbers as word characters at the edges so that, for
+      // example, a banned word is not matched inside a longer English word.
+      final pattern = RegExp(
+        r'(^|[^a-z0-9])' + escaped + r'($|[^a-z0-9])',
+        caseSensitive: false,
+      );
+      if (pattern.hasMatch(normalized)) return term;
+    }
+    return null;
+  }
+
+  Future<void> _showInappropriateLanguageDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_label('Từ ngữ không phù hợp', 'Inappropriate language')),
+        content: Text(
+          _label(
+            'Tin nhắn của bạn có chứa từ ngữ không phù hợp. Vui lòng thay đổi cách diễn đạt trước khi gửi.',
+            'Your message contains inappropriate language. Please change your wording before sending.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(_label('Quay lại sửa', 'Go back and edit')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Translate after the original message has been saved, so users do not
+  // have to wait for the translation service before their message appears.
+  Future<void> _translateAndUpdateMessage({
+    required DocumentReference<Map<String, dynamic>> messageRef,
+    required String originalText,
+    required bool sourceIsVi,
+  }) async {
+    try {
+      final translated = await _translateGroupMessage(
+        text: originalText,
+        target: sourceIsVi ? 'en' : 'vi',
+      );
+      if (translated.isEmpty) return;
+
+      // Do not attach a translation to a message that was edited/deleted
+      // while the translation request was running.
+      final latestMessage = await messageRef.get();
+      if (!latestMessage.exists) return;
+      final latestData = latestMessage.data();
+      if (latestData == null ||
+          latestData['text'] != originalText ||
+          latestData['isDeleted'] == true) {
+        return;
+      }
+
+      await messageRef.update({
+        (sourceIsVi ? 'textEn' : 'textVi'): translated,
+      });
+    } catch (e) {
+      // Translation is a background enhancement. Keep the original message
+      // available even if translation fails.
+      debugPrint('BACKGROUND GROUP TRANSLATION ERROR: $e');
+    }
+  }
+
   Future<void> _sendTextMessage() async {
+    if (_isSending) return;
+
     final user = currentUser;
     if (user == null) return;
 
@@ -251,83 +344,86 @@ Future<void> _loadDeletedUsers() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get();
-
-    final userData = userDoc.data() ?? {};
-    final firstName = (userData['firstName'] ?? '').toString().trim();
-    final mainPhotoUrl = (userData['mainPhotoUrl'] ?? '').toString().trim();
+    // Only apply this word filter to Study Together (English exchange).
+    // Keep the draft in the text field so the user can edit and retry.
+    if (widget.group.id == 'english_exchange' &&
+        _findInappropriateTerm(text) != null) {
+      await _showInappropriateLanguageDialog();
+      return;
+    }
 
     if (!mounted) return;
     setState(() {
       _isSending = true;
     });
 
+    DocumentReference<Map<String, dynamic>>? messageRef;
     try {
-  String textVi = '';
-  String textEn = '';
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
 
-  if (isVi) {
-    textVi = text;
+      final userData = userDoc.data() ?? {};
+      final firstName = (userData['firstName'] ?? '').toString().trim();
+      final mainPhotoUrl = (userData['mainPhotoUrl'] ?? '').toString().trim();
 
-    textEn = await _translateGroupMessage(
-      text: text,
-      target: 'en',
-    );
+      // Save immediately with the original text in both language fields.
+      // The translated field will be updated asynchronously afterwards.
+      messageRef = _messagesRef.doc();
+      await messageRef.set({
+        'senderId': user.uid,
+        'senderName': firstName,
+        'senderPhotoUrl': mainPhotoUrl,
+        'text': text,
+        'textVi': text,
+        'textEn': text,
+        'imageUrl': '',
+        'type': 'text',
+        'createdAt': FieldValue.serverTimestamp(),
+        'replyToMessageId': _replyToMessageId ?? '',
+        'replyToSenderName': (_replyToMessage?['senderName'] ?? '').toString(),
+        'replyToText': isVi
+            ? (_replyToMessage?['textVi'] ?? _replyToMessage?['text'] ?? '').toString()
+            : (_replyToMessage?['textEn'] ?? _replyToMessage?['text'] ?? '').toString(),
+        'replyToImageUrl': (_replyToMessage?['imageUrl'] ?? '').toString(),
+      });
 
-    if (textEn.isEmpty) {
-      textEn = text;
-    }
-  } else {
-    textEn = text;
-
-    textVi = await _translateGroupMessage(
-      text: text,
-      target: 'vi',
-    );
-
-    if (textVi.isEmpty) {
-      textVi = text;
-    }
-  }
-
-  await _messagesRef.add({
-  'senderId': user.uid,
-  'senderName': firstName,
-  'senderPhotoUrl': mainPhotoUrl,
-
-  'text': text,
-  'textVi': textVi,
-  'textEn': textEn,
-
-  'imageUrl': '',
-  'type': 'text',
-  'createdAt': FieldValue.serverTimestamp(),
-
-  'replyToMessageId': _replyToMessageId ?? '',
-  'replyToSenderName': (_replyToMessage?['senderName'] ?? '').toString(),
-  'replyToText': isVi
-    ? (_replyToMessage?['textVi'] ?? _replyToMessage?['text'] ?? '').toString()
-    : (_replyToMessage?['textEn'] ?? _replyToMessage?['text'] ?? '').toString(),
-  'replyToImageUrl': (_replyToMessage?['imageUrl'] ?? '').toString(),
-});
-
-  _messageController.clear();
-
-setState(() {
-  _replyToMessage = null;
-  _replyToMessageId = null;
-});
-
-_scrollToBottom();
-} finally {
+      if (!mounted) return;
+      _messageController.clear();
+      setState(() {
+        _replyToMessage = null;
+        _replyToMessageId = null;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('SEND GROUP MESSAGE ERROR: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_label(
+              'Không gửi được tin nhắn. Vui lòng thử lại.',
+              'Message could not be sent. Please try again.',
+            )),
+          ),
+        );
+      }
+      return;
+    } finally {
       if (mounted) {
         setState(() {
           _isSending = false;
         });
       }
+    }
+
+    // Do not await translation here; it must not hold up the send button.
+    if (messageRef != null) {
+      _translateAndUpdateMessage(
+        messageRef: messageRef,
+        originalText: text,
+        sourceIsVi: isVi,
+      );
     }
   }
 

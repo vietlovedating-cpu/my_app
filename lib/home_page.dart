@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'group_page.dart';
 import 'home_page_filter.dart';
 import 'my_profile_page.dart';
@@ -38,6 +40,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   StreamSubscription<User?>? _authSub;
   Timer? _onlineTimer;
+   DateTime? _lastBackPressedAt;
 
   bool _isProcessingAction = false;
   int _selectedBottomIndex = 3;
@@ -6495,18 +6498,51 @@ return Stack(
   Widget build(BuildContext context) {
     final isVi = widget.languageCode == 'vi';
 
-    return PopScope(
-  canPop: _selectedBottomIndex == 0,
+    
+return PopScope(
+  canPop: _selectedBottomIndex == 0 && !Platform.isAndroid,
   onPopInvoked: (didPop) {
     if (didPop) return;
 
+    // Giữ nguyên hành vi: tab khác quay về Home.
     if (_selectedBottomIndex != 0) {
       setState(() {
         _selectedBottomIndex = 0;
       });
+      return;
+    }
+
+    // Chỉ xử lý nhấn Back hai lần trên Android tại Home.
+    if (Platform.isAndroid) {
+      final now = DateTime.now();
+      final lastPressed = _lastBackPressedAt;
+
+      if (lastPressed == null ||
+          now.difference(lastPressed) >
+              const Duration(seconds: 2)) {
+        _lastBackPressedAt = now;
+
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                _label(
+                  'Nhấn Back lần nữa để thoát ứng dụng',
+                  'Press back again to exit',
+                ),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        return;
+      }
+
+      SystemNavigator.pop();
     }
   },
   child: Scaffold(
+
       extendBodyBehindAppBar: _selectedBottomIndex == 0,
       backgroundColor: const Color(0xFFFFF8FB),
       appBar: AppBar(

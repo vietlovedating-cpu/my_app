@@ -626,8 +626,8 @@ ScaffoldMessenger.of(context).showSnackBar(
   SnackBar(
     content: Text(
       _tr(
-        'Đã chặn người dùng',
-        'User blocked',
+        'Đã xoá khỏi danh sách tin nhắn',
+        'Removed from your message list',
       ),
     ),
   ),
