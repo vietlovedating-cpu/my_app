@@ -6022,14 +6022,16 @@ _buildBreakTheIceCard(
                     selected: selectedReason,
                     onTap: (value) => setModalState(() => selectedReason = value),
                   ),
-                  _reportReasonTile(
-                    title: _label(
-                      'Nội dung không phù hợp',
-                      'Inappropriate content',
-                    ),
-                    selected: selectedReason,
-                    onTap: (value) => setModalState(() => selectedReason = value),
-                  ),
+                 
+_reportReasonTile(
+  title: _label(
+    'Vấn đề an toàn trẻ em',
+    'Child safety concern',
+  ),
+  selected: selectedReason,
+  onTap: (value) => setModalState(() => selectedReason = value),
+),
+
                   _reportReasonTile(
                     title: _label('Quấy rối', 'Harassment'),
                     selected: selectedReason,
