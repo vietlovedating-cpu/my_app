@@ -21,7 +21,6 @@ class _ContactSupportPageState extends State<ContactSupportPage> {
   final _messageController = TextEditingController();
 
   bool _isSending = false;
-  String _selectedCategory = 'Child Safety Concern';
 
   bool get isVi => widget.languageCode == 'vi';
 
@@ -217,14 +216,12 @@ My issue is:
       final user = FirebaseAuth.instance.currentUser;
       final contactEmail = _emailController.text.trim();
       final message = _messageController.text.trim();
-      final category = _selectedCategory;
 
       await FirebaseFirestore.instance.collection('support_requests').add({
         'userId': user?.uid,
         'userEmail': user?.email,
         'contactEmail': contactEmail,
         'message': message,
-        'category': category,
         'createdAt': FieldValue.serverTimestamp(),
         'type': 'support',
         'status': 'new',
@@ -232,18 +229,43 @@ My issue is:
       });
 
       _messageController.clear();
-      setState(() => _selectedCategory = 'Child Safety Concern');
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          icon: const Icon(
+            Icons.check_circle_outline,
+            color: Color(0xFFE91E63),
+            size: 44,
+          ),
+          title: Text(
+            _tr('Đã gửi thành công', 'Submitted successfully'),
+            textAlign: TextAlign.center,
+          ),
           content: Text(
             _tr(
-              'Yêu cầu hỗ trợ đã được gửi thành công.',
-              'Support request sent successfully.',
+              'Cảm ơn bạn. Phản hồi của bạn đã được gửi đến VietLove Dating.',
+              'Thank you. Your feedback has been submitted to VietLove Dating.',
             ),
+            textAlign: TextAlign.center,
           ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE91E63),
+                foregroundColor: Colors.white,
+              ),
+              child: Text(_tr('Đóng', 'Close')),
+            ),
+          ],
         ),
       );
     } catch (_) {
@@ -377,156 +399,6 @@ My issue is:
               title: _tr('Hỗ trợ qua WhatsApp', 'WhatsApp Support'),
               subtitle: '+61 468 995 932',
               onTap: _openWhatsApp,
-            ),
-            const SizedBox(height: 8),
-            Container(
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.pink.shade100),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      _tr('Gửi phản hồi', 'Send feedback'),
-                      style: const TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF7A2E6E),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _tr(
-                        'Gửi trực tiếp cho VietLove Dating ngay trong ứng dụng.',
-                        'Send your message directly to VietLove Dating from inside the app.',
-                      ),
-                      style: const TextStyle(fontSize: 13, height: 1.4),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: _selectedCategory,
-                      decoration: _inputDecoration(
-                        label: _tr('Loại phản hồi', 'Category'),
-                        hint: _tr('Chọn loại phản hồi', 'Choose a category'),
-                      ),
-                      items: [
-                        DropdownMenuItem(
-                          value: 'Child Safety Concern',
-                          child: Text(_tr(
-                            'Vấn đề an toàn trẻ em',
-                            'Child Safety Concern',
-                          )),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Feedback',
-                          child: Text(_tr('Góp ý', 'Feedback')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Technical Issue',
-                          child: Text(_tr('Lỗi kỹ thuật', 'Technical Issue')),
-                        ),
-                        DropdownMenuItem(
-                          value: 'Other',
-                          child: Text(_tr('Khác', 'Other')),
-                        ),
-                      ],
-                      onChanged: _isSending
-                          ? null
-                          : (value) {
-                              if (value != null) {
-                                setState(() => _selectedCategory = value);
-                              }
-                            },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      textInputAction: TextInputAction.next,
-                      decoration: _inputDecoration(
-                        label: _tr('Email liên hệ', 'Contact email'),
-                        hint: 'name@example.com',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return _tr('Vui lòng nhập email.', 'Please enter your email.');
-                        }
-                        if (!_isValidEmail(value)) {
-                          return _tr('Email không hợp lệ.', 'Please enter a valid email.');
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _messageController,
-                      minLines: 4,
-                      maxLines: 6,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: _inputDecoration(
-                        label: _tr('Nội dung', 'Message'),
-                        hint: _tr(
-                          'Nhập phản hồi hoặc mối lo ngại của bạn...',
-                          'Enter your feedback or concern...',
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return _tr(
-                            'Vui lòng nhập nội dung.',
-                            'Please enter a message.',
-                          );
-                        }
-                        if (value.trim().length < 5) {
-                          return _tr(
-                            'Vui lòng cung cấp thêm chi tiết.',
-                            'Please provide a little more detail.',
-                          );
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _isSending ? null : _submitSupportRequest,
-                      icon: _isSending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.send_outlined),
-                      label: Text(_isSending
-                          ? _tr('Đang gửi...', 'Sending...')
-                          : _tr('Gửi phản hồi', 'Submit feedback')),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE91E63),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ),
             const SizedBox(height: 4),
             Container(
