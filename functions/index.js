@@ -323,6 +323,9 @@ requestedAt: admin.firestore.FieldValue.serverTimestamp(),
 
         await bucket.deleteFiles({ prefix: `users/${uid}/` });
         await bucket.deleteFiles({ prefix: `user_photos/${uid}/` });
+        await bucket.deleteFiles({
+  prefix: `photo_verifications/${uid}/`,
+});
       } catch (error) {
         console.error("DELETE STORAGE ERROR:", uid, error);
       }

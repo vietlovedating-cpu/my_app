@@ -196,48 +196,95 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
     return uploadedUrls;
   }
 
-  Future<void> _savePhotoUrlsToFirestore({
-    required String uid,
-    required List<String> allPhotoUrls,
-    required bool photosChanged,
-  }) async {
-    final userRef =
-        FirebaseFirestore.instance.collection('users').doc(uid);
+  
+Future<void> _savePhotoUrlsToFirestore({
+  required String uid,
+  required List<String> allPhotoUrls,
+  required bool photosChanged,
+  required bool mainPhotoChanged,
+}) async {
+  final firestore = FirebaseFirestore.instance;
+  final user = FirebaseAuth.instance.currentUser;
 
-    final userUpdate = <String, dynamic>{
-      'photoUrls': allPhotoUrls,
-      'photos': allPhotoUrls,
-      'mainPhotoUrl': allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
-      'updatedAt': FieldValue.serverTimestamp(),
+  final userRef = firestore.collection('users').doc(uid);
+  final requestRef =
+      firestore.collection('photo_verification_requests').doc(uid);
+
+  final userDoc = await userRef.get();
+  final userData = userDoc.data() ?? <String, dynamic>{};
+
+  final requestDoc = await requestRef.get();
+  final requestData = requestDoc.data() ?? <String, dynamic>{};
+
+  final email =
+      (user?.email ?? userData['email'] ?? '').toString().trim();
+  final firstName =
+      (userData['firstName'] ?? '').toString().trim();
+
+  final mainPhotoUrl =
+      allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '';
+
+  final userUpdate = <String, dynamic>{
+    'photoUrls': allPhotoUrls,
+    'photos': allPhotoUrls,
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
+
+  if (mainPhotoChanged) {
+    userUpdate['mainPhotoUrl'] = mainPhotoUrl;
+  }
+
+  if (photosChanged) {
+    userUpdate['photoVerified'] = false;
+    userUpdate['photoVerificationStatus'] = 'pending';
+    userUpdate['photoVerificationResubmittedAt'] =
+        FieldValue.serverTimestamp();
+
+    final requestUpdate = <String, dynamic>{
+      'uid': uid,
+      'photoVerified': false,
+      'photoVerificationStatus': 'pending',
+      'photoVerificationResubmittedAt':
+          FieldValue.serverTimestamp(),
     };
 
-    if (photosChanged) {
-      userUpdate['photoVerified'] = false;
-      userUpdate['photoVerificationStatus'] = 'pending';
-      userUpdate['photoVerificationSubmittedAt'] =
-          FieldValue.serverTimestamp();
-
-      final batch = FirebaseFirestore.instance.batch();
-      batch.set(userRef, userUpdate, SetOptions(merge: true));
-      batch.set(
-        FirebaseFirestore.instance
-            .collection('photo_verification_requests')
-            .doc(uid),
-        {
-          'uid': uid,
-          'photoVerified': false,
-          'photoVerificationStatus': 'pending',
-          'mainPhotoUrl':
-              allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '',
-          'photoVerificationSubmittedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-      await batch.commit();
-    } else {
-      await userRef.set(userUpdate, SetOptions(merge: true));
+    if (mainPhotoChanged) {
+      requestUpdate['mainPhotoUrl'] = mainPhotoUrl;
     }
+
+    if ((requestData['email'] ?? '').toString().trim().isEmpty &&
+        email.isNotEmpty) {
+      requestUpdate['email'] = email;
+    }
+
+    if ((requestData['firstName'] ?? '').toString().trim().isEmpty &&
+        firstName.isNotEmpty) {
+      requestUpdate['firstName'] = firstName;
+    }
+
+    final batch = firestore.batch();
+
+    batch.set(
+      userRef,
+      userUpdate,
+      SetOptions(merge: true),
+    );
+
+    batch.set(
+      requestRef,
+      requestUpdate,
+      SetOptions(merge: true),
+    );
+
+    await batch.commit();
+  } else {
+    await userRef.set(
+      userUpdate,
+      SetOptions(merge: true),
+    );
   }
+}
+
 
   Future<void> _savePhotos() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -280,14 +327,26 @@ class _EditUploadPhotosPageState extends State<EditUploadPhotosPage> {
         }
       }
 
-      final photosChanged =
-          !listEquals(_originalPhotoUrls, allPhotoUrls);
+    
+final photosChanged =
+    !listEquals(_originalPhotoUrls, allPhotoUrls);
 
-      await _savePhotoUrlsToFirestore(
-        uid: user.uid,
-        allPhotoUrls: allPhotoUrls,
-        photosChanged: photosChanged,
-      );
+final oldMainPhoto =
+    _originalPhotoUrls.isNotEmpty ? _originalPhotoUrls.first : '';
+
+final newMainPhoto =
+    allPhotoUrls.isNotEmpty ? allPhotoUrls.first : '';
+
+final mainPhotoChanged = oldMainPhoto != newMainPhoto;
+
+
+await _savePhotoUrlsToFirestore(
+  uid: user.uid,
+  allPhotoUrls: allPhotoUrls,
+  photosChanged: photosChanged,
+  mainPhotoChanged: mainPhotoChanged,
+);
+
 
 // Đọc lại hồ sơ mới nhất
 final userRef =

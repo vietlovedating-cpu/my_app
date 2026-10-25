@@ -246,7 +246,8 @@ My issue is:
           ),
         ),
       );
-    } catch (_) {
+    } catch (e) {
+  debugPrint('Submit error: $e');
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
