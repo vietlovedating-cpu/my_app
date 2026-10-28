@@ -248,6 +248,7 @@ void dispose() {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    debugPrint('APP START currentUser: ${user?.uid}');
 
     if (user != null) {
   _safeInitPush(user.uid);

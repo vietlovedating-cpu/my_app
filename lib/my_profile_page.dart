@@ -2334,7 +2334,93 @@ if (showSocialMedia &&
   ],
 ),
 ],
-        
+
+      
+          const SizedBox(height: 24),
+
+          // Safety reminder at the bottom of My Profile
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFFFF0F6),
+                  Color(0xFFFFFAFC),
+                ],
+              ),
+              border: Border.all(
+                color: const Color(0xFFFFD5E6),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFCC3D7A)
+                      .withOpacity(0.08),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.shield_rounded,
+                    color: Color(0xFFCC3D7A),
+                    size: 25,
+                  ),
+                ),
+                const SizedBox(width: 13),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment:
+                        CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _tr(
+                          isVi,
+                          'Hãy giữ an toàn nhé!',
+                          'Stay safe on VietLoveDating!',
+                        ),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF7A2E6E),
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        _tr(
+                          isVi,
+                          'Cẩn thận với spam, tài khoản giả mạo và lừa đảo. Không chia sẻ mã xác minh, thông tin cá nhân nhạy cảm hoặc chuyển tiền cho người lạ.',
+                          'Watch out for spam, fake profiles and scams. Never share verification codes, sensitive personal information or send money to strangers.',
+                        ),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          height: 1.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF6F5362),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+  
         ],
       ),
     );
