@@ -196,60 +196,68 @@ class _GuessGamePageState extends State<GuessGamePage> {
       return false;
     }
 
-    final swipedUserIds =
-        await _loadMySwipedUserIds(user.uid);
+    // Các lần đọc độc lập được chạy song song để giảm thời gian chờ.
+    final validationResults = await Future.wait<dynamic>([
+      _firestore
+          .collection('swipes')
+          .where('fromUserId', isEqualTo: user.uid)
+          .get(),
+      _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('blocked_users')
+          .get(),
+      ...candidateIds.map(
+        (candidateId) => _firestore
+            .collection('users')
+            .doc(candidateId)
+            .get(),
+      ),
+      _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('likedBy')
+          .doc(correctUserId)
+          .get(),
+    ]);
 
-    /*
-    Nếu bất kỳ candidate nào đã có trong swipes,
-    bộ game cũ không còn phù hợp.
-    */
+    final swipedSnapshot =
+        validationResults[0] as QuerySnapshot<Map<String, dynamic>>;
+    final swipedUserIds = swipedSnapshot.docs
+        .map((doc) => (doc.data()['toUserId'] ?? '').toString().trim())
+        .where((uid) => uid.isNotEmpty)
+        .toSet();
+
     if (candidateIds.any(swipedUserIds.contains)) {
       return false;
     }
 
-    final blockedIds = await _loadBlockedUserIds(
-      user.uid,
-    );
+    final blockedSnapshot =
+        validationResults[1] as QuerySnapshot<Map<String, dynamic>>;
+    final blockedIds = blockedSnapshot.docs.map((doc) => doc.id.trim()).toSet();
 
     if (candidateIds.any(blockedIds.contains)) {
       return false;
     }
 
-    for (final candidateId in candidateIds) {
-      final candidateDoc = await _firestore
-          .collection('users')
-          .doc(candidateId)
-          .get();
+    for (var i = 0; i < candidateIds.length; i++) {
+      final candidateDoc = validationResults[i + 2]
+          as DocumentSnapshot<Map<String, dynamic>>;
 
-      if (!candidateDoc.exists) {
-        return false;
-      }
+      if (!candidateDoc.exists) return false;
 
-      final profile = {
+      final profile = <String, dynamic>{
         'docId': candidateDoc.id,
         ...(candidateDoc.data() ?? {}),
       };
 
-      if (!_isProfileAvailable(profile)) {
-        return false;
-      }
+      if (!_isProfileAvailable(profile)) return false;
     }
 
-    /*
-    Kiểm tra người đúng vẫn còn trong likedBy.
-    */
-    final correctLikeDoc = await _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('likedBy')
-        .doc(correctUserId)
-        .get();
+    final correctLikeDoc = validationResults[candidateIds.length + 2]
+        as DocumentSnapshot<Map<String, dynamic>>;
 
-    if (!correctLikeDoc.exists) {
-      return false;
-    }
-
-    return true;
+    return correctLikeDoc.exists;
   }
 
   // ============================================================
@@ -385,37 +393,34 @@ class _GuessGamePageState extends State<GuessGamePage> {
           )
           .get(),
 
-      // 2: Tất cả user để chọn 3 người giả.
-      _firestore.collection('users').get(),
-
-      // 3: Những người bị block.
+      // 2: Những người bị block.
       _firestore
           .collection('users')
           .doc(currentUid)
           .collection('blocked_users')
           .get(),
 
-      // 4: Những người bị hidden.
+      // 3: Những người bị hidden.
       _firestore
           .collection('users')
           .doc(currentUid)
           .collection('hidden_users')
           .get(),
 
-      // 5: Những người đang được game Guess khác ẩn.
+      // 4: Những người đang được game Guess khác ẩn.
       _firestore
           .collection('users')
           .doc(currentUid)
           .collection('guessHiddenUsers')
           .get(),
 
-    // 6: Dữ liệu current user để kiểm tra preference.
+    // 5: Dữ liệu current user để kiểm tra preference.
 _firestore
     .collection('users')
     .doc(currentUid)
     .get(),
 
-// 7: Lịch sử các game Guess trước đây.
+// 6: Lịch sử các game Guess trước đây.
 _firestore
     .collection('users')
     .doc(currentUid)
@@ -431,31 +436,53 @@ _firestore
         results[1]
             as QuerySnapshot<Map<String, dynamic>>;
 
-    final usersSnapshot =
+    final blockedSnapshot =
         results[2]
             as QuerySnapshot<Map<String, dynamic>>;
 
-    final blockedSnapshot =
+    final hiddenSnapshot =
         results[3]
             as QuerySnapshot<Map<String, dynamic>>;
 
-    final hiddenSnapshot =
+    final guessHiddenSnapshot =
         results[4]
             as QuerySnapshot<Map<String, dynamic>>;
 
-    final guessHiddenSnapshot =
-        results[5]
-            as QuerySnapshot<Map<String, dynamic>>;
-
     final currentUserDoc =
-        results[6]
+        results[5]
             as DocumentSnapshot<Map<String, dynamic>>;
-            final guessHistorySnapshot =
-    results[7]
-        as QuerySnapshot<Map<String, dynamic>>;
+
+    final guessHistorySnapshot =
+        results[6]
+            as QuerySnapshot<Map<String, dynamic>>;
 
     final currentUserData =
         currentUserDoc.data() ?? {};
+
+    // ==========================================================
+    // FAKE PROFILES ĐÃ TỪNG XUẤT HIỆN
+    // Không cho 3 hồ sơ giả của các ngày trước xuất hiện lại.
+    // Ưu tiên field fakeUserIds; fallback cho game cũ bằng cách
+    // lấy candidateUserIds trừ correctUserId.
+    // ==========================================================
+    final previouslyShownFakeIds = <String>{};
+
+    for (final historyDoc in guessHistorySnapshot.docs) {
+      final historyData = historyDoc.data();
+      final savedFakeIds = _stringList(historyData['fakeUserIds']);
+
+      if (savedFakeIds.isNotEmpty) {
+        previouslyShownFakeIds.addAll(savedFakeIds);
+      } else {
+        final oldCorrectId =
+            (historyData['correctUserId'] ?? '').toString().trim();
+        final oldCandidateIds =
+            _stringList(historyData['candidateUserIds']);
+        previouslyShownFakeIds.addAll(
+          oldCandidateIds.where((id) => id != oldCorrectId),
+        );
+      }
+    }
 
     // ==========================================================
     // USERS ĐÃ SWIPE
@@ -499,43 +526,31 @@ _firestore
       }
     }
 
-    // ==========================================================
-    // LOAD TẤT CẢ PROFILE VÀO MAP
-    // ==========================================================
-
-    final allProfilesByUid =
-        <String, Map<String, dynamic>>{};
-
-    for (final userDoc in usersSnapshot.docs) {
-  final profile = <String, dynamic>{
-    'docId': userDoc.id,
-    ...userDoc.data(),
-  };
-
-  final documentUid = userDoc.id.trim();
-
-  if (documentUid.isEmpty) continue;
-
-  // Map theo document ID chuẩn của Firebase.
-  allProfilesByUid[documentUid] = profile;
-
-  // Tương thích dữ liệu cũ nếu bên trong user document có field uid.
-  final fieldUid =
-      (userDoc.data()['uid'] ?? '').toString().trim();
-
-  if (fieldUid.isNotEmpty) {
-    allProfilesByUid[fieldUid] = profile;
-  }
-}
-
-    // ==========================================================
-    // NHỮNG NGƯỜI ĐÃ LIKE CURRENT USER
-    // ==========================================================
-
+    // Chỉ tải hồ sơ của những người đã Like current user.
+    // Không đọc toàn bộ collection users.
     final allLikerIds = likedBySnapshot.docs
         .map((doc) => doc.id.trim())
         .where((uid) => uid.isNotEmpty)
         .toSet();
+
+    final likerProfiles = await _loadProfilesByIds(allLikerIds.toList());
+    final allProfilesByUid = <String, Map<String, dynamic>>{};
+
+    for (final profile in likerProfiles) {
+      final documentUid = (profile['docId'] ?? '').toString().trim();
+      if (documentUid.isEmpty) continue;
+
+      allProfilesByUid[documentUid] = profile;
+
+      final fieldUid = (profile['uid'] ?? '').toString().trim();
+      if (fieldUid.isNotEmpty) {
+        allProfilesByUid[fieldUid] = profile;
+      }
+    }
+
+    // ==========================================================
+    // NHỮNG NGƯỜI ĐÃ LIKE CURRENT USER
+    // ==========================================================
 
     final validRealLikers =
         <Map<String, dynamic>>[];
@@ -727,53 +742,17 @@ final correctUserId = _profileUid(
     // Như vậy chỉ có đúng 1 người thực sự Like user.
     // ==========================================================
 
-    final fakeCandidates =
-        <Map<String, dynamic>>[];
-
-    for (final profile in allProfilesByUid.values) {
-      final uid = _profileUid(profile);
-
-      if (uid.isEmpty) continue;
-      if (uid == currentUid) continue;
-      if (uid == correctUserId) continue;
-
-      /*
-      Không dùng bất kỳ người nào đã Like current user
-      làm người giả.
-      */
-      if (allLikerIds.contains(uid)) {
-        continue;
-      }
-
-      if (swipedUserIds.contains(uid)) {
-        continue;
-      }
-
-      if (blockedUserIds.contains(uid)) {
-        continue;
-      }
-
-      if (hiddenUserIds.contains(uid)) {
-        continue;
-      }
-
-      if (activeGuessHiddenIds.contains(uid)) {
-        continue;
-      }
-
-      if (!_isProfileAvailable(profile)) {
-        continue;
-      }
-
-      if (!_isMutuallyCompatible(
-        myProfile: currentUserData,
-        otherProfile: profile,
-      )) {
-        continue;
-      }
-
-      fakeCandidates.add(profile);
-    }
+    final fakeCandidates = await _loadRandomFakeCandidates(
+      currentUid: currentUid,
+      currentUserData: currentUserData,
+      excludedLikerIds: allLikerIds,
+      swipedUserIds: swipedUserIds,
+      blockedUserIds: blockedUserIds,
+      hiddenUserIds: hiddenUserIds,
+      activeGuessHiddenIds: activeGuessHiddenIds,
+      previouslyShownFakeIds: previouslyShownFakeIds,
+      correctUserId: correctUserId,
+    );
 
     fakeCandidates.shuffle(random);
 debugPrint(
@@ -831,6 +810,7 @@ debugPrint(
       'dateKey': _todayKey(),
       'correctUserId': correctUserId,
       'candidateUserIds': candidateIds,
+      'fakeUserIds': fakeCandidates.take(3).map(_profileUid).toList(),
       'attemptsUsed': 0,
       'completed': false,
       'won': false,
@@ -1301,6 +1281,140 @@ debugPrint(
   }
 
   // ============================================================
+  // LOAD RANDOM FAKE CANDIDATES
+  // Đọc hết tất cả các batch (100 hồ sơ/batch) trước khi quyết định.
+  // Ưu tiên hồ sơ giả CHƯA TỪNG xuất hiện; chỉ dùng hồ sơ cũ nếu
+  // đã quét hết collection mà hồ sơ mới hợp lệ vẫn không đủ 3.
+  // Dùng reservoir sampling để chỉ giữ tối đa 3 hồ sơ mỗi nhóm,
+  // tránh giữ hàng nghìn/hàng chục nghìn profile trong bộ nhớ.
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> _loadRandomFakeCandidates({
+    required String currentUid,
+    required Map<String, dynamic> currentUserData,
+    required Set<String> excludedLikerIds,
+    required Set<String> swipedUserIds,
+    required Set<String> blockedUserIds,
+    required Set<String> hiddenUserIds,
+    required Set<String> activeGuessHiddenIds,
+    required Set<String> previouslyShownFakeIds,
+    required String correctUserId,
+  }) async {
+    const pageSize = 100;
+    const idAlphabet =
+        '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+    final random = Random.secure();
+    final randomStartId = List.generate(
+      20,
+      (_) => idAlphabet[random.nextInt(idAlphabet.length)],
+    ).join();
+
+    final users = _firestore.collection('users');
+    final orderedUsers = users.orderBy(FieldPath.documentId);
+    var query = orderedUsers.startAt([randomStartId]).limit(pageSize);
+    QueryDocumentSnapshot<Map<String, dynamic>>? lastDocument;
+    var wrappedToBeginning = false;
+
+    // Chỉ giữ tối đa 3 hồ sơ mới và 3 hồ sơ cũ.
+    final newCandidates = <Map<String, dynamic>>[];
+    final oldCandidates = <Map<String, dynamic>>[];
+    var newEligibleCount = 0;
+    var oldEligibleCount = 0;
+    final seenUserIds = <String>{};
+
+    void addToReservoir(
+      List<Map<String, dynamic>> reservoir,
+      Map<String, dynamic> profile,
+      int eligibleCount,
+    ) {
+      if (reservoir.length < 3) {
+        reservoir.add(profile);
+      } else {
+        final replacementIndex = random.nextInt(eligibleCount);
+        if (replacementIndex < 3) {
+          reservoir[replacementIndex] = profile;
+        }
+      }
+    }
+
+    while (true) {
+      final page = lastDocument == null
+          ? await query.get()
+          : await query.startAfterDocument(lastDocument).get();
+
+      if (page.docs.isEmpty) {
+        if (wrappedToBeginning) break;
+
+        wrappedToBeginning = true;
+        lastDocument = null;
+        query = orderedUsers.endBefore([randomStartId]).limit(pageSize);
+        continue;
+      }
+
+      for (final userDoc in page.docs) {
+        final profile = <String, dynamic>{
+          'docId': userDoc.id,
+          ...userDoc.data(),
+        };
+        final uid = _profileUid(profile);
+
+        if (uid.isEmpty || uid == currentUid || uid == correctUserId) {
+          continue;
+        }
+        if (!seenUserIds.add(uid)) continue;
+        if (excludedLikerIds.contains(uid)) continue;
+        if (swipedUserIds.contains(uid)) continue;
+        if (blockedUserIds.contains(uid)) continue;
+        if (hiddenUserIds.contains(uid)) continue;
+        if (activeGuessHiddenIds.contains(uid)) continue;
+        if (!_isProfileAvailable(profile)) continue;
+        if (!_isMutuallyCompatible(
+          myProfile: currentUserData,
+          otherProfile: profile,
+        )) {
+          continue;
+        }
+
+        if (previouslyShownFakeIds.contains(uid)) {
+          oldEligibleCount++;
+          addToReservoir(oldCandidates, profile, oldEligibleCount);
+        } else {
+          newEligibleCount++;
+          addToReservoir(newCandidates, profile, newEligibleCount);
+        }
+      }
+
+      lastDocument = page.docs.last;
+
+      if (page.docs.length < pageSize) {
+        if (wrappedToBeginning) break;
+
+        wrappedToBeginning = true;
+        lastDocument = null;
+        query = orderedUsers.endBefore([randomStartId]).limit(pageSize);
+      }
+    }
+
+    // Chỉ dùng lại profile giả cũ khi đã quét hết mọi batch mà
+    // hồ sơ giả mới hợp lệ vẫn chưa đủ 3.
+    final selected = <Map<String, dynamic>>[...newCandidates];
+    if (selected.length < 3) {
+      oldCandidates.shuffle(random);
+      selected.addAll(oldCandidates.take(3 - selected.length));
+    }
+
+    selected.shuffle(random);
+    debugPrint(
+      'GUESS FAKE SCAN COMPLETE: '
+      'newEligible=$newEligibleCount, '
+      'oldEligible=$oldEligibleCount, '
+      'selected=${selected.length}',
+    );
+
+    return selected;
+  }
+
+  // ============================================================
   // LOAD HELPERS
   // ============================================================
 
@@ -1344,27 +1458,62 @@ debugPrint(
       _loadProfilesByIds(
     List<String> userIds,
   ) async {
-    final loaded = await Future.wait(
-      userIds.map((uid) async {
-        final doc = await _firestore
-            .collection('users')
-            .doc(uid)
-            .get();
+    final uniqueIds = userIds
+        .map((uid) => uid.trim())
+        .where((uid) => uid.isNotEmpty)
+        .toSet()
+        .toList();
 
-        if (!doc.exists) {
-          return null;
-        }
+    if (uniqueIds.isEmpty) return [];
 
-        return <String, dynamic>{
+    // Đọc document trực tiếp theo UID, chia nhóm để tránh tạo quá nhiều
+    // request đồng thời khi người dùng có nhiều lượt Like.
+    const chunkSize = 30;
+    final loadedProfiles = <Map<String, dynamic>>[];
+    final foundIds = <String>{};
+
+    for (var start = 0; start < uniqueIds.length; start += chunkSize) {
+      final end = min(start + chunkSize, uniqueIds.length);
+      final chunk = uniqueIds.sublist(start, end);
+
+      final docs = await Future.wait(
+        chunk.map(
+          (uid) => _firestore.collection('users').doc(uid).get(),
+        ),
+      );
+
+      for (final doc in docs) {
+        if (!doc.exists) continue;
+
+        final profile = <String, dynamic>{
           'docId': doc.id,
           ...(doc.data() ?? {}),
         };
-      }),
-    );
+        loadedProfiles.add(profile);
+        foundIds.add(doc.id);
+      }
+    }
 
-    return loaded
-        .whereType<Map<String, dynamic>>()
-        .toList();
+    // Tương thích dữ liệu cũ: likedBy có thể lưu field uid thay vì document ID.
+    final missingIds = uniqueIds.where((uid) => !foundIds.contains(uid)).toList();
+    for (var start = 0; start < missingIds.length; start += chunkSize) {
+      final end = min(start + chunkSize, missingIds.length);
+      final chunk = missingIds.sublist(start, end);
+
+      final snapshot = await _firestore
+          .collection('users')
+          .where('uid', whereIn: chunk)
+          .get();
+
+      for (final doc in snapshot.docs) {
+        loadedProfiles.add({
+          'docId': doc.id,
+          ...doc.data(),
+        });
+      }
+    }
+
+    return loadedProfiles;
   }
 
   // ============================================================
@@ -1581,19 +1730,18 @@ debugPrint(
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            _tr(
-              'Người bí ẩn chưa xuất hiện.\nHãy quay lại vào ngày mai nhé hoặc mở rộng bộ lọc để khám phá nhiều hơn ❤️',
-
-  'Your mystery person has not appeared yet.\nPlease come back tomorrow or widen your filters to discover more ❤️',
-            ),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              height: 1.5,
-              color: Colors.grey.shade700,
-            ),
-          ),
+         Text(
+  _tr(
+    'Hôm nay chưa có lượt Guess mới. ❤️\nHãy mở bộ lọc và nới rộng tiêu chí tìm kiếm để khám phá thêm nhiều hồ sơ nhé!',
+    'No new Guess profiles today. ❤️\nOpen your filters and broaden your preferences to discover more profiles!',
+  ),
+  textAlign: TextAlign.center,
+  style: TextStyle(
+    fontSize: 16,
+    height: 1.5,
+    color: Colors.grey.shade700,
+  ),
+),
         ],
       );
     }

@@ -12,6 +12,8 @@ import 'notification_settings_page.dart';
 import 'privacy_profile_page.dart';
 import 'photo_verification_page.dart';
 import 'my_gift_page.dart';
+import 'notification_inbox_page.dart';
+import 'admin_broadcast_page.dart';
 import 'utils/profile_health.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -2032,10 +2034,93 @@ debugPrint('PROFILE HEALTH: ${profileHealth.score}');
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeader(
+         _buildHeader(
   profile: profile,
   isVi: isVi,
   photos: photos,
+),
+if ((FirebaseAuth.instance.currentUser?.email ?? '')
+        .trim()
+        .toLowerCase() == 'katetranlife@gmail.com')
+  Padding(
+    padding: const EdgeInsets.only(top: 14),
+    child: Card(
+      child: ListTile(
+        leading: const Icon(
+          Icons.campaign_rounded,
+          color: Color(0xFFB83280),
+        ),
+        title: const Text(
+          'Admin Broadcast',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          _tr(
+            isVi,
+            'Gửi thông báo đến tất cả người dùng',
+            'Send an announcement to all users',
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AdminBroadcastPage(
+                languageCode: widget.languageCode,
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  ),
+
+StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+  stream: FirebaseAuth.instance.currentUser == null
+      ? null
+      : FirebaseFirestore.instance
+          .collection('users')
+          .doc(FirebaseAuth.instance.currentUser!.uid)
+          .snapshots(),
+  builder: (context, snapshot) {
+    final giftProfile = snapshot.data?.data();
+
+    final hasWelcomeGift =
+        giftProfile?['welcomeGiftGranted'] == true;
+
+    if (!hasWelcomeGift) {
+      return const SizedBox.shrink();
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: TextButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => MyGiftPage(
+                  languageCode: widget.languageCode,
+                ),
+              ),
+            );
+          },
+          icon: const Icon(
+            Icons.card_giftcard_rounded,
+            color: Color(0xFFB83280),
+          ),
+          label: Text(
+            _tr(isVi, 'Quà tặng của tôi', 'My Gifts'),
+            style: const TextStyle(
+              color: Color(0xFFB83280),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  },
 ),
 
 const SizedBox(height: 18),
@@ -2565,57 +2650,68 @@ Future<void> _openSocial({
         elevation: 0,
         foregroundColor: const Color(0xFF7A2E6E),
         centerTitle: true,
-        leading: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-  stream: FirebaseAuth.instance.currentUser == null
-      ? null
-      : FirebaseFirestore.instance
-          .collection('users')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .snapshots(),
-  builder: (context, snapshot) {
-    final profile = snapshot.data?.data();
+        leadingWidth: 76,
+      leading: Container(
+  margin: const EdgeInsets.only(left: 8),
+  child: StreamBuilder<QuerySnapshot>(
+    stream: FirebaseFirestore.instance
+        .collection('users')
+        .doc(FirebaseAuth.instance.currentUser!.uid)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false)
+        .snapshots(),
+    builder: (context, snapshot) {
+      final unreadCount = snapshot.data?.docs.length ?? 0;
 
-    final hasWelcomeGift =
-        profile?['welcomeGiftGranted'] == true;
-
-    if (!hasWelcomeGift) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(left: 10),
-      child: IconButton(
-        onPressed: () {
+      return GestureDetector(
+        onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => MyGiftPage(
+              builder: (_) => NotificationInboxPage(
                 languageCode: widget.languageCode,
               ),
             ),
           );
         },
-        icon: Container(
-          padding: const EdgeInsets.all(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 9,
+            vertical: 5,
+          ),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.92),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: const Color(0xFFB83280),
+              width: 1.2,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (unreadCount > 0)
+                Text(
+                  '$unreadCount NEW',
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              const Text(
+                'INBOX',
+                style: TextStyle(
+                  color: Color(0xFFB83280),
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-          child: const Icon(
-            Icons.card_giftcard_rounded,
-            color: Color(0xFFB83280),
-            size: 22,
-          ),
         ),
-      ),
-    );
-  },
+      );
+    },
+  ),
 ),
         title: const Row(
   mainAxisSize: MainAxisSize.min,

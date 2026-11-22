@@ -310,10 +310,14 @@ await FirebaseFirestore.instance
   'selectedState': stateToSave,
   'selectedStateKey': stateToSave,
   'selectedStateLower': stateToSave.toLowerCase(),
-  
-  
   'state': stateToSave,
   'stateLiving': stateToSave,
+
+  // Cập nhật các trường State cũ
+  'livingState': stateToSave,
+  'stateProvince': stateToSave,
+  'province': stateToSave,
+  'region': stateToSave,
 
   // Địa điểm hiển thị
   'address': stateToSave,

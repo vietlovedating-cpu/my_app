@@ -4,6 +4,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io';
+
 import 'firebase_options.dart';
 import 'splash_page.dart';
 import 'home_page.dart';
@@ -77,6 +82,278 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  int _compareVersions(String current, String latest) {
+  final currentParts = current.split('.').map(
+    (e) => int.tryParse(e) ?? 0,
+  ).toList();
+
+  final latestParts = latest.split('.').map(
+    (e) => int.tryParse(e) ?? 0,
+  ).toList();
+
+  final length = currentParts.length > latestParts.length
+      ? currentParts.length
+      : latestParts.length;
+
+  for (int i = 0; i < length; i++) {
+    final a = i < currentParts.length ? currentParts[i] : 0;
+    final b = i < latestParts.length ? latestParts[i] : 0;
+
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+
+  return 0;
+}
+Future<void> _checkForOptionalUpdate() async {
+  try {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final currentVersion = packageInfo.version;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('app_config')
+        .doc('version')
+        .get();
+
+    if (!doc.exists || !mounted) return;
+
+    final data = doc.data();
+    if (data == null) return;
+
+    final latestVersion = Platform.isAndroid
+        ? data['androidLatestVersion']?.toString() ?? ''
+        : data['iosLatestVersion']?.toString() ?? '';
+
+    if (latestVersion.isEmpty) return;
+
+    if (_compareVersions(currentVersion, latestVersion) >= 0) {
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+
+final dismissKey = 'updatePopupDismissedAt_$latestVersion';
+
+final lastDismissed = prefs.getInt(dismissKey);
+
+if (lastDismissed != null) {
+  final lastDate = DateTime.fromMillisecondsSinceEpoch(lastDismissed);
+
+  if (DateTime.now().difference(lastDate) <
+      const Duration(days: 5)) {
+    return;
+  }
+}
+
+    final title = data['updateTitle']?.toString() ??
+        'New Version Available';
+
+    final message = data['updateMessage']?.toString() ??
+        'A new version of VietLoveDating is available.';
+
+    final storeUrl = Platform.isAndroid
+        ? data['androidUrl']?.toString() ?? ''
+        : data['iosUrl']?.toString() ?? '';
+
+    if (!mounted || navigatorKey.currentContext == null) return;
+
+   
+await showDialog<void>(
+  context: navigatorKey.currentContext!,
+  barrierDismissible: true,
+  builder: (dialogContext) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFE84D91)
+                  .withOpacity(0.18),
+              blurRadius: 25,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(
+                24, 28, 24, 24,
+              ),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Color(0xFFFFE5F0),
+                    Color(0xFFFFF5F9),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(28),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFCE0ED),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      color: Color(0xFFE84D91),
+                      size: 40,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFB92F70),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.5,
+                      color: Color(0xFF795267),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: const Text(
+                      'NEW VERSION AVAILABLE',
+                      style: TextStyle(
+                        color: Color(0xFFC23A7A),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                22, 20, 22, 22,
+              ),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE84D91),
+                        foregroundColor: Colors.white,
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final uri = Uri.tryParse(storeUrl);
+
+                        if (uri == null ||
+                            uri.scheme != 'https') {
+                          return;
+                        }
+
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      },
+                      child: const Text(
+                        'UPDATE NOW',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF795267),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      onPressed: () async {
+                        final prefs =
+                            await SharedPreferences.getInstance();
+
+                       await prefs.setInt(
+  'updatePopupDismissedAt_$latestVersion',
+  DateTime.now().millisecondsSinceEpoch,
+);
+
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                      },
+                      child: const Text(
+                        'Maybe Later',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Your next connection could be just around the corner ❤️',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  },
+);
+
+  } catch (e) {
+    debugPrint('Optional update check error: $e');
+  }
+}
   String _languageCode = 'vi';
   bool _isReady = true;
   late final PushNotificationService _pushService;
@@ -108,6 +385,9 @@ void initState() {
   });
 
   _loadSavedLanguage();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+  _checkForOptionalUpdate();
+});
 } // thêm dấu đóng initState ở đây
 
  void _initDeepLink() {

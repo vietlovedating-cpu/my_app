@@ -6,7 +6,10 @@ const { google } = require("googleapis");
 const crypto = require("crypto");
 
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onDocumentUpdated } = require("firebase-functions/v2/firestore");
+const {
+  onDocumentUpdated,
+  onDocumentWritten,
+} = require("firebase-functions/v2/firestore");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onMessagePublished } =
   require("firebase-functions/v2/pubsub");
@@ -808,21 +811,65 @@ async function sendVipReminderForDay(days, flagField) {
     const fcmToken = userData.fcmToken || "";
     const isVi = userData.languageCode === "vi";
 
-    await sendPushNotification({
-      token: fcmToken,
-      title: isVi ? "VIP sắp hết hạn" : "VIP expiring soon",
-      body: isVi
-        ? `VIP của bạn sẽ hết hạn sau ${days} ngày.`
-        : `Your VIP will expire in ${days} day${days > 1 ? "s" : ""}.`,
-      data: {
-        type: `vip_${days}d`,
-      },
+    // Check VIP notification setting
+    const vipEnabled = await isNotificationEnabled(
+      userDoc.id,
+      "vip"
+    );
+
+   if (vipEnabled) {
+  const title = isVi
+    ? "VIP sắp hết hạn"
+    : "VIP expiring soon";
+
+  const body = isVi
+    ? `VIP của bạn sẽ hết hạn sau ${days} ngày.`
+    : `Your VIP will expire in ${days} day${days > 1 ? "s" : ""}.`;
+
+  // Send Push Notification
+  await sendPushNotification({
+    token: fcmToken,
+    title,
+    body,
+    data: {
+      type: `vip_${days}d`,
+    },
+  });
+
+  // Save to Inbox
+  await userDoc.ref
+    .collection("notifications")
+    .add({
+      title,
+      body,
+      type: `vip_${days}d`,
+      sender: "system",
+      senderName: "VietLoveDating",
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+}
 
     await userDoc.ref.update({
       [flagField]: true,
       vipUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+  }
+}
+async function isNotificationEnabled(userId, type) {
+  try {
+    const snap = await admin.firestore()
+      .collection("users")
+      .doc(userId)
+      .collection("settings")
+      .doc("notifications")
+      .get();
+
+    const data = snap.data() || {};
+    return data[type] !== false;
+  } catch (error) {
+    console.error("Notification setting error:", error);
+    return true;
   }
 }
 exports.sendVipReminder7d = onSchedule(
@@ -2826,6 +2873,14 @@ exports.verifyGoogleVipPurchase = onCall(
 
       const userSnap = await userRef.get();
       const oldData = userSnap.data() || {};
+      const isFirstVipUpgrade =
+  isActive &&
+  !oldData.vipFirstUpgradeAt &&
+  !oldData.vipPurchasedAt &&
+  !oldData.googlePurchaseToken &&
+  !oldData.googleOrderId &&
+  !oldData.vipOriginalTransactionId &&
+  !oldData.vipTransactionId;
 
       const oldOrderId = oldData.googleOrderId || "";
       const oldRenewCount = Number(oldData.vipRenewCount || 0);
@@ -2838,6 +2893,12 @@ exports.verifyGoogleVipPurchase = onCall(
 
       await userRef.set(
         {
+          ...(isFirstVipUpgrade
+  ? {
+      vipFirstUpgradeAt:
+        admin.firestore.FieldValue.serverTimestamp(),
+    }
+  : {}),
           isVip: isActive,
           vipUnlocked: isActive,
           membership: isActive ? "vip" : "",
@@ -3278,6 +3339,14 @@ if (processedSnap.exists) {
 
 const userSnap = await userRef.get();
 const oldData = userSnap.data() || {};
+const isFirstVipUpgrade =
+  isActive &&
+  !oldData.vipFirstUpgradeAt &&
+  !oldData.vipPurchasedAt &&
+  !oldData.googlePurchaseToken &&
+  !oldData.googleOrderId &&
+  !oldData.vipOriginalTransactionId &&
+  !oldData.vipTransactionId;
 
 const oldTransactionId = oldData.vipTransactionId || "";
 const oldOriginalTransactionId =
@@ -3293,6 +3362,12 @@ const oldRenewCount = Number(oldData.renewCount || 0);
 
       await userRef.set(
         {
+              ...(isFirstVipUpgrade
+      ? {
+          vipFirstUpgradeAt:
+            admin.firestore.FieldValue.serverTimestamp(),
+        }
+      : {}),
           isVip: isActive,
           vipUnlocked: isActive,
           membership: isActive ? "vip" : "",
@@ -4802,5 +4877,434 @@ exports.declineLuckySpinReward = onCall(
         "Could not decline reward."
       );
     }
+  }
+);
+
+
+
+
+
+// ============================================================
+// ADMIN BROADCAST
+// All Users / VIP Members / Individual User / Free Members
+// Respects each user's Support Notifications setting
+// ============================================================
+
+exports.sendAdminBroadcast = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+  },
+  async (request) => {
+    // 1. Check authentication
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "You must be signed in."
+      );
+    }
+
+    // 2. Only allow administrator
+    const adminEmail = (
+      request.auth.token.email || ""
+    ).toString().trim().toLowerCase();
+
+    if (adminEmail !== "katetranlife@gmail.com") {
+      throw new HttpsError(
+        "permission-denied",
+        "Only the administrator can send broadcasts."
+      );
+    }
+
+    // 3. Validate input
+    const title = (request.data?.title || "").toString().trim();
+    const body = (request.data?.body || "").toString().trim();
+    const target = (request.data?.target || "").toString().trim();
+    const identifier = (request.data?.identifier || "")
+      .toString()
+      .trim();
+
+    const validTargets = [
+      "all",
+      "vip",
+      "individual",
+      "free",
+    ];
+
+    if (!validTargets.includes(target)) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Invalid recipient type."
+      );
+    }
+
+    if (!title || !body) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Title and message are required."
+      );
+    }
+
+    if (title.length > 100 || body.length > 3000) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Title or message is too long."
+      );
+    }
+
+    if (target === "individual" && !identifier) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Please enter an email address or User ID."
+      );
+    }
+
+    const db = admin.firestore();
+    const usersRef = db.collection("users");
+
+    const now = Date.now();
+
+    // 4. Check active VIP membership
+    const hasActiveVip = (userData) => {
+      const expiry = userData.vipExpiresAt;
+
+      if (!expiry) return false;
+
+      let expiryMs = 0;
+
+      if (typeof expiry.toMillis === "function") {
+        expiryMs = expiry.toMillis();
+      } else if (expiry instanceof Date) {
+        expiryMs = expiry.getTime();
+      } else if (typeof expiry === "number") {
+        expiryMs = expiry;
+      } else {
+        expiryMs = new Date(expiry).getTime();
+      }
+
+      return Number.isFinite(expiryMs) && expiryMs > now;
+    };
+
+    // 5. Check user's Support Notifications setting
+    // If setting does not exist, default to TRUE.
+    const hasSupportNotificationsEnabled = async (userRef) => {
+      const settingsDoc = await userRef
+        .collection("settings")
+        .doc("notifications")
+        .get();
+
+      if (!settingsDoc.exists) {
+        return true;
+      }
+
+      const settings = settingsDoc.data() || {};
+
+      return settings.support !== false;
+    };
+
+    // 6. Create Inbox notification
+    const addNotification = (batch, userRef) => {
+      const notificationRef = userRef
+        .collection("notifications")
+        .doc();
+
+      batch.set(notificationRef, {
+        title: title,
+        body: body,
+        type: "admin_message",
+        sender: "admin",
+        senderName: "VietLoveDating Admin",
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    };
+
+    let sentCount = 0;
+    let skippedCount = 0;
+
+    // ========================================================
+    // 7. INDIVIDUAL USER
+    // ========================================================
+    if (target === "individual") {
+      let authUser;
+
+      try {
+        if (identifier.includes("@")) {
+          authUser = await admin.auth().getUserByEmail(
+            identifier.toLowerCase()
+          );
+        } else {
+          authUser = await admin.auth().getUser(identifier);
+        }
+      } catch (error) {
+        throw new HttpsError(
+          "not-found",
+          "User not found. Check the email or User ID."
+        );
+      }
+
+      const userRef = usersRef.doc(authUser.uid);
+      const userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        throw new HttpsError(
+          "not-found",
+          "This user does not have a Firestore profile."
+        );
+      }
+
+      const supportEnabled =
+        await hasSupportNotificationsEnabled(userRef);
+
+      if (!supportEnabled) {
+        skippedCount = 1;
+
+        return {
+          success: true,
+          sentCount: 0,
+          skippedCount: skippedCount,
+          target: target,
+          message: "User has disabled Support Notifications.",
+        };
+      }
+
+      const batch = db.batch();
+
+      addNotification(batch, userRef);
+
+      await batch.commit();
+
+      sentCount = 1;
+    }
+
+    // ========================================================
+    // 8. ALL USERS / VIP MEMBERS / FREE MEMBERS
+    // ========================================================
+    else {
+      const pageSize = 400;
+      let lastDoc = null;
+
+      while (true) {
+        let query = usersRef
+          .orderBy(admin.firestore.FieldPath.documentId())
+          .limit(pageSize);
+
+        if (lastDoc) {
+          query = query.startAfter(lastDoc);
+        }
+
+        const snapshot = await query.get();
+
+        if (snapshot.empty) {
+          break;
+        }
+
+        // Check support notification settings
+        const eligibleUsers = await Promise.all(
+          snapshot.docs.map(async (userDoc) => {
+            const supportEnabled =
+              await hasSupportNotificationsEnabled(userDoc.ref);
+
+            if (!supportEnabled) {
+              return null;
+            }
+
+            const userData = userDoc.data();
+            const activeVip = hasActiveVip(userData);
+
+            let shouldSend = false;
+
+            if (target === "all") {
+              shouldSend = true;
+            } else if (target === "vip") {
+              shouldSend = activeVip;
+            } else if (target === "free") {
+              shouldSend = !activeVip;
+            }
+
+            return shouldSend ? userDoc : null;
+          })
+        );
+
+        // Write notifications in batches
+        const batch = db.batch();
+        let batchCount = 0;
+
+        for (const userDoc of eligibleUsers) {
+          if (!userDoc) continue;
+
+          addNotification(batch, userDoc.ref);
+          batchCount++;
+        }
+
+        if (batchCount > 0) {
+          await batch.commit();
+          sentCount += batchCount;
+        }
+
+        lastDoc = snapshot.docs[snapshot.docs.length - 1];
+
+        if (snapshot.size < pageSize) {
+          break;
+        }
+      }
+    }
+
+    // 9. Log result
+    console.log("ADMIN BROADCAST COMPLETED:", {
+      adminEmail: adminEmail,
+      target: target,
+      sentCount: sentCount,
+      skippedCount: skippedCount,
+    });
+
+    // 10. Return result
+    return {
+      success: true,
+      sentCount: sentCount,
+      skippedCount: skippedCount,
+      target: target,
+    };
+  }
+);
+
+
+
+
+// ============================================================
+// DISCOVER INDEX - STEP 1
+// Keep original user fields. Only add discover* fields.
+// ============================================================
+
+function discoverString(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function discoverFirstNonEmpty(data, keys) {
+  for (const key of keys) {
+    const value = data[key];
+    const result = String(value ?? "").trim();
+
+    if (
+      result &&
+      result.toLowerCase() !== "null" &&
+      result.toLowerCase() !== "nan"
+    ) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function discoverStateKey(value) {
+  const v = discoverString(value);
+
+  if (v === "vic" || v.includes("victoria")) return "vic";
+  if (v === "nsw" || v.includes("new south wales")) return "nsw";
+  if (v === "qld" || v.includes("queensland")) return "qld";
+  if (v === "sa" || v.includes("south australia")) return "sa";
+  if (v === "wa" || v.includes("western australia")) return "wa";
+  if (v === "tas" || v.includes("tasmania")) return "tas";
+  if (
+    v === "act" ||
+    v.includes("australian capital territory")
+  ) return "act";
+  if (v === "nt" || v.includes("northern territory")) return "nt";
+
+  return v;
+}
+
+function discoverGenderKey(value) {
+  const raw = discoverString(value);
+
+  if (["male", "man", "nam"].includes(raw)) return "male";
+  if (["female", "woman", "nu", "nữ"].includes(raw)) {
+    return "female";
+  }
+  if (["other", "khác"].includes(raw)) return "other";
+
+  if (
+    ["everyone", "all", "both", "tất cả"].includes(raw)
+  ) {
+    return "everyone";
+  }
+
+  return raw;
+}
+
+function buildDiscoverIndexFields(data) {
+  const photo = String(data.mainPhotoUrl ?? "").trim();
+
+  const age = Number.parseInt(
+    String(data.age ?? ""),
+    10
+  );
+
+  const country = discoverFirstNonEmpty(data, [
+    "selectedCountry",
+    "country",
+  ]);
+
+  const state = discoverFirstNonEmpty(data, [
+    "selectedStateKey",
+    "selectedState",
+    "state",
+    "stateLiving",
+    "livingState",
+    "filterStateKey",
+    "filterState",
+    "stateProvince",
+    "province",
+    "region",
+  ]);
+
+  const eligible =
+    data.profileCompleted === true &&
+    photo.length > 0 &&
+    data.showMyProfile !== false &&
+    data.showOnDiscover !== false &&
+    data.accountPaused !== true &&
+    data.isPaused !== true &&
+    data.isDeleted !== true;
+
+  return {
+    discoverEligible: eligible,
+    discoverGenderKey: discoverGenderKey(data.gender),
+    discoverAge: Number.isFinite(age) ? age : null,
+    discoverCountryKey: discoverString(country),
+    discoverCountryCodeKey: discoverString(data.countryCode),
+    discoverStateKey: discoverStateKey(state),
+    discoverIndexVersion: 1,
+  };
+}
+
+exports.syncDiscoverIndex = onDocumentWritten(
+  {
+    document: "users/{userId}",
+    region: "us-central1",
+    memory: "256MiB",
+  },
+  async (event) => {
+    const after = event.data?.after;
+
+    if (!after?.exists) return;
+
+    const data = after.data() || {};
+    const desired = buildDiscoverIndexFields(data);
+    const updates = {};
+
+    for (const [key, value] of Object.entries(desired)) {
+      if (data[key] !== value) {
+        updates[key] = value;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return;
+    }
+
+    await after.ref.set(updates, { merge: true });
   }
 );

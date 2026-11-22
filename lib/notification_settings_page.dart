@@ -22,6 +22,7 @@ bool groupMessageNotifications = true;
 
 bool matchNotifications = true;
 bool supportNotifications = true;
+bool vipNotifications = true;
 
   bool isLoading = true;
 
@@ -54,6 +55,7 @@ groupMessageNotifications = data['groupMessage'] ?? true;
 
 matchNotifications = data['match'] ?? true;
 supportNotifications = data['support'] ?? true;
+vipNotifications = data['vip'] ?? true;
     }
 
     setState(() {
@@ -71,6 +73,8 @@ supportNotifications = data['support'] ?? true;
 if (key == 'groupMessage') groupMessageNotifications = value;
 if (key == 'match') matchNotifications = value;
 if (key == 'support') supportNotifications = value;
+if (key == 'vip') vipNotifications = value;
+
     });
 
     // save Firebase
@@ -84,6 +88,7 @@ if (key == 'support') supportNotifications = value;
   'groupMessage': groupMessageNotifications,
   'match': matchNotifications,
   'support': supportNotifications,
+  'vip': vipNotifications,
 }, SetOptions(merge: true));
   }
 
@@ -148,6 +153,17 @@ const SizedBox(height: 12),
                   value: supportNotifications,
                   onChanged: (v) => _updateSetting('support', v),
                 ),
+                const SizedBox(height: 12),
+
+_buildSwitchTile(
+  title: _tr('Thông báo VIP', 'VIP notifications'),
+  subtitle: _tr(
+    'Nhắc nhở khi gói VIP sắp hết hạn',
+    'Reminders when your VIP is about to expire',
+  ),
+  value: vipNotifications,
+  onChanged: (v) => _updateSetting('vip', v),
+),
               ],
             ),
     );

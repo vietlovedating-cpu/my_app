@@ -43,6 +43,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
    DateTime? _lastBackPressedAt;
 
   bool _isProcessingAction = false;
+  bool _lastSwipeSaved = false;
   int _selectedBottomIndex = 3;
 Set<String> _myContactPhones = {};
 Set<String> _myContactEmails = {};
@@ -56,6 +57,11 @@ bool _isVoicePromptLoading = false;
 String? _playingVoicePromptUrl;
 Future<List<Map<String, dynamic>>>? _profilesFuture;
 bool _dailyDiscoverLimitReached = false;
+List<Map<String, dynamic>> _discoverProfiles = [];
+DocumentSnapshot<Map<String, dynamic>>? _lastDiscoverDocument;
+final Map<String, Future<bool>> _discoverProfileChecks = {};
+bool _isLoadingMoreDiscoverProfiles = false;
+bool _hasMoreDiscoverProfiles = true;
 bool _hasCheckedHomeTutorial = false;
 StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
     _homeTutorialSettingSub;
@@ -89,7 +95,7 @@ double? selectedDistanceKm;
 // DAILY DISCOVER LIMIT
 // ===========================================================
 
-int get _dailyDiscoverLimit => isVipUser ? 20 : 10;
+int get _dailyDiscoverLimit => isVipUser ? 26 : 12;
 
 DateTime _discoverResetTime() {
   final now = DateTime.now();
@@ -136,14 +142,28 @@ int _dailyDiscoverShuffleSeed() {
 
   return seed;
 }
+
 Future<int> _todayDiscoverActionCount() async {
   final user = currentUser;
   if (user == null) return 0;
 
-  final resetTime = _discoverResetTime();
+  // Mặc định tính từ giờ reset 9:00 hoặc 18:00.
+  DateTime countFrom = _discoverResetTime();
 
-  // Chỉ dùng query đã có sẵn theo fromUserId,
-  // tránh phải tạo thêm Firestore composite index.
+  // Nếu là VIP, kiểm tra thời điểm nâng cấp VIP lần đầu.
+  // Không tính các lượt Free đã dùng trước khi nâng cấp.
+  if (isVipUser) {
+    final firstUpgradeAt = currentUserData?['vipFirstUpgradeAt'];
+
+    if (firstUpgradeAt is Timestamp) {
+      final upgradeTime = firstUpgradeAt.toDate();
+
+      if (upgradeTime.isAfter(countFrom)) {
+        countFrom = upgradeTime;
+      }
+    }
+  }
+
   final snapshot = await FirebaseFirestore.instance
       .collection('swipes')
       .where('fromUserId', isEqualTo: user.uid)
@@ -157,7 +177,6 @@ Future<int> _todayDiscoverActionCount() async {
     final action =
         (data['action'] ?? '').toString().trim().toLowerCase();
 
-    // Chỉ tính những hành động Discover thật sự.
     if (action != 'pass' &&
         action != 'like' &&
         action != 'flower') {
@@ -166,19 +185,18 @@ Future<int> _todayDiscoverActionCount() async {
 
     final createdAt = data['createdAt'];
 
-    if (createdAt is! Timestamp) {
-      continue;
-    }
+    if (createdAt is! Timestamp) continue;
 
     final actionTime = createdAt.toDate();
 
-    if (!actionTime.isBefore(resetTime)) {
+    if (!actionTime.isBefore(countFrom)) {
       count++;
     }
   }
 
   return count;
 }
+
 
 Future<int> _remainingDiscoverToday() async {
   final used = await _todayDiscoverActionCount();
@@ -307,7 +325,7 @@ void didChangeAppLifecycleState(AppLifecycleState state) {
       if (!mounted) return;
 
       setState(() {
-        _profilesFuture = _loadProfilesWithDailyLimit();
+        _startDiscoverProfilesLoad();
       });
     });
   } else if (state == AppLifecycleState.inactive ||
@@ -504,7 +522,7 @@ selectedPhotoVerifiedOnly =
 selectedNewHereOnly =
     data['filterNewHereOnly'] == true;
 
-      _profilesFuture = _loadProfilesWithDailyLimit();
+      _startDiscoverProfilesLoad();
     });
   }
 
@@ -933,6 +951,7 @@ String _formatDiscoverCountdown(Duration duration) {
       '${twoDigits(minutes)}:'
       '${twoDigits(seconds)}';
 }
+
 Widget _buildDailyDiscoverCountdown() {
   return StreamBuilder<int>(
     stream: Stream<int>.periodic(
@@ -967,24 +986,75 @@ Widget _buildDailyDiscoverCountdown() {
               color: Colors.grey.shade600,
             ),
           ),
+
+          const SizedBox(height: 18),
+
+          if (!isVipUser) ...[
+            Text(
+              _label(
+                'Nâng cấp VIP để xem nhiều hồ sơ hơn và khám phá thêm nhiều người phù hợp với bạn!',
+                'Upgrade to VIP to view more profiles and discover more people who may be right for you!',
+              ),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFCC3D7A),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _selectedBottomIndex = 4;
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFCC3D7A),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 12,
+                ),
+              ),
+              child: Text(
+                _label('Nâng cấp VIP ngay', 'Upgrade to VIP'),
+              ),
+            ),
+          ],
         ],
       );
     },
   );
 }
-  Future<List<Map<String, dynamic>>> _loadProfiles() async {
+
+ Future<List<Map<String, dynamic>>> _loadProfiles({
+  DocumentSnapshot<Map<String, dynamic>>? startAfterDocument,
+}) async {
   final user = currentUser;
   if (user == null) return [];
 
   final currentUid = user.uid;
+  Query<Map<String, dynamic>> usersQuery =
+    FirebaseFirestore.instance
+        .collection('users')
+        .where('profileCompleted', isEqualTo: true)
+        .orderBy(FieldPath.documentId)
+        .limit(100);
+
+if (startAfterDocument != null) {
+  usersQuery = usersQuery.startAfterDocument(startAfterDocument);
+}
 
  final results = await Future.wait<dynamic>([
   _loadLikedMeData(),
 
- FirebaseFirestore.instance
-    .collection('users')
-    .where('profileCompleted', isEqualTo: true)
-    .get(),
+usersQuery.get(),
 
   FirebaseFirestore.instance
       .collection('swipes')
@@ -1014,6 +1084,11 @@ final likedMeData =
 
 final usersSnapshot =
     results[1] as QuerySnapshot<Map<String, dynamic>>;
+    if (usersSnapshot.docs.isNotEmpty) {
+  _lastDiscoverDocument = usersSnapshot.docs.last;
+}
+
+_hasMoreDiscoverProfiles = usersSnapshot.docs.length == 100;
 
 final swipesSnapshot =
     results[2] as QuerySnapshot<Map<String, dynamic>>;
@@ -1470,8 +1545,27 @@ passedProfiles.addAll(
 
 return passedProfiles;
 }
+
+
+// Dùng chung cho mọi lần khởi tạo / tải lại Discover.
+Future<List<Map<String, dynamic>>> _startDiscoverProfilesLoad() {
+  final future = _loadProfilesWithDailyLimit().then((profiles) {
+    _discoverProfiles = List<Map<String, dynamic>>.from(profiles);
+
+    // Hiển thị batch hợp lệ đầu tiên ngay;
+    // phần còn thiếu tiếp tục tải nền.
+    if (_discoverProfiles.isNotEmpty && _hasMoreDiscoverProfiles) {
+      _loadMoreDiscoverProfiles();
+    }
+
+    return _discoverProfiles;
+  });
+
+  _profilesFuture = future;
+  return future;
+}
+
 Future<List<Map<String, dynamic>>> _loadProfilesWithDailyLimit() async {
-  // Tính số lượt còn lại trong chu kỳ hiện tại.
   final remaining = await _remainingDiscoverToday();
 
   _dailyDiscoverLimitReached = remaining <= 0;
@@ -1480,29 +1574,31 @@ Future<List<Map<String, dynamic>>> _loadProfilesWithDailyLimit() async {
     return [];
   }
 
-  // Giữ nguyên toàn bộ logic tải, lọc và sắp xếp người mới.
- final newProfiles = await _loadProfiles();
+  // Reset về batch đầu tiên khi khởi tạo hoặc tải lại Discover.
+  _lastDiscoverDocument = null;
+  _hasMoreDiscoverProfiles = true;
 
-final result = <Map<String, dynamic>>[];
+  // Chỉ tải một batch có hồ sơ phù hợp để hiển thị trước.
+  // Nếu batch không có hồ sơ phù hợp, tiếp tục sang batch kế tiếp.
+  while (_hasMoreDiscoverProfiles) {
+    final batch = await _loadProfiles(
+      startAfterDocument: _lastDiscoverDocument,
+    );
 
-// Luôn ưu tiên người mới trước.
-result.addAll(newProfiles);
+    if (batch.isNotEmpty) {
+      return batch.take(remaining).toList();
+    }
+  }
 
-// Nếu chưa đủ quota thì bổ sung người đã Pass.
-if (result.length < remaining) {
-  final neededPassedProfiles =
-      remaining - result.length;
-
-  final passedProfiles =
-      await _loadPreviouslyPassedProfiles(
-    limit: neededPassedProfiles,
+  // Chỉ dùng hồ sơ đã Pass khi đã hết hồ sơ mới.
+  final passedProfiles = await _loadPreviouslyPassedProfiles(
+    limit: remaining,
   );
 
-  result.addAll(passedProfiles);
+  return passedProfiles.take(remaining).toList();
 }
-// Chỉ trả đúng số lượng còn lại hôm nay.
-return result.take(remaining).toList();
-}
+
+
 
 bool _isNewHere(Map<String, dynamic> profile) {
   final createdAt = profile['createdAt'];
@@ -1757,8 +1853,262 @@ if (selectedIncomeFilter != null &&
 
   return true;
 }
+Future<bool> _isDiscoverProfileStillAvailable(
+  Map<String, dynamic> profile,
+) async {
+  final docId = (profile['docId'] ?? '').toString().trim();
 
-  Future<void> _handlePass({
+  if (docId.isEmpty) return false;
+
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(docId)
+      .get();
+
+  if (!userDoc.exists) return false;
+
+  final data = userDoc.data();
+
+  if (data == null || data['isDeleted'] == true) {
+    return false;
+  }
+
+  return true;
+}
+void _removeDiscoverProfile(
+  Map<String, dynamic> targetProfile,
+) {
+  final targetUid =
+      (targetProfile['uid'] ?? targetProfile['docId'] ?? '')
+          .toString()
+          .trim();
+
+  if (targetUid.isEmpty || !mounted) return;
+
+  _discoverProfileChecks.remove(targetUid);
+
+  setState(() {
+    _discoverProfiles.removeWhere((profile) {
+      final profileUid =
+          (profile['uid'] ?? profile['docId'] ?? '')
+              .toString()
+              .trim();
+
+      return profileUid == targetUid;
+    });
+  });
+
+  if (_discoverProfiles.length <= 5) {
+    _loadMoreDiscoverProfiles();
+  }
+}
+Future<void> _loadMoreDiscoverProfiles() async {
+ if (!mounted || _isLoadingMoreDiscoverProfiles) {
+  return;
+}
+
+  setState(() {
+    _isLoadingMoreDiscoverProfiles = true;
+  }); 
+
+try {
+  // Kiểm tra quota ngay cả khi không còn profile mới để tải.
+  final initialRemaining = await _remainingDiscoverToday();
+
+  if (!mounted) return;
+
+  final initialLimitReached = initialRemaining <= 0;
+
+  if (_dailyDiscoverLimitReached != initialLimitReached ||
+      (initialLimitReached && _discoverProfiles.isNotEmpty)) {
+    setState(() {
+      _dailyDiscoverLimitReached = initialLimitReached;
+
+      // Hết lượt thì không hiển thị các profile còn sót.
+      if (initialLimitReached) {
+        _discoverProfiles.clear();
+      }
+    });
+  }
+
+  if (initialLimitReached) return;
+
+  while (mounted && _hasMoreDiscoverProfiles) {
+      final remaining = await _remainingDiscoverToday();
+
+      if (!mounted) return;
+
+     final limitReached = remaining <= 0;
+
+if (limitReached) {
+  if (mounted &&
+      (!_dailyDiscoverLimitReached || _discoverProfiles.isNotEmpty)) {
+    setState(() {
+      _dailyDiscoverLimitReached = true;
+      _discoverProfiles.clear();
+    });
+  }
+
+  break;
+}
+
+if (_dailyDiscoverLimitReached && mounted) {
+  setState(() {
+    _dailyDiscoverLimitReached = false;
+  });
+}
+
+if (remaining <= _discoverProfiles.length) {
+  break;
+}
+
+      final batch = await _loadProfiles(
+        startAfterDocument: _lastDiscoverDocument,
+      );
+
+      if (!mounted) return;
+
+      if (batch.isEmpty) {
+        continue;
+      }
+
+      final existingIds = _discoverProfiles
+          .map((profile) =>
+              (profile['uid'] ?? profile['docId'] ?? '')
+                  .toString()
+                  .trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+
+      final newProfiles = batch.where((profile) {
+        final uid =
+            (profile['uid'] ?? profile['docId'] ?? '')
+                .toString()
+                .trim();
+
+        return uid.isNotEmpty && !existingIds.contains(uid);
+      }).toList();
+
+      if (newProfiles.isEmpty) {
+        continue;
+      }
+
+      final availableSlots = remaining - _discoverProfiles.length;
+
+      setState(() {
+        _discoverProfiles.addAll(
+          newProfiles.take(availableSlots),
+        );
+      });
+
+      if (_discoverProfiles.length >= remaining) {
+        break;
+      }
+    }
+    // Chỉ tải người đã Pass khi đã hết toàn bộ hồ sơ mới.
+if (mounted && !_hasMoreDiscoverProfiles) {
+  final remaining = await _remainingDiscoverToday();
+
+  if (!mounted) return;
+
+  final availableSlots = remaining - _discoverProfiles.length;
+
+  if (availableSlots > 0) {
+    final passedProfiles = await _loadPreviouslyPassedProfiles(
+      limit: availableSlots,
+    );
+
+    if (!mounted) return;
+
+    final existingIds = _discoverProfiles
+        .map((profile) =>
+            (profile['uid'] ?? profile['docId'] ?? '')
+                .toString()
+                .trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    final newPassedProfiles = passedProfiles.where((profile) {
+      final uid =
+          (profile['uid'] ?? profile['docId'] ?? '')
+              .toString()
+              .trim();
+
+      return uid.isNotEmpty && !existingIds.contains(uid);
+    }).take(availableSlots).toList();
+
+    if (newPassedProfiles.isNotEmpty) {
+      setState(() {
+        _discoverProfiles.addAll(newPassedProfiles);
+      });
+    }
+  }
+}
+  } catch (e) {
+    debugPrint('LOAD MORE DISCOVER ERROR: $e');
+    } finally {
+    if (mounted) {
+      setState(() {
+        _isLoadingMoreDiscoverProfiles = false;
+      });
+    } else {
+      _isLoadingMoreDiscoverProfiles = false;
+    }
+  }
+}
+Future<Map<String, dynamic>?> _getProfileIfStillEligible(
+  Map<String, dynamic> cachedProfile,
+) async {
+  final docId = (cachedProfile['docId'] ?? '').toString().trim();
+
+  if (docId.isEmpty) return null;
+
+  final userDoc = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(docId)
+      .get();
+
+  // Profile đã bị xóa.
+  if (!userDoc.exists) return null;
+
+  final data = userDoc.data();
+
+  if (data == null) return null;
+
+  final uid = (data['uid'] ?? userDoc.id).toString().trim();
+
+  if (uid.isEmpty || uid == currentUser?.uid) return null;
+
+  final mainPhotoUrl =
+      (data['mainPhotoUrl'] ?? '').toString().trim();
+
+  if (mainPhotoUrl.isEmpty) return null;
+  if (data['profileCompleted'] != true) return null;
+  if (data['showMyProfile'] == false) return null;
+  if (data['showOnDiscover'] == false) return null;
+  if (data['accountPaused'] == true) return null;
+  if (data['isPaused'] == true) return null;
+  if (data['isDeleted'] == true) return null;
+
+  final profile = <String, dynamic>{
+    'docId': userDoc.id,
+    ...data,
+    if (cachedProfile.containsKey('incomingLike'))
+      'incomingLike': cachedProfile['incomingLike'],
+  };
+
+  // Giữ nguyên kiểm tra danh bạ và bộ lọc hiện tại.
+  if (_shouldHideUserBecauseInMyContacts(profile)) {
+    return null;
+  }
+
+  if (!_matchesFilters(profile)) {
+    return null;
+  }
+
+  return profile;
+}
+ Future<void> _handlePass({
   required Map<String, dynamic> targetProfile,
 }) async {
   await _saveSwipe(
@@ -1768,9 +2118,7 @@ if (selectedIncomeFilter != null &&
 
   if (!mounted) return;
 
-  setState(() {
-   _profilesFuture = _loadProfilesWithDailyLimit();
-  });
+_removeDiscoverProfile(targetProfile);
 }
   Future<void> _createContentLikeMessagesAfterMatch({
   required Map<String, dynamic> targetProfile,
@@ -1995,16 +2343,11 @@ final didMatch = await _saveSwipe(
 
   if (!mounted) return;
 
-  if (didMatch) {
-
+if (_lastSwipeSaved && didMatch) {
   await _showMatchDialog(targetProfile);
 }
 
-  if (mounted) {
-  setState(() {
-  _profilesFuture = _loadProfilesWithDailyLimit();
-  });
-}
+ _removeDiscoverProfile(targetProfile);
 }
 Future<void> _saveBreakTheIceAnswer({
   required Map<String, dynamic> targetProfile,
@@ -2044,17 +2387,15 @@ Future<void> _saveBreakTheIceAnswer({
     action: 'like',
   );
 
+    if (!mounted) return;
+
+if (_lastSwipeSaved && didMatch) {
+  await _showMatchDialog(targetProfile);
+}
+
   if (!mounted) return;
 
-  if (didMatch) {
-    await _showMatchDialog(targetProfile);
-  }
-
-  if (!mounted) return;
-
-  setState(() {
-   _profilesFuture = _loadProfilesWithDailyLimit();
-  });
+    _removeDiscoverProfile(targetProfile);
 }
   Future<void> _handleFlower({
     required Map<String, dynamic> targetProfile,
@@ -2294,9 +2635,7 @@ await _saveSwipe(
       ),
     );
 
-    setState(() {
- _profilesFuture = _loadProfilesWithDailyLimit();
-});
+        _removeDiscoverProfile(targetProfile);
   }
 
  Future<bool> _saveSwipe({
@@ -2310,6 +2649,8 @@ await _saveSwipe(
   String? likedContentText,
   String? likeComment,
 }) async {
+       _lastSwipeSaved = false;
+
     final user = currentUser;
     if (user == null || _isProcessingAction) return false;
 
@@ -2326,8 +2667,8 @@ await _saveSwipe(
 
     bool didMatch = false;
 
-    try {
-      final docId = '${currentUid}_$targetUid';
+try {
+  final docId = '${currentUid}_$targetUid';
 
       await FirebaseFirestore.instance.collection('swipes').doc(docId).set({
   'fromUserId': currentUid,
@@ -2442,6 +2783,7 @@ if (action == 'like') {
   await _sendMatchNotification(targetProfile);
 }
       }
+      _lastSwipeSaved = true;
     } catch (e) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3046,7 +3388,7 @@ if (selectedStateFilter!.isEmpty) {
   if (!mounted) return;
 
   setState(() {
-    _profilesFuture = _loadProfilesWithDailyLimit();
+   _startDiscoverProfilesLoad();
   });
 
   return;
@@ -3135,7 +3477,7 @@ if (user != null) {
       if (!mounted) return;
 
       setState(() {
-        _profilesFuture = _loadProfilesWithDailyLimit();
+       _startDiscoverProfilesLoad();
       });
     }
   }
@@ -6322,16 +6664,95 @@ _reportReasonTile(
     }
   }
 
+
   Widget _buildBody() {
     if (_selectedBottomIndex == 0) {
      return FutureBuilder<List<Map<String, dynamic>>>(
- future: _profilesFuture ??= _loadProfilesWithDailyLimit(),
+ future: _profilesFuture ??= _startDiscoverProfilesLoad(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Colors.pink),
-            );
-          }
+       if (snapshot.connectionState == ConnectionState.waiting) {
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.favorite_rounded,
+                color: Color(0xFFE84D91),
+                size: 48,
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'VietLove',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFE84D91),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _label(
+                  'Đang tìm thêm người phù hợp...',
+                  'Finding more people for you...',
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFE84D91),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _label(
+                  'Chờ một chút nhé! VietLove đang tìm những hồ sơ phù hợp hơn với bạn',
+                  'Just a moment! VietLove is finding more suitable profiles for you',
+                ),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 22),
+              const CircularProgressIndicator(
+                color: Color(0xFFE84D91),
+              ),
+            ],
+          ),
+        ),
+      ),
+
+      // FILTER LUÔN HIỂN THỊ KHI LOADING
+      Positioned(
+        top: 118,
+        right: 18,
+        child: Material(
+          color: const Color(0xFFCC3D7A),
+          borderRadius: BorderRadius.circular(22),
+          elevation: 4,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: _openFilterSheet,
+            child: const Padding(
+              padding: EdgeInsets.all(10),
+              child: Icon(
+                Icons.tune_rounded,
+                color: Colors.white,
+                size: 23,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+}
 
           if (snapshot.hasError) {
             return Center(
@@ -6352,46 +6773,136 @@ _reportReasonTile(
             );
           }
 
-          final profiles = snapshot.data ?? [];
+          final profiles = _discoverProfiles;
 return Stack(
   fit: StackFit.expand,
   children: [
     // NỘI DUNG PROFILE / KHÔNG CÓ PROFILE
-    if (profiles.isEmpty)
-      Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _label(
-                  _dailyDiscoverLimitReached
-                      ? 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
-                      : 'Không có hồ sơ nào phù hợp với bộ lọc hiện tại.\nHãy thử thay đổi bộ lọc nhé. ❤️',
-                  _dailyDiscoverLimitReached
-                      ? 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
-                      : 'No profiles match your current filters.\nTry adjusting your filters. ❤️',
+   if (profiles.isEmpty)
+  _isLoadingMoreDiscoverProfiles
+      ? Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.favorite_rounded,
+                  color: Color(0xFFE84D91),
+                  size: 48,
                 ),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 18),
+                Text(
+                  _label(
+                    'Đang tìm thêm người phù hợp với bạn...',
+                    'Finding more people for you...',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFE84D91),
+                  ),
                 ),
-              ),
-
-              if (_dailyDiscoverLimitReached) ...[
-                const SizedBox(height: 24),
-                _buildDailyDiscoverCountdown(),
+                const SizedBox(height: 10),
+                Text(
+                  _label(
+                    'VietLove đang tìm thêm hồ sơ. Bạn chờ một chút nhé! ',
+                    'VietLove is looking for more profiles. Just a moment! ',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                const CircularProgressIndicator(
+                  color: Color(0xFFE84D91),
+                ),
               ],
-            ],
+            ),
           ),
-        ),
-      )
-    else
-      _buildHomeProfile(profiles.first, isVi),
+        )
+      : Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _label(
+                    _dailyDiscoverLimitReached
+                        ? 'Bạn đã xem hết hồ sơ trong lượt này 😊\nHồ sơ mới sẽ được mở lại vào lượt tiếp theo.'
+                        : 'Không có hồ sơ nào phù hợp với bộ lọc hiện tại.\nHãy thử thay đổi bộ lọc nhé. ❤️',
+                    _dailyDiscoverLimitReached
+                        ? 'You have reached the limit for this session 😊\nNew profiles will be available in the next session.'
+                        : 'No profiles match your current filters.\nTry adjusting your filters. ❤️',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (_dailyDiscoverLimitReached) ...[
+                  const SizedBox(height: 24),
+                  _buildDailyDiscoverCountdown(),
+                ],
+              ],
+            ),
+          ),
+        )
+else
+      FutureBuilder<bool>(
+  future: _discoverProfileChecks.putIfAbsent(
+    (profiles.first['docId'] ?? '').toString(),
+    () => _isDiscoverProfileStillAvailable(profiles.first),
+  ),
+  builder: (context, checkSnapshot) {
+    if (checkSnapshot.connectionState == ConnectionState.waiting) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.pink),
+      );
+    }
+if (checkSnapshot.hasError) {
+  return Center(
+    child: Text(
+      _label(
+        'Không thể kiểm tra hồ sơ. Vui lòng thử lại.',
+        'Unable to verify profile. Please try again.',
+      ),
+    ),
+  );
+}
+    if (checkSnapshot.data != true) {
+      final invalidProfile = profiles.first;
+      final invalidId =
+          (invalidProfile['docId'] ?? '').toString();
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _discoverProfiles.isEmpty) return;
+
+        final currentId =
+            (_discoverProfiles.first['docId'] ?? '').toString();
+
+        if (currentId == invalidId) {
+          _discoverProfileChecks.remove(invalidId);
+          _removeDiscoverProfile(invalidProfile);
+        }
+      });
+
+      return const SizedBox.shrink();
+    }
+
+    return _buildHomeProfile(profiles.first, isVi);
+  },
+),
 
     // REPORT + FILTER LUÔN NẰM ĐÚNG VỊ TRÍ CŨ
+
+  
+
     Positioned(
       top: 118,
       right: 18,
@@ -6403,9 +6914,41 @@ return Stack(
             borderRadius: BorderRadius.circular(22),
             child: InkWell(
               borderRadius: BorderRadius.circular(22),
-              onTap: profiles.isEmpty
-                  ? null
-                  : () => _showSafetyActionsSheet(profiles.first),
+             onTap: profiles.isEmpty
+    ? null
+    : () async {
+        final profile = profiles.first;
+        final profileId = (profile['docId'] ?? '').toString();
+
+        if (profileId.isEmpty) return;
+
+        final isAvailable =
+            await _discoverProfileChecks.putIfAbsent(
+          profileId,
+          () => _isDiscoverProfileStillAvailable(profile),
+        );
+
+        if (!mounted) return;
+
+        if (!isAvailable) {
+          _discoverProfileChecks.remove(profileId);
+
+          if (_discoverProfiles.isNotEmpty &&
+              (_discoverProfiles.first['docId'] ?? '').toString() ==
+                  profileId) {
+            _removeDiscoverProfile(profile);
+          }
+          return;
+        }
+
+        if (_discoverProfiles.isEmpty ||
+            (_discoverProfiles.first['docId'] ?? '').toString() !=
+                profileId) {
+          return;
+        }
+
+        _showSafetyActionsSheet(profile);
+      },
               child: Padding(
                 padding: const EdgeInsets.all(9),
                 child: Icon(
@@ -6607,15 +7150,16 @@ return PopScope(
   // Từ tab Games hoặc Me quay về Home:
   // reload lại flowerBalance và dữ liệu user.
   if ((_selectedBottomIndex == 3 ||
-          _selectedBottomIndex == 5) &&
-      index == 0) {
+        _selectedBottomIndex == 4 ||
+        _selectedBottomIndex == 5) &&
+    index == 0) {
     await _reloadCurrentUserData();
 
     if (!mounted) return;
 
     setState(() {
       _selectedBottomIndex = 0;
-      _profilesFuture = _loadProfilesWithDailyLimit();
+      _startDiscoverProfilesLoad();
     });
 
     return;
