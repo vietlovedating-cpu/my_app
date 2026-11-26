@@ -158,24 +158,24 @@ String? _pendingVipPlanId;
     });
   }
 
- String _displayPrice(_VipPlan plan) {
-  if (plan.id == '1_week') {
-    return _label('\$14.99/tuần', '\$14.99/week');
+String _displayPrice(_VipPlan plan) {
+  final storePrice = _storeProducts[plan.productId]?.price;
+  if (storePrice != null && storePrice.isNotEmpty) {
+    return storePrice;
   }
 
-  if (plan.id == '1_month') {
-    return _label('\$29.99/tháng', '\$29.99/month');
+  switch (plan.id) {
+    case '1_week':
+      return '\$14.99';
+    case '1_month':
+      return '\$29.99';
+    case '3_months':
+      return '\$79.99';
+    case '6_months':
+      return '\$149.94';
+    default:
+      return isVi ? plan.priceTextVi : plan.priceTextEn;
   }
-
-  if (plan.id == '3_months') {
-    return _label('\$79.99 / 3 tháng', '\$79.99 / 3 months');
-  }
-
-  if (plan.id == '6_months') {
-    return _label('\$149.94 / 6 tháng', '\$149.94 / 6 months');
-  }
-
-  return isVi ? plan.priceTextVi : plan.priceTextEn;
 }
 
 Future<void> _confirmPurchase(_VipPlan plan) async {
@@ -1067,11 +1067,19 @@ return true;
     final item = plans[index];
     final selected = selectedPlanId == item.id;
 
-    final String? monthlyPrice = item.id == '3_months'
-        ? _label('\$26.66/tháng', '\$26.66/month')
-        : item.id == '6_months'
-            ? _label('\$24.99/tháng', '\$24.99/month')
-            : null;
+  
+final String? monthlyPrice = item.id == '3_months'
+    ? _label(
+        'Tương đương\n\$26.66/tháng',
+        'Equivalent to\n\$26.66/month',
+      )
+    : item.id == '6_months'
+        ? _label(
+            'Tương đương\n\$24.99/tháng',
+            'Equivalent to\n\$24.99/month',
+          )
+        : null;
+
 
     return Material(
       color: Colors.transparent,
@@ -1137,53 +1145,41 @@ return true;
                 ),
               ),
 
-              if (monthlyPrice != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  monthlyPrice,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black45,
-                  ),
-                ),
-              ],
+              
+if (monthlyPrice != null) ...[
+  const SizedBox(height: 6),
+  Text(
+    monthlyPrice,
+    textAlign: TextAlign.center,
+    maxLines: 2,
+    softWrap: true,
+    style: const TextStyle(
+      fontSize: 11,
+      height: 1.3,
+      fontWeight: FontWeight.w500,
+      color: Colors.black45,
+    ),
+  ),
+],
+
 
               const SizedBox(height: 5),
 
-              Text(
-                item.id == '1_week'
-                    ? _label(
-                        'Thanh toán mỗi tuần',
-                        'Billed weekly',
-                      )
-                    : item.id == '1_month'
-                        ? _label(
-                            'Thanh toán mỗi tháng',
-                            'Billed monthly',
-                          )
-                        : item.id == '3_months'
-                            ? _label(
-                                'Thanh toán \$79.99 mỗi 3 tháng',
-                                'Billed \$79.99 every 3 months',
-                              )
-                            : _label(
-                                'Thanh toán \$149.94 mỗi 6 tháng',
-                                'Billed \$149.94 every 6 months',
-                              ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black54,
-                  height: 1.2,
-                ),
-              ),
+            Text(
+  item.id == '1_week'
+      ? _label('Thanh toán mỗi tuần', 'Billed weekly')
+      : item.id == '1_month'
+          ? _label('Thanh toán mỗi tháng', 'Billed monthly')
+          : item.id == '3_months'
+              ? _label('Thanh toán mỗi 3 tháng', 'Billed every 3 months')
+              : _label('Thanh toán mỗi 6 tháng', 'Billed every 6 months'),
+  textAlign: TextAlign.center,
+  style: const TextStyle(
+    fontSize: 13,
+    fontWeight: FontWeight.w700,
+    color: Colors.black87,
+  ),
+),
             ],
           ),
         ),
@@ -1233,8 +1229,8 @@ return true;
                     _featureItem(
                       '🌸',
                       _label(
-                        'Gởi hoa không giới hạn',
-                        'Send Unlimited flowers',
+                        'Gởi hoa và tin nhắn không giới hạn',
+                        'Send Unlimited flowers and messages',
                       ),
                     ),
                     _featureItem(

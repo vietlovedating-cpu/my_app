@@ -2248,7 +2248,8 @@ _removeDiscoverProfile(targetProfile);
   // Tin nhắn/ngữ cảnh của User A, người Like trước.
   if (reverseAction == 'like' &&
       (reverseContentType == 'photo' ||
-          reverseContentType == 'prompt')) {
+          reverseContentType == 'prompt' ||
+          reverseContentType == 'post')) {
     await messagesRef.doc('content_like_$targetUid').set({
       'senderId': targetUid,
       'receiverId': currentUid,
@@ -2264,7 +2265,8 @@ _removeDiscoverProfile(targetProfile);
 
   // Tin nhắn/comment hiện tại của User B.
   if (currentContentType == 'photo' ||
-      currentContentType == 'prompt') {
+      currentContentType == 'prompt' ||
+      currentContentType == 'post') {
     await messagesRef.doc('content_like_$currentUid').set({
       'senderId': currentUid,
       'receiverId': targetUid,
@@ -4780,40 +4782,29 @@ Future<void> _openPhotoFullScreen(String imageUrl) async {
 
     if (comment == null || comment.trim().isEmpty || !mounted) return;
 
-    final chatId = _chatIdFor(user.uid, ownerId);
-    final firestore = FirebaseFirestore.instance;
-    final chatRef = firestore.collection('chats').doc(chatId);
-    final messageRef = chatRef.collection('messages').doc();
-    final senderName = (currentUserData?['firstName'] ?? '').toString().trim();
-    final ownerName = (targetProfile['firstName'] ?? '').toString().trim();
     try {
-      final batch = firestore.batch();
-      batch.set(chatRef, {
-        'chatId': chatId,
-        'participants': [user.uid, ownerId],
-        'participantNames': {user.uid: senderName, ownerId: ownerName},
-        'lastMessage': comment.trim(),
-        'lastMessageType': 'text',
-        'lastSenderId': user.uid,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      batch.set(messageRef, {
-        'senderId': user.uid,
-        'receiverId': ownerId,
-        'text': comment.trim(),
-        'type': 'text',
-        'contentType': contentType,
-        'contentKey': contentKey,
-        'contentText': contentText,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-      await batch.commit();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(isVi ? 'Đã gửi bình luận.' : 'Comment sent.')),
-        );
+      // Bình luận hoạt động giống Like kèm lời nhắn:
+      // lưu tương tác vào likedBy của người nhận và dùng chính luồng Like hiện có.
+      final contentIndex = int.tryParse(contentKey) ?? -1;
+      final didMatch = await _saveSwipe(
+        targetProfile: targetProfile,
+        action: 'like',
+        likedContentType: contentType,
+        likedContentIndex: contentIndex,
+        likedContentText: contentText,
+        likeComment: comment.trim(),
+      );
+
+      if (!mounted || !_lastSwipeSaved) return;
+
+      if (didMatch) {
+        await _showMatchDialog(targetProfile);
       }
+
+      if (!mounted) return;
+
+      // Gửi xong thì chuyển sang hồ sơ Discover kế tiếp.
+      _removeDiscoverProfile(targetProfile);
     } catch (e) {
       debugPrint('Send content comment error: $e');
       if (mounted) {
@@ -5487,7 +5478,8 @@ Widget _buildIncomingLikeCard({
 
   // Chỉ nhận Like ảnh hoặc prompt.
   if (contentType != 'photo' &&
-      contentType != 'prompt') {
+      contentType != 'prompt' &&
+      contentType != 'post') {
     return const SizedBox.shrink();
   }
 
@@ -5531,9 +5523,13 @@ Widget _buildIncomingLikeCard({
                     ? (isVi
                         ? '$firstName đã thích ảnh của bạn'
                         : '$firstName liked your photo')
-                    : (isVi
-                        ? '$firstName đã thích câu trả lời của bạn'
-                        : '$firstName liked your prompt'),
+                    : contentType == 'post'
+                        ? (isVi
+                            ? '$firstName đã bình luận bài viết của bạn'
+                            : '$firstName commented on your post')
+                        : (isVi
+                            ? '$firstName đã thích câu trả lời của bạn'
+                            : '$firstName liked your prompt'),
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
@@ -5607,6 +5603,40 @@ Widget _buildIncomingLikeCard({
                   color: Color(0xFF444444),
                 ),
               ),
+            ),
+
+          if (contentType == 'post' && contentText.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFFFD5E6),
+                ),
+              ),
+              child: contentText.startsWith('http')
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: CachedNetworkImage(
+                        imageUrl: contentText,
+                        width: 110,
+                        height: 110,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  : Text(
+                      contentText,
+                      maxLines: 5,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        height: 1.45,
+                        color: Color(0xFF444444),
+                      ),
+                    ),
             ),
         ],
 
