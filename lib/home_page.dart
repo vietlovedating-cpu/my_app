@@ -21,6 +21,7 @@ import 'messages_list_page.dart';
 import 'contact_privacy_helper.dart';
 import 'buy_flower_page.dart';
 import 'home_tutorial_page.dart';
+import 'more_about_me_page.dart';
 
 
 class HomePage extends StatefulWidget {
@@ -2234,121 +2235,26 @@ Future<void> _handleContentLike({
 }) async {
   if (_isProcessingAction) return;
 
-  final commentController = TextEditingController();
-
-  final result = await showDialog<String?>(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
-        title: Text(
-          isVi ? 'Thêm lời nhắn vào lượt thích (tuỳ chọn)' : 'Add a message to your Like (optional)',
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: TextField(
-          controller: commentController,
-          maxLines: 4,
-          maxLength: 250,
-          decoration: InputDecoration(
-            hintText: isVi
-                ? 'Viết lời nhắn hoặc để trống...'
-                : 'Write a message or leave it blank...',
-            filled: true,
-            fillColor: const Color(0xFFFFF3F8),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(
-                color: Color(0xFFFFD5E6),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(
-                color: Color(0xFFCC3D7A),
-                width: 1.3,
-              ),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-            },
-            child: Text(
-              isVi ? 'Huỷ' : 'Cancel',
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(
-                dialogContext,
-                commentController.text.trim(),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFCC3D7A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            child: Text(
-              isVi ? 'Gửi Like' : 'Send Like',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      );
-    },
+  // Bấm tim trên ảnh hoặc prompt: Like ngay, không mở popup bình luận.
+  final didMatch = await _saveSwipe(
+    targetProfile: targetProfile,
+    action: 'like',
+    likedContentType: contentType,
+    likedContentIndex: contentIndex,
+    likedContentText: contentText,
+    likeComment: '',
   );
 
- if (result == null || !mounted) {
-  // Đợi dialog đóng hoàn toàn rồi mới dispose controller.
-  await Future<void>.delayed(
-    const Duration(milliseconds: 300),
-  );
-  commentController.dispose();
-  return;
-}
+  if (!mounted || !_lastSwipeSaved) return;
 
-// Navigator.pop có animation.
-// Không lưu Like và setState trong lúc dialog vẫn đang được tháo khỏi widget tree.
-await Future<void>.delayed(
-  const Duration(milliseconds: 300),
-);
-
-commentController.dispose();
-
-if (!mounted) return;
-
-final didMatch = await _saveSwipe(
-  targetProfile: targetProfile,
-  action: 'like',
-  likedContentType: contentType,
-  likedContentIndex: contentIndex,
-  likedContentText: contentText,
-  likeComment: result,
-);
+  if (didMatch) {
+    await _showMatchDialog(targetProfile);
+  }
 
   if (!mounted) return;
-
-if (_lastSwipeSaved && didMatch) {
-  await _showMatchDialog(targetProfile);
+  _removeDiscoverProfile(targetProfile);
 }
 
- _removeDiscoverProfile(targetProfile);
-}
 Future<void> _saveBreakTheIceAnswer({
   required Map<String, dynamic> targetProfile,
   required String answer,
@@ -2397,11 +2303,11 @@ if (_lastSwipeSaved && didMatch) {
 
     _removeDiscoverProfile(targetProfile);
 }
-  Future<void> _handleFlower({
+  Future<bool> _handleFlower({
     required Map<String, dynamic> targetProfile,
   }) async {
     final user = currentUser;
-    if (user == null) return;
+    if (user == null) return false;
 
     final canSend = await _canSendFlower();
     if (!canSend && mounted) {
@@ -2480,7 +2386,7 @@ if (_lastSwipeSaved && didMatch) {
           );
         },
       );
-      return;
+      return false;
     }
 
     final controller = TextEditingController();
@@ -2507,8 +2413,8 @@ final remaining = freeRemaining + purchasedRemaining;
           ),
           title: Text(
             isVi
-                ? 'Gửi vài lời đến người bạn thích nhé! Họ sẽ nhận được tin nhắn của bạn ngay lập tức.'
-                : 'Say something to someone you like! They’ll receive your message instantly.',
+                ? ''
+                : '',
             style: const TextStyle(
               fontWeight: FontWeight.w800,
             ),
@@ -2519,8 +2425,8 @@ final remaining = freeRemaining + purchasedRemaining;
   children: [
     Text(
   isVi
-     ? '🌹 Bạn còn: $remaining hoa'
-: '🌹 Flowers remaining: $remaining',
+     ? 'Bạn còn: $remaining'
+: 'remaining: $remaining',
   style: const TextStyle(
     fontWeight: FontWeight.w600,
     color: Color(0xFFCC3D7A),
@@ -2599,13 +2505,13 @@ final remaining = freeRemaining + purchasedRemaining;
 
     if (result == null) {
       if (mounted) setState(() {});
-      return;
+      return false;
     }
 
     final canUseFlower = await _consumePurchasedFlowerIfNeeded();
 
 if (!canUseFlower) {
-  if (!mounted) return;
+  if (!mounted) return false;
 
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
@@ -2616,7 +2522,7 @@ if (!canUseFlower) {
       ),
     ),
   );
-  return;
+  return false;
 }
 
 await _saveSwipe(
@@ -2625,7 +2531,7 @@ await _saveSwipe(
   flowerMessage: result,
 );
 
-    if (!mounted) return;
+    if (!mounted) return false;
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -2636,6 +2542,7 @@ await _saveSwipe(
     );
 
         _removeDiscoverProfile(targetProfile);
+    return true;
   }
 
  Future<bool> _saveSwipe({
@@ -3699,11 +3606,20 @@ double _degToRad(double degree) {
     return pg == pf;
   }
 
-  String _capitalizeName(String text) {
-    final value = text.trim();
-    if (value.isEmpty) return '';
-    return value[0].toUpperCase() + value.substring(1).toLowerCase();
-  }
+  
+String _capitalizeName(String text) {
+  final value = text.trim();
+  if (value.isEmpty) return '';
+
+  return value
+      .split(RegExp(r'\s+'))
+      .map((word) {
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1).toLowerCase();
+      })
+      .join(' ');
+}
+
 
   List<String> _extractPhotos(Map<String, dynamic> profile) {
     final List<String> result = [];
@@ -4051,6 +3967,7 @@ double _degToRad(double degree) {
 
   final country = firstNonEmpty([
     profile['selectedCountry'],
+    profile['country'],
   ]);
 
   final state = shortState(rawState);
@@ -4073,6 +3990,7 @@ double _degToRad(double degree) {
 
   addPart(city);
   addPart(state);
+  addPart(country);
 
   return parts.join(', ');
 }
@@ -4618,98 +4536,857 @@ Future<void> _openPhotoFullScreen(String imageUrl) async {
     ),
   );
 }
-  Widget _buildPhotoBlock({
-  required String imageUrl,
-  required Map<String, dynamic> targetProfile,
-  required int photoIndex,
-}) {
-  return Stack(
-    children: [
-      Container(
-        width: double.infinity,
-        height: 300,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          color: Colors.grey.shade200,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFCC3D7A).withOpacity(0.10),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+
+  String _contentLikeDocumentId({
+    required String ownerId,
+    required String contentType,
+    required String contentKey,
+    required String likerId,
+  }) => '${ownerId}_${contentType}_${contentKey}_$likerId';
+
+  Future<void> _addContentThumbsUp({
+    required Map<String, dynamic> targetProfile,
+    required String contentType,
+    required String contentKey,
+    required String contentText,
+  }) async {
+    final user = currentUser;
+    if (user == null) return;
+    final ownerId =
+        (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
+    if (ownerId.isEmpty || ownerId == user.uid) return;
+
+    final ref = FirebaseFirestore.instance.collection('content_likes').doc(
+      _contentLikeDocumentId(
+        ownerId: ownerId,
+        contentType: contentType,
+        contentKey: contentKey,
+        likerId: user.uid,
+      ),
+    );
+
+    try {
+      var removedLike = false;
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        removedLike = false;
+        final existingLike = await transaction.get(ref);
+        if (existingLike.exists) {
+          transaction.delete(ref);
+          removedLike = true;
+        } else {
+          transaction.set(ref, {
+            'ownerId': ownerId,
+            'likerId': user.uid,
+            'likerName': (currentUserData?['firstName'] ?? '').toString().trim(),
+            'likerPhotoUrl': (currentUserData?['mainPhotoUrl'] ?? '').toString().trim(),
+            'contentType': contentType,
+            'contentKey': contentKey,
+            'contentText': contentText,
+            'createdAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+      });
+
+      if (removedLike && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_label('Đã bỏ thích.', 'Like removed.')),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isVi ? 'Không thể cập nhật lượt thích.' : 'Could not update your Like.')),
+        );
+      }
+      debugPrint('Content thumbs-up toggle error: $e');
+    }
+  }
+  Future<void> _sendContentComment({
+    required Map<String, dynamic> targetProfile,
+    required String contentType,
+    required String contentKey,
+    required String contentText,
+  }) async {
+    final user = currentUser;
+    if (user == null) return;
+    final ownerId = (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
+    if (ownerId.isEmpty || ownerId == user.uid) return;
+
+    final controller = TextEditingController();
+    final comment = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        bool canSend = false;
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Padding(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isVi ? 'Gửi bình luận' : 'Send a comment',
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF8A2F6A),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    maxLines: 4,
+                    minLines: 2,
+                    maxLength: 500,
+                    onChanged: (value) => setSheetState(() {
+                      canSend = value.trim().isNotEmpty;
+                    }),
+                    decoration: InputDecoration(
+                      hintText: isVi
+                          ? 'Viết bình luận của bạn...'
+                          : 'Write your comment...',
+                      filled: true,
+                      fillColor: const Color(0xFFFFF5F9),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFFFD5E6)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFFFD5E6)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          child: Text(isVi ? 'Hủy' : 'Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: canSend
+                              ? () => Navigator.pop(
+                                    sheetContext,
+                                    controller.text.trim(),
+                                  )
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFCC3D7A),
+                            foregroundColor: Colors.white,
+                          ),
+                          child: Text(isVi ? 'Gửi' : 'Send'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    // The sheet's reverse transition keeps its TextField mounted briefly
+    // after the route future completes. Dispose only after that transition.
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.dispose();
+
+    if (comment == null || comment.trim().isEmpty || !mounted) return;
+
+    final chatId = _chatIdFor(user.uid, ownerId);
+    final firestore = FirebaseFirestore.instance;
+    final chatRef = firestore.collection('chats').doc(chatId);
+    final messageRef = chatRef.collection('messages').doc();
+    final senderName = (currentUserData?['firstName'] ?? '').toString().trim();
+    final ownerName = (targetProfile['firstName'] ?? '').toString().trim();
+    try {
+      final batch = firestore.batch();
+      batch.set(chatRef, {
+        'chatId': chatId,
+        'participants': [user.uid, ownerId],
+        'participantNames': {user.uid: senderName, ownerId: ownerName},
+        'lastMessage': comment.trim(),
+        'lastMessageType': 'text',
+        'lastSenderId': user.uid,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      batch.set(messageRef, {
+        'senderId': user.uid,
+        'receiverId': ownerId,
+        'text': comment.trim(),
+        'type': 'text',
+        'contentType': contentType,
+        'contentKey': contentKey,
+        'contentText': contentText,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+      });
+      await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isVi ? 'Đã gửi bình luận.' : 'Comment sent.')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Send content comment error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(isVi ? 'Không thể gửi bình luận.' : 'Could not send comment.')),
+        );
+      }
+    }
+  }
+
+  Widget _buildContentEngagementRow({
+    required Map<String, dynamic> targetProfile,
+    required String contentType,
+    required String contentKey,
+    required String contentText,
+  }) {
+    final ownerId = (targetProfile['uid'] ?? targetProfile['docId'] ?? '').toString().trim();
+    final userId = currentUser?.uid ?? '';
+    if (ownerId.isEmpty || ownerId == userId) return const SizedBox.shrink();
+    final likeRef = FirebaseFirestore.instance.collection('content_likes').doc(
+      _contentLikeDocumentId(
+        ownerId: ownerId,
+        contentType: contentType,
+        contentKey: contentKey,
+        likerId: userId,
+      ),
+    );
+    final likesQuery = FirebaseFirestore.instance.collection('content_likes')
+        .where('ownerId', isEqualTo: ownerId)
+        .where('contentType', isEqualTo: contentType)
+        .where('contentKey', isEqualTo: contentKey);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: likesQuery.snapshots(),
+              builder: (context, snapshot) {
+                final count = snapshot.data?.docs.length ?? 0;
+                final liked = snapshot.data?.docs.any((d) => d.id == likeRef.id) ?? false;
+                return OutlinedButton.icon(
+                  onPressed: () => _addContentThumbsUp(
+                    targetProfile: targetProfile,
+                    contentType: contentType,
+                    contentKey: contentKey,
+                    contentText: contentText,
+                  ),
+                  icon: Icon(
+                    liked ? Icons.thumb_up_alt : Icons.thumb_up_alt_outlined,
+                    size: 18,
+                  ),
+                  label: Text(
+                    '${liked ? (isVi ? 'Bỏ thích' : 'Unlike') : (isVi ? 'Thích' : 'Thumbs Up')}${count > 0 ? ' ($count)' : ''}',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFCC3D7A),
+                    backgroundColor: liked ? const Color(0xFFFFE4EF) : Colors.transparent,
+                    side: const BorderSide(color: Color(0xFFFFD5E6)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () => _sendContentComment(
+                targetProfile: targetProfile,
+                contentType: contentType,
+                contentKey: contentKey,
+                contentText: contentText,
+              ),
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+              label: Text(isVi ? 'Bình luận' : 'Comment'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFCC3D7A),
+                side: const BorderSide(color: Color(0xFFFFD5E6)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfilePostsForDiscover(Map<String, dynamic> profile) {
+    final ownerId = (profile['uid'] ?? profile['docId'] ?? '').toString().trim();
+    if (ownerId.isEmpty) return const SizedBox.shrink();
+
+    // My Profile stores each user's posts under users/{uid}/posts.
+    // Read that same location here so Discover displays the exact same posts,
+    // including uploaded post photos.
+    final postsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(ownerId)
+        .collection('posts');
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: postsRef.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('LOAD DISCOVER PROFILE POSTS ERROR: ${snapshot.error}');
+          return const SizedBox.shrink();
+        }
+        if (!snapshot.hasData) return const SizedBox.shrink();
+
+        final posts = [...snapshot.data!.docs];
+        posts.sort((a, b) {
+          final at = a.data()['createdAt'];
+          final bt = b.data()['createdAt'];
+          final ad = at is Timestamp ? at.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          final bd = bt is Timestamp ? bt.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+          return bd.compareTo(ad);
+        });
+        if (posts.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isVi ? 'Bài viết' : 'Posts',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF8A2F6A),
+              ),
+            ),
+            const SizedBox(height: 10),
+            ...posts.map((doc) {
+              final data = doc.data();
+              final content = (data['content'] ?? '').toString().trim();
+              final feeling = (data['feeling'] ?? '').toString().trim();
+              final imageUrl = (data['imageUrl'] ?? '').toString().trim();
+              if (content.isEmpty && feeling.isEmpty && imageUrl.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              final displayText = [
+                if (feeling.isNotEmpty) feeling,
+                if (content.isNotEmpty) content,
+              ].join('\n\n');
+
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFFD5E6)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFCC3D7A).withOpacity(0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (displayText.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          displayText,
+                          style: const TextStyle(fontSize: 15.5, height: 1.5),
+                        ),
+                      ),
+                    if (imageUrl.isNotEmpty)
+                      GestureDetector(
+                        onTap: () => _openPhotoFullScreen(imageUrl),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: 310,
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              width: double.infinity,
+                              height: 310,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 1000,
+                              placeholder: (_, __) => const SizedBox(
+                                height: 310,
+                                child: Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFFCC3D7A),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    _buildContentEngagementRow(
+                      targetProfile: profile,
+                      contentType: 'post',
+                      contentKey: doc.id,
+                      contentText: displayText.isNotEmpty ? displayText : imageUrl,
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDiscoverAvatar(
+    String imageUrl,
+    Map<String, dynamic> profile,
+  ) {
+    return Center(
+      child: SizedBox(
+        width: 270,
+        height: 270,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 270,
+              height: 270,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.grey.shade200,
+                border: Border.all(color: const Color(0xFFFFC9DE), width: 4),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFCC3D7A).withOpacity(0.14),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: GestureDetector(
+                  onTap: () => _openPhotoFullScreen(imageUrl),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    width: 270,
+                    height: 270,
+                    memCacheWidth: 720,
+                    placeholder: (_, __) => const Center(
+                      child: CircularProgressIndicator(color: Color(0xFFCC3D7A)),
+                    ),
+                    errorWidget: (_, __, ___) => const Center(
+                      child: Icon(Icons.person, size: 80, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 8,
+              top: 8,
+              child: _buildAvatarAction(
+                icon: Icons.tune_rounded,
+                label: _label('Bộ lọc', 'Filter'),
+                onTap: _openFilterSheet,
+              ),
+            ),
+            Positioned(
+              right: 8,
+              top: 8,
+              child: _buildAvatarAction(
+                icon: Icons.flag_outlined,
+                label: _label('Báo cáo', 'Report'),
+                onTap: () => _showSafetyActionsSheet(profile),
+                isReport: true,
+              ),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-         child: GestureDetector(
-  onTap: () {
-    _openPhotoFullScreen(imageUrl);
-  },
-  child: CachedNetworkImage(
-    imageUrl: imageUrl,
-    fit: BoxFit.cover,
-    width: double.infinity,
-    height: 300,
-    memCacheWidth: 900,
-    placeholder: (context, url) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFCC3D7A),
-        ),
-      );
-    },
-    errorWidget: (context, url, error) {
-      return const Center(
-        child: Icon(
-          Icons.person,
-          size: 70,
-          color: Colors.grey,
-        ),
-      );
-    },
-  ),
-),
-        ),
       ),
+    );
+  }
 
-      Positioned(
-        right: 16,
-        bottom: 16,
-        child: Material(
-          color: Colors.white,
-          shape: const CircleBorder(),
-          elevation: 5,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-           onTap: _isProcessingAction
-    ? null
-    : () {
-        _handleFlower(
-          targetProfile: targetProfile,
-        );
-      },
-            child: Container(
-              width: 50,
-              height: 50,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: const Color(0xFFFFD5E6),
-                ),
-              ),
-             child: const Icon(
-  Icons.local_florist_rounded,
-  color: Color(0xFFCC3D7A),
-  size: 27,
-),
-            ),
+  Widget _buildFloatingPassButton(Map<String, dynamic> profile) {
+    return Material(
+      color: Colors.white,
+      elevation: 5,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _isProcessingAction
+            ? null
+            : () => _handlePass(targetProfile: profile),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: _isProcessingAction
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFFCC3D7A),
+                    ),
+                  )
+                : const Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFFCC3D7A),
+                    size: 30,
+                  ),
           ),
         ),
       ),
-    ],
-  );
-}
+    );
+  }
+
+  Widget _buildAvatarAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isReport = false,
+  }) {
+    return Material(
+      color: Colors.white.withOpacity(0.96),
+      elevation: 3,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 17,
+                color: isReport ? Colors.red.shade700 : const Color(0xFFCC3D7A),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isReport ? Colors.red.shade700 : const Color(0xFFCC3D7A),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  MoreAboutMePage _createMoreAboutMePage(Map<String, dynamic> profile) {
+    final isVi = widget.languageCode == 'vi';
+    final age = (profile['age'] ?? '').toString().trim();
+    final livingState = _livingStateDisplay(profile);
+    final bornDisplay = _buildBornDisplay(profile, isVi);
+
+    String translated(List<String> keys) {
+      return _translateProfileValue(_firstNonEmpty(profile, keys), isVi);
+    }
+
+    final gender = translated(['gender', 'selectedGender', 'userGender']);
+    final religion = translated(['religion']);
+    final highestDegree = translated(['highestDegree', 'highestEducation']);
+    final occupation = translated(['jobTitle', 'occupation']);
+    final annualIncome = translated(['annualIncome', 'income', 'yearlyIncome']);
+    final height = _firstNonEmpty(profile, ['height', 'heightCm']);
+    final haveChildren = translated([
+      'haveChildren', 'children', 'childrenStatus', 'hasChildren',
+    ]);
+    final maritalStatus = translated(['maritalStatus']);
+    final relationshipGoalsText = _extractRelationshipGoalKeys(profile)
+        .map((goal) => _translateProfileValue(goal, isVi))
+        .where((goal) => goal.trim().isNotEmpty)
+        .join(', ');
+    final residentStatus = translated(['residentStatus']);
+    final drinking = translated(['drinking']);
+    final smoking = translated(['smoking']);
+    final aboutMe = (profile['aboutMe'] ?? profile['bio'] ?? '').toString().trim();
+
+    final details = <MoreAboutMeDetail>[
+      if (age.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.cake_outlined, label: _label('Tuổi', 'Age'), value: age),
+      if (livingState.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.location_on_outlined, label: _label('Nơi sống', 'Location'), value: livingState),
+      if (bornDisplay.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.public_rounded, label: _label('Nơi sinh', 'Place of birth'), value: bornDisplay),
+      if (gender.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.person_outline_rounded, label: _label('Giới tính', 'Gender'), value: gender),
+      if (religion.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.auto_awesome_outlined, label: _label('Tôn giáo', 'Religion'), value: religion),
+      if (height.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.height_rounded, label: _label('Chiều cao', 'Height'), value: height),
+      if (highestDegree.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.school_outlined, label: _label('Bằng cấp', 'Education'), value: highestDegree),
+      if (occupation.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.work_outline_rounded, label: _label('Nghề nghiệp', 'Occupation'), value: occupation),
+      if (annualIncome.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.payments_outlined, label: _label('Thu nhập năm', 'Annual income'), value: annualIncome),
+      if (maritalStatus.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.favorite_outline_rounded, label: _label('Tình trạng hôn nhân', 'Marital status'), value: maritalStatus),
+      if (haveChildren.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.child_care_outlined, label: _label('Con cái', 'Children'), value: haveChildren),
+      if (relationshipGoalsText.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.favorite_border_rounded, label: _label('Mục tiêu hẹn hò', 'Relationship goals'), value: relationshipGoalsText),
+      if (residentStatus.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.verified_user_outlined, label: _label('Tình trạng cư trú', 'Resident status'), value: residentStatus),
+      if (drinking.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.wine_bar_outlined, label: _label('Uống rượu', 'Drinking'), value: drinking),
+      if (smoking.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.smoke_free_outlined, label: _label('Hút thuốc', 'Smoking'), value: smoking),
+    ];
+
+    final photos = _extractPhotos(profile);
+    final avatarUrl = photos.isNotEmpty
+        ? photos.first
+        : (profile['mainPhotoUrl'] ?? profile['photoUrl'] ?? '').toString().trim();
+
+    return MoreAboutMePage(
+      profile: profile,
+      languageCode: widget.languageCode,
+      aboutMe: aboutMe,
+      details: details,
+      avatarUrl: avatarUrl,
+      location: livingState,
+      onLike: () async {
+        await _handleLike(targetProfile: profile);
+        if (mounted) Navigator.of(context).pop();
+      },
+      onPass: () async {
+        await _handlePass(targetProfile: profile);
+        if (mounted) Navigator.of(context).pop();
+      },
+      onSendMessage: () async {
+        final sent = await _handleFlower(targetProfile: profile);
+        if (!sent || !mounted) return;
+
+        // Flower sent successfully: return to Discover.
+        // _handleFlower has already removed this profile from the Discover queue.
+        Navigator.of(context).pop();
+      },
+    );
+  }
+
+  Widget _buildDiscoverMoreAboutMe(Map<String, dynamic> profile, bool isVi) {
+    final age = (profile['age'] ?? '').toString().trim();
+    final livingState = _livingStateDisplay(profile);
+    final bornDisplay = _buildBornDisplay(profile, isVi);
+
+    String translated(List<String> keys) {
+      final raw = _firstNonEmpty(profile, keys);
+      return _translateProfileValue(raw, isVi);
+    }
+
+    final gender = translated(['gender', 'selectedGender', 'userGender']);
+    final religion = translated(['religion']);
+    final highestDegree = translated(['highestDegree', 'highestEducation']);
+    final occupation = translated(['jobTitle', 'occupation']);
+    final annualIncome = translated(['annualIncome', 'income', 'yearlyIncome']);
+    final height = _firstNonEmpty(profile, ['height', 'heightCm']);
+    final haveChildren = translated([
+      'haveChildren', 'children', 'childrenStatus', 'hasChildren',
+    ]);
+    final maritalStatus = translated(['maritalStatus']);
+    final relationshipGoalsText = _extractRelationshipGoalKeys(profile)
+        .map((goal) => _translateProfileValue(goal, isVi))
+        .where((goal) => goal.trim().isNotEmpty)
+        .join(', ');
+    final residentStatus = translated(['residentStatus']);
+    final drinking = translated(['drinking']);
+    final smoking = translated(['smoking']);
+    final aboutMe = (profile['aboutMe'] ?? profile['bio'] ?? '').toString().trim();
+
+    final details = <MoreAboutMeDetail>[
+      if (age.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.cake_outlined, label: _label('Tuổi', 'Age'), value: age),
+      if (livingState.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.location_on_outlined, label: _label('Nơi sống', 'Location'), value: livingState),
+      if (bornDisplay.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.public_rounded, label: _label('Nơi sinh', 'Place of birth'), value: bornDisplay),
+      if (gender.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.person_outline_rounded, label: _label('Giới tính', 'Gender'), value: gender),
+      if (religion.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.auto_awesome_outlined, label: _label('Tôn giáo', 'Religion'), value: religion),
+      if (height.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.height_rounded, label: _label('Chiều cao', 'Height'), value: height),
+      if (highestDegree.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.school_outlined, label: _label('Bằng cấp', 'Education'), value: highestDegree),
+      if (occupation.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.work_outline_rounded, label: _label('Nghề nghiệp', 'Occupation'), value: occupation),
+      if (annualIncome.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.payments_outlined, label: _label('Thu nhập năm', 'Annual income'), value: annualIncome),
+      if (maritalStatus.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.favorite_outline_rounded, label: _label('Tình trạng hôn nhân', 'Marital status'), value: maritalStatus),
+      if (haveChildren.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.child_care_outlined, label: _label('Con cái', 'Children'), value: haveChildren),
+      if (relationshipGoalsText.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.favorite_border_rounded, label: _label('Mục tiêu hẹn hò', 'Relationship goals'), value: relationshipGoalsText),
+      if (residentStatus.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.verified_user_outlined, label: _label('Tình trạng cư trú', 'Resident status'), value: residentStatus),
+      if (drinking.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.wine_bar_outlined, label: _label('Uống rượu', 'Drinking'), value: drinking),
+      if (smoking.isNotEmpty)
+        MoreAboutMeDetail(icon: Icons.smoke_free_outlined, label: _label('Hút thuốc', 'Smoking'), value: smoking),
+    ];
+
+    final photos = _extractPhotos(profile);
+    final avatarUrl = photos.isNotEmpty
+        ? photos.first
+        : (profile['mainPhotoUrl'] ?? profile['photoUrl'] ?? '').toString().trim();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 14, bottom: 14),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                  builder: (_) => _createMoreAboutMePage(profile),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.person_search_rounded, size: 25),
+              label: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _label('Thêm về tôi', 'More About Me'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _label('Chạm để xem thêm về tôi', 'Tap to learn more about me'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFCC3D7A),
+                side: const BorderSide(color: Color(0xFFFFB8D2), width: 1.5),
+                backgroundColor: const Color(0xFFFFF7FA),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                minimumSize: const Size(double.infinity, 76),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoBlock({
+    required String imageUrl,
+    required Map<String, dynamic> targetProfile,
+    required int photoIndex,
+  }) {
+    return Column(
+      children: [
+        Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 300,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                color: Colors.grey.shade200,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFCC3D7A).withOpacity(0.10),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(28),
+                child: GestureDetector(
+                  onTap: () => _openPhotoFullScreen(imageUrl),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: 300,
+                    memCacheWidth: 900,
+                    placeholder: (_, __) => const Center(
+                      child: CircularProgressIndicator(color: Color(0xFFCC3D7A)),
+                    ),
+                    errorWidget: (_, __, ___) => const Center(
+                      child: Icon(Icons.person, size: 70, color: Colors.grey),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              bottom: 16,
+              child: _buildContentLikeButton(
+                onTap: () => _handleContentLike(
+                  targetProfile: targetProfile,
+                  contentType: 'photo',
+                  contentIndex: photoIndex,
+                  contentText: imageUrl,
+                ),
+              ),
+            ),
+          ],
+        ),
+        _buildContentEngagementRow(
+          targetProfile: targetProfile,
+          contentType: 'photo',
+          contentKey: photoIndex.toString(),
+          contentText: imageUrl,
+        ),
+      ],
+    );
+  }
+
 Widget _buildIncomingLikeCard({
   required Map<String, dynamic> profile,
 }) {
@@ -5183,104 +5860,87 @@ Widget _buildSocialMediaSection({
   );
 }
   Widget _buildPromptCard({
-  required String question,
-  required String answer,
+    required String question,
+    required String answer,
+    Map<String, dynamic>? targetProfile,
+    int? promptIndex,
+  }) {
+    if (question.trim().isEmpty && answer.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final promptContent = [
+      if (question.trim().isNotEmpty) question.trim(),
+      if (answer.trim().isNotEmpty) answer.trim(),
+    ].join('\n');
 
-  // Chỉ dùng khi prompt nằm trên Discover.
-  Map<String, dynamic>? targetProfile,
-  int? promptIndex,
-}) {
-  if (question.trim().isEmpty && answer.trim().isEmpty) {
-    return const SizedBox.shrink();
+    return Column(
+      children: [
+        Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 20, 70, 20),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFFFFF), Color(0xFFFFF3F8)],
+                ),
+                border: Border.all(color: const Color(0xFFFFD5E6), width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFCC3D7A).withOpacity(0.08),
+                    blurRadius: 16,
+                    offset: const Offset(0, 7),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (question.trim().isNotEmpty)
+                    Text(question, style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w900,
+                      color: Color(0xFF8B2E63), height: 1.35,
+                    )),
+                  if (question.trim().isNotEmpty && answer.trim().isNotEmpty)
+                    const SizedBox(height: 10),
+                  if (answer.trim().isNotEmpty)
+                    Text(answer, style: const TextStyle(
+                      fontSize: 15.8, fontWeight: FontWeight.w600,
+                      color: Color(0xFF444444), height: 1.55,
+                    )),
+                ],
+              ),
+            ),
+            if (targetProfile != null && promptIndex != null)
+              Positioned(
+                right: 14,
+                bottom: 14,
+                child: _buildContentLikeButton(
+                  onTap: () => _handleContentLike(
+                    targetProfile: targetProfile,
+                    contentType: 'prompt',
+                    contentIndex: promptIndex,
+                    contentText: promptContent,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        if (targetProfile != null && promptIndex != null)
+          _buildContentEngagementRow(
+            targetProfile: targetProfile,
+            contentType: 'prompt',
+            contentKey: promptIndex.toString(),
+            contentText: promptContent,
+          ),
+      ],
+    );
   }
 
-  final promptContent = [
-    if (question.trim().isNotEmpty) question.trim(),
-    if (answer.trim().isNotEmpty) answer.trim(),
-  ].join('\n');
-
-  return Stack(
-    children: [
-      Container(
-        width: double.infinity,
-
-        // Chừa thêm khoảng trống bên phải cho nút tim,
-        // các phần layout khác giữ nguyên.
-        padding: const EdgeInsets.fromLTRB(20, 20, 70, 20),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(26),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFFFFFFF),
-              Color(0xFFFFF3F8),
-            ],
-          ),
-          border: Border.all(
-            color: const Color(0xFFFFD5E6),
-            width: 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFCC3D7A).withOpacity(0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 7),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (question.trim().isNotEmpty)
-              Text(
-                question,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF8B2E63),
-                  height: 1.35,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            if (question.trim().isNotEmpty &&
-                answer.trim().isNotEmpty)
-              const SizedBox(height: 10),
-            if (answer.trim().isNotEmpty)
-              Text(
-                answer,
-                style: const TextStyle(
-                  fontSize: 15.8,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF444444),
-                  height: 1.55,
-                ),
-              ),
-          ],
-        ),
-      ),
-
-      // Chỉ hiện khi đã truyền profile và số thứ tự prompt.
-      if (targetProfile != null && promptIndex != null)
-        Positioned(
-          right: 14,
-          bottom: 14,
-          child: _buildContentLikeButton(
-            onTap: () {
-              _handleContentLike(
-                targetProfile: targetProfile,
-                contentType: 'prompt',
-                contentIndex: promptIndex,
-                contentText: promptContent,
-              );
-            },
-          ),
-        ),
-    ],
-  );
-}
-
-  Widget _buildInfoSlide({
+Widget _buildInfoSlide({
     required List<_InfoItem> items,
   }) {
     if (items.isEmpty) return const SizedBox.shrink();
@@ -5738,506 +6398,262 @@ final options = [
   Widget _buildHomeProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
     final prompts = _extractPrompts(profile, isVi);
-    final facebookUrl =
-    (profile['facebookUrl'] ?? '').toString().trim();
+    final firstName = _capitalizeName((profile['firstName'] ?? '').toString());
+    final displayName = firstName.isEmpty ? _label('Người dùng', 'User') : firstName;
+    final age = _parseInt(profile['age']);
+    final locationDisplay = _livingStateDisplay(profile);
+    final lastSeenValue = profile['lastSeen'];
+    final lastSeenAt = lastSeenValue is Timestamp
+        ? lastSeenValue.toDate()
+        : (lastSeenValue is DateTime ? lastSeenValue : null);
+    final lastSeenAge = lastSeenAt == null
+        ? null
+        : DateTime.now().difference(lastSeenAt);
+    final hasRecentHeartbeat = lastSeenAge != null &&
+        !lastSeenAge.isNegative &&
+        lastSeenAge <= const Duration(minutes: 15);
+    final onlineNow = profile['isOnline'] == true && hasRecentHeartbeat;
+    final recentlyActive = !onlineNow &&
+        lastSeenAge != null &&
+        !lastSeenAge.isNegative &&
+        lastSeenAge <= const Duration(days: 3);
+    final verified = profile['photoVerified'] == true;
+    final avatar = photos.isNotEmpty
+        ? photos.first
+        : (profile['mainPhotoUrl'] ?? profile['photoUrl'] ?? '').toString().trim();
 
-final instagramUrl =
-    (profile['instagramUrl'] ?? '').toString().trim();
-
-final tiktokUrl =
-    (profile['tiktokUrl'] ?? '').toString().trim();
-
-final showSocialMedia =
-    profile['showSocialMedia'] == true;
-
-    String getPhoto(int index) {
-      if (index < 0 || index >= photos.length) return '';
-      return photos[index];
-    }
-
-    Map<String, String> getPrompt(int index) {
-      if (index < 0 || index >= prompts.length) {
-        return {'question': '', 'answer': ''};
+    // Main avatar is photo 1. The remaining photos and prompts are
+    // displayed alternately: prompt 1, photo 2, prompt 2, photo 3, ...
+    final alternatingContent = <Widget>[];
+    final contentCount = max(photos.length - 1, prompts.length);
+    for (var index = 0; index < contentCount; index++) {
+      if (index < prompts.length) {
+        final prompt = prompts[index];
+        if ((prompt['question'] ?? '').trim().isNotEmpty ||
+            (prompt['answer'] ?? '').trim().isNotEmpty) {
+          alternatingContent.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _buildPromptCard(
+                question: prompt['question'] ?? '',
+                answer: prompt['answer'] ?? '',
+                targetProfile: profile,
+                promptIndex: index,
+              ),
+            ),
+          );
+        }
       }
-      return prompts[index];
-    }
 
-    final String firstName =
-        _capitalizeName((profile['firstName'] ?? '').toString());
-    final String displayName =
-        firstName.isEmpty ? _label('Người dùng', 'User') : firstName;
-
-    final String age = (profile['age'] ?? '').toString().trim();
-    
-String distanceText = '';
-
-final myLat = (currentUserData?['lat'] as num?)?.toDouble();
-final myLng = (currentUserData?['lng'] as num?)?.toDouble();
-final profileLat = (profile['lat'] as num?)?.toDouble();
-final profileLng = (profile['lng'] as num?)?.toDouble();
-
-if (myLat != null && myLng != null && profileLat != null && profileLng != null) {
-  final distanceKm = _calculateDistanceKm(
-    myLat,
-    myLng,
-    profileLat,
-    profileLng,
-  );
-
-  distanceText = isVi
-      ? '${distanceKm.toStringAsFixed(0)} km xa'
-      : '${distanceKm.toStringAsFixed(0)} km away';
-}
-    final String genderRaw = _firstNonEmpty(profile, [
-  'gender',
-  'selectedGender',
-  'userGender',
-]);
-
-final String gender = _translateProfileValue(genderRaw, isVi);
-
-    final String livingState = _livingStateDisplay(profile);
-    final String bornDisplay = _buildBornDisplay(profile, isVi);
-    final String religion = _translateProfileValue(
-      _firstNonEmpty(profile, ['religion']),
-      isVi,
-    );
-
-    final String highestDegree = _translateProfileValue(
-      _firstNonEmpty(profile, ['highestDegree', 'highestEducation']),
-      isVi,
-    );
-
-    final String occupation = _translateProfileValue(
-      _firstNonEmpty(profile, ['jobTitle', 'occupation']),
-      isVi,
-    );
-
-    final String annualIncome = _translateProfileValue(
-      _firstNonEmpty(profile, ['annualIncome', 'income', 'yearlyIncome']),
-      isVi,
-    );
-
-    final String height = _firstNonEmpty(profile, ['height', 'heightCm']);
-final String haveChildren = _translateProfileValue(
-  _firstNonEmpty(profile, [
-    'haveChildren',
-    'children',
-    'childrenStatus',
-    'hasChildren',
-  ]),
-  isVi,
-);
-    final String maritalStatus = _translateProfileValue(
-      _firstNonEmpty(profile, ['maritalStatus']),
-      isVi,
-    );
-
-    final String childrenText = _translateProfileValue(
-  (profile['haveChildren'] ?? '').toString(),
-  isVi,
-);
-
-String relationshipGoal = _extractRelationshipGoalKey(profile);
-relationshipGoal = _translateProfileValue(relationshipGoal, isVi);
-
-    final String residentStatus = _translateProfileValue(
-      _firstNonEmpty(profile, ['residentStatus']),
-      isVi,
-    );
-
-    final String drinking = _translateProfileValue(
-      _firstNonEmpty(profile, ['drinking']),
-      isVi,
-    );
-
-    final String smoking = _translateProfileValue(
-      _firstNonEmpty(profile, ['smoking']),
-      isVi,
-    );
-
-    return Stack(
-      children: [
-        RefreshIndicator(
-          color: Colors.pink,
-          onRefresh: () async {
-  await _handleAuthChanged(currentUser);
-  await _loadMyContactsForPrivacy();
-  if (mounted) setState(() {});
-},
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(14, 112, 14, 150),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildIncomingLikeCard(
-  profile: profile,
-),
-                Center(
-                  child: _buildMainCirclePhoto(
-                    getPhoto(0).isNotEmpty
-                        ? getPhoto(0)
-                        : (profile['mainPhotoUrl'] ?? '').toString().trim(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Center(
-  child: Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Flexible(
-        child: Text(
-          displayName,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF8A2F6A),
-            height: 1.1,
-            letterSpacing: 0.2,
-          ),
-        ),
-      ),
-      if (_isOnlineRecently(profile)) ...[
-  const SizedBox(width: 10),
-  _buildOnlineDot(true),
-],
-    ],
-  ),
-),
-                const SizedBox(height: 22),
-                                if (_isNewHere(profile) || profile['photoVerified'] == true) ...[
-  const SizedBox(height: 8),
-  Center(
-    child: Wrap(
-      alignment: WrapAlignment.center,
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (_isNewHere(profile))
-          _buildSmallBadge(
-            icon: Icons.auto_awesome_rounded,
-            text: isVi ? 'Mới tham gia' : 'New here',
-            bgColor: const Color(0xFFFFF0F7),
-            borderColor: const Color(0xFFE91E63),
-            textColor: const Color(0xFFE91E63),
-          ),
-        if (profile['photoVerified'] == true)
-          _buildSmallBadge(
-            icon: Icons.verified_rounded,
-            text: isVi ? 'Ảnh đã xác minh' : 'Photo Verified',
-            bgColor: const Color(0xFFE8F4FF),
-            borderColor: const Color(0xFF2196F3),
-            textColor: const Color(0xFF1976D2),
-          ),
-      ],
-    ),
-  ),
-],
-                const SizedBox(height: 14),
-              _buildInfoSlide(
-  items: [
-    if (_isRecentlyActive(profile))
-      _InfoItem(
-        icon: Icons.access_time_rounded,
-        label: _label('Hoạt động', 'Activity'),
-        text: _label(
-          'Online gần đây',
-          'Recently online',
-        ),
-      ),
-
-    if (age.isNotEmpty)
-      _InfoItem(
-        icon: Icons.cake_outlined,
-        label: _label('Tuổi', 'Age'),
-        text: age,
-      ),
-  
-      if (distanceText.isNotEmpty)
-  _InfoItem(
-    icon: Icons.location_on_outlined,
-    label: _label('Khoảng cách', 'Distance'),
-    text: distanceText,
-  ),
-  if (livingState.isNotEmpty)
-  _InfoItem(
-    icon: Icons.location_on_outlined,
-    label: _label('Nơi sống', 'Location'),
-    text: livingState,
-  ),
-
-   if (bornDisplay.isNotEmpty)
-  _InfoItem(
-    icon: Icons.public,
-    label: _label('Nơi sinh', 'Born'),
-    text: bornDisplay,
-  ),
-  ],
-),
-                if (getPhoto(1).isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                 _buildPhotoBlock(
-  imageUrl: getPhoto(1),
-  targetProfile: profile,
-  photoIndex: 1,
-),
-                ],
-                const SizedBox(height: 14),
-
-                if (getPrompt(0)['question']!.isNotEmpty ||
-                    getPrompt(0)['answer']!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  _buildPromptCard(
-  question: getPrompt(0)['question'] ?? '',
-  answer: getPrompt(0)['answer'] ?? '',
-  targetProfile: profile,
-  promptIndex: 0,
-),
-if ((profile['voicePromptAudioUrl'] ?? '')
-    .toString()
-    .trim()
-    .isNotEmpty)
-  const SizedBox(height: 16),
-
-if ((profile['voicePromptAudioUrl'] ?? '')
-    .toString()
-    .trim()
-    .isNotEmpty)
-  _buildVoicePromptCard(
-    audioUrl: (profile['voicePromptAudioUrl'] ?? '')
-        .toString()
-        .trim(),
-    durationSeconds:
-        profile['voicePromptDuration'] is int
-            ? profile['voicePromptDuration'] as int
-            : int.tryParse(
-                  (profile['voicePromptDuration'] ?? '0')
-                      .toString(),
-                ) ??
-                0,
-  ),
-                ],
-                _buildInfoSlide(
-                  items: [
-                   if (gender.isNotEmpty)
-  _InfoItem(
-    icon: Icons.person_outline_rounded,
-    label: _label('Giới tính', 'Gender'),
-    text: gender,
-  ),
-                    if (religion.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.auto_awesome_outlined,
-                        label: _label('Tôn giáo', 'Religion'),
-                        text: religion,
-                      ),
-                      if (height.isNotEmpty)
-  _InfoItem(
-    icon: Icons.height_rounded,
-    label: _label('Chiều cao', 'Height'),
-    text: height,
-  ),
-
-                  ],
-                ),
-                if (getPhoto(2).isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                 _buildPhotoBlock(
-  imageUrl: getPhoto(2),
-  targetProfile: profile,
-  photoIndex: 2,
-),
-                ],
-                if (getPrompt(1)['question']!.isNotEmpty ||
-                    getPrompt(1)['answer']!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  _buildPromptCard(
-  question: getPrompt(1)['question'] ?? '',
-  answer: getPrompt(1)['answer'] ?? '',
-  targetProfile: profile,
-  promptIndex: 1,
-),
-                ],
-                _buildHorizontalCareerSlider(
-                  isVi: isVi,
-                  highestDegree: highestDegree,
-                  occupation: occupation,
-                  annualIncome: annualIncome,
-                ),
-                if (getPhoto(3).isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                 _buildPhotoBlock(
-  imageUrl: getPhoto(3),
-  targetProfile: profile,
-  photoIndex: 3,
-),
-                ],
-                if (getPrompt(2)['question']!.isNotEmpty ||
-                    getPrompt(2)['answer']!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                 _buildPromptCard(
-  question: getPrompt(2)['question'] ?? '',
-  answer: getPrompt(2)['answer'] ?? '',
-  targetProfile: profile,
-  promptIndex: 2,
-),
-                ],
-                _buildInfoSlide(
-  items: [
-    if (maritalStatus.isNotEmpty)
-      _InfoItem(
-        icon: Icons.favorite_outline_rounded,
-        label: _label('Tình trạng hôn nhân', 'Marital status'),
-        text: maritalStatus,
-      ),
-
-   if ((profile['haveChildren'] ?? '').toString().trim().isNotEmpty)
-  _InfoItem(
-    icon: Icons.child_care_outlined,
-    label: _label('Con cái', 'Children'),
-    text: _translateProfileValue(
-      (profile['haveChildren'] ?? '').toString(),
-      isVi,
-    ),
-  ),
-
-  ],
-),
-if (_extractRelationshipGoalKeys(profile).isNotEmpty)
-  Container(
-    width: double.infinity,
-    margin: const EdgeInsets.only(top: 12),
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(
-        color: const Color(0xFFFFD6E7),
-      ),
-    ),
-  child: Column(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-        Text(
-          _label(
-            '💕 Mục tiêu hẹn hò',
-            '💕 Relationship goals',
-          ),
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children:
-              _extractRelationshipGoalKeys(profile).map((goal) {
-            return Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEDF4),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                _translateProfileValue(goal, isVi),
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF9C2859),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ],
-    ),
-  ),
-                if (getPhoto(4).isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                 _buildPhotoBlock(
-  imageUrl: getPhoto(4),
-  targetProfile: profile,
-  photoIndex: 4,
-),
-                ],
-                if (getPrompt(3)['question']!.isNotEmpty ||
-                    getPrompt(3)['answer']!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                 _buildPromptCard(
-  question: getPrompt(3)['question'] ?? '',
-  answer: getPrompt(3)['answer'] ?? '',
-  targetProfile: profile,
-  promptIndex: 3,
-),
-                ],
-                _buildInfoSlide(
-                  items: [
-                    if (residentStatus.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.verified_user_outlined,
-                        label: _label('Tình trạng cư trú', 'Resident status'),
-                        text: residentStatus,
-                      ),
-                    if (drinking.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.wine_bar_outlined,
-                        label: _label('Uống rượu', 'Drink'),
-                        text: drinking,
-                      ),
-                    if (smoking.isNotEmpty)
-                      _InfoItem(
-                        icon: Icons.smoke_free_outlined,
-                        label: _label('Hút thuốc', 'Smoke'),
-                        text: smoking,
-                      ),
-                  ],
-                ),
-                if (getPrompt(4)['question']!.isNotEmpty ||
-                    getPrompt(4)['answer']!.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                 _buildPromptCard(
-  question: getPrompt(4)['question'] ?? '',
-  answer: getPrompt(4)['answer'] ?? '',
-  targetProfile: profile,
-  promptIndex: 4,
-),
-                ],
-                const SizedBox(height: 22),
-
-if (showSocialMedia &&
-    (facebookUrl.isNotEmpty ||
-        instagramUrl.isNotEmpty ||
-        tiktokUrl.isNotEmpty))
-  _buildSocialMediaSection(
-    facebookUrl: facebookUrl,
-    instagramUrl: instagramUrl,
-    tiktokUrl: tiktokUrl,
-  ),
-  const SizedBox(height: 14),
-
-_buildBreakTheIceCard(
-  targetProfile: profile,
-),
-
-              ],
+      final photoIndex = index + 1;
+      if (photoIndex < photos.length) {
+        alternatingContent.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: _buildPhotoBlock(
+              imageUrl: photos[photoIndex],
+              targetProfile: profile,
+              photoIndex: photoIndex,
             ),
           ),
-        ),
-              Positioned(
-          left: 0,
-          right: 0,
-          bottom: 10,
-          child: _buildFloatingActionBar(profile),
-        ),
+        );
+      }
+    }
 
-      ],
+    return RefreshIndicator(
+      color: Colors.pink,
+      onRefresh: () async {
+        await _handleAuthChanged(currentUser);
+        await _loadMyContactsForPrivacy();
+        if (mounted) setState(() {});
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 112, 14, 150),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (avatar.isNotEmpty) _buildDiscoverAvatar(avatar, profile),
+            const SizedBox(height: 14),
+            Center(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 7,
+                children: [
+                  Text(
+                    displayName,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF8A2F6A),
+                    ),
+                  ),
+                  if (verified)
+                    Tooltip(
+                      message: isVi ? 'Ảnh đã xác minh' : 'Photo verified',
+                      child: const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned(
+                              left: 0,
+                              top: 2,
+                              child: Icon(
+                                Icons.photo_camera_rounded,
+                                color: Color(0xFF2196F3),
+                                size: 19,
+                              ),
+                            ),
+                            Positioned(
+                              right: -1,
+                              bottom: 0,
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Color(0xFF2196F3),
+                                size: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 7),
+            Center(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  if (age != null && age > 0)
+                    Text(
+                      '$age ${isVi ? 'tuổi' : 'years old'}',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF555555),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  if (locationDisplay.isNotEmpty)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 17,
+                          color: Color(0xFFCC3D7A),
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          locationDisplay,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFF555555),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            if (onlineNow || recentlyActive) ...[
+              const SizedBox(height: 7),
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onlineNow)
+                      _buildOnlineDot(true)
+                    else
+                      Container(
+                        width: 9,
+                        height: 9,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(0xFF9E9E9E),
+                        ),
+                      ),
+                    const SizedBox(width: 5),
+                    Text(
+                      onlineNow
+                          ? (isVi ? 'Đang online' : 'Online')
+                          : (isVi ? 'Hoạt động gần đây' : 'Recently active'),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFF269B65),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_isNewHere(profile)) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: _buildSmallBadge(
+                  icon: Icons.auto_awesome_rounded,
+                  text: isVi ? 'Mới tham gia' : 'New here',
+                  bgColor: const Color(0xFFFFF0F7),
+                  borderColor: const Color(0xFFE91E63),
+                  textColor: const Color(0xFFE91E63),
+                ),
+              ),
+            ],
+            _buildDiscoverMoreAboutMe(profile, isVi),
+            const SizedBox(height: 18),
+            _buildProfilePostsForDiscover(profile),
+            if (alternatingContent.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              ...alternatingContent,
+            ],
+            if (profile['showSocialMedia'] == true &&
+                [
+                  profile['facebookUrl'],
+                  profile['instagramUrl'],
+                  profile['tiktokUrl'],
+                ].any((value) => value != null && value.toString().trim().isNotEmpty)) ...[
+              const SizedBox(height: 12),
+              _buildSocialMediaSection(
+                facebookUrl: (profile['facebookUrl'] ?? '').toString().trim(),
+                instagramUrl: (profile['instagramUrl'] ?? '').toString().trim(),
+                tiktokUrl: (profile['tiktokUrl'] ?? '').toString().trim(),
+              ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isProcessingAction
+                    ? null
+                    : () => _handlePass(targetProfile: profile),
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: Text(_label('Hồ sơ tiếp theo', 'Next profile')),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFCC3D7A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
     );
   }
 
@@ -6674,6 +7090,15 @@ _reportReasonTile(
   return Stack(
     fit: StackFit.expand,
     children: [
+      Positioned(
+        top: 86,
+        left: 16,
+        child: _buildAvatarAction(
+          icon: Icons.tune_rounded,
+          label: _label('Bộ lọc', 'Filter'),
+          onTap: _openFilterSheet,
+        ),
+      ),
       Center(
         child: Padding(
           padding: const EdgeInsets.all(28),
@@ -6728,28 +7153,6 @@ _reportReasonTile(
         ),
       ),
 
-      // FILTER LUÔN HIỂN THỊ KHI LOADING
-      Positioned(
-        top: 118,
-        right: 18,
-        child: Material(
-          color: const Color(0xFFCC3D7A),
-          borderRadius: BorderRadius.circular(22),
-          elevation: 4,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(22),
-            onTap: _openFilterSheet,
-            child: const Padding(
-              padding: EdgeInsets.all(10),
-              child: Icon(
-                Icons.tune_rounded,
-                color: Colors.white,
-                size: 23,
-              ),
-            ),
-          ),
-        ),
-      ),
     ],
   );
 }
@@ -6777,6 +7180,16 @@ _reportReasonTile(
 return Stack(
   fit: StackFit.expand,
   children: [
+    if (_isLoadingMoreDiscoverProfiles)
+      Positioned(
+        top: 86,
+        left: 16,
+        child: _buildAvatarAction(
+          icon: Icons.tune_rounded,
+          label: _label('Bộ lọc', 'Filter'),
+          onTap: _openFilterSheet,
+        ),
+      ),
     // NỘI DUNG PROFILE / KHÔNG CÓ PROFILE
    if (profiles.isEmpty)
   _isLoadingMoreDiscoverProfiles
@@ -6848,6 +7261,34 @@ return Stack(
                 if (_dailyDiscoverLimitReached) ...[
                   const SizedBox(height: 24),
                   _buildDailyDiscoverCountdown(),
+                ] else ...[
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _openFilterSheet,
+                      icon: const Icon(Icons.tune_rounded, size: 20),
+                      label: Text(
+                        _label('Điều chỉnh bộ lọc', 'Adjust filters'),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE84D91),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -6898,92 +7339,13 @@ if (checkSnapshot.hasError) {
     return _buildHomeProfile(profiles.first, isVi);
   },
 ),
-
-    // REPORT + FILTER LUÔN NẰM ĐÚNG VỊ TRÍ CŨ
-
-  
-
-    Positioned(
-      top: 118,
-      right: 18,
-      child: Column(
-        children: [
-          // REPORT
-          Material(
-            color: Colors.black.withOpacity(0.35),
-            borderRadius: BorderRadius.circular(22),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-             onTap: profiles.isEmpty
-    ? null
-    : () async {
-        final profile = profiles.first;
-        final profileId = (profile['docId'] ?? '').toString();
-
-        if (profileId.isEmpty) return;
-
-        final isAvailable =
-            await _discoverProfileChecks.putIfAbsent(
-          profileId,
-          () => _isDiscoverProfileStillAvailable(profile),
-        );
-
-        if (!mounted) return;
-
-        if (!isAvailable) {
-          _discoverProfileChecks.remove(profileId);
-
-          if (_discoverProfiles.isNotEmpty &&
-              (_discoverProfiles.first['docId'] ?? '').toString() ==
-                  profileId) {
-            _removeDiscoverProfile(profile);
-          }
-          return;
-        }
-
-        if (_discoverProfiles.isEmpty ||
-            (_discoverProfiles.first['docId'] ?? '').toString() !=
-                profileId) {
-          return;
-        }
-
-        _showSafetyActionsSheet(profile);
-      },
-              child: Padding(
-                padding: const EdgeInsets.all(9),
-                child: Icon(
-                  Icons.shield_outlined,
-                  color:
-                      profiles.isEmpty ? Colors.white54 : Colors.white,
-                  size: 22,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // FILTER - LUÔN HIỆN VÀ LUÔN BẤM ĐƯỢC
-          Material(
-            color: const Color(0xFFCC3D7A),
-            borderRadius: BorderRadius.circular(22),
-            elevation: 4,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(22),
-              onTap: _openFilterSheet,
-              child: const Padding(
-                padding: EdgeInsets.all(10),
-                child: Icon(
-                  Icons.tune_rounded,
-                  color: Colors.white,
-                  size: 23,
-                ),
-              ),
-            ),
-          ),
-        ],
+    if (profiles.isNotEmpty)
+      Positioned(
+        left: 16,
+        bottom: 18,
+        child: _buildFloatingPassButton(profiles.first),
       ),
-    ),
+
   ],
 );
    

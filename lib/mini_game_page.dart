@@ -9,7 +9,8 @@ import 'guess_game_page.dart';
 import 'lucky_spin_page.dart';
 import 'blind_date_quiz_page.dart';
 import 'language_exchange_page_updated.dart';
-import 'entertainment_page.dart';
+import 'community_page.dart';
+import 'vietnam_guide_page.dart';
 
 bool _pausedAccountReminderShown = false;
 
@@ -207,11 +208,11 @@ Future<void> _resumePausedAccount() async {
   );
 }
 
-void _openEntertainmentPage() {
+void _openVietLoveFeedPage() {
   Navigator.push(
     context,
     MaterialPageRoute(
-      builder: (_) => EntertainmentPage(
+      builder: (_) => CommunityPage(
         languageCode: widget.languageCode,
       ),
     ),
@@ -239,6 +240,18 @@ void _openLanguageExchangePage() {
   );
 }
 
+
+  void _openVietnamGuidePage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VietnamGuidePage(
+          languageCode: widget.languageCode,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -256,119 +269,131 @@ void _openLanguageExchangePage() {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            Center(
-  child: Text(
-    _tr(
-      'Bạn muốn kết nối theo cách nào?',
-      'How would you like to connect?',
-    ),
-    textAlign: TextAlign.center,
-    style: const TextStyle(
-      fontSize: 24,
-      fontWeight: FontWeight.w900,
-      color: Color(0xFF7A2E6E),
-    ),
-  ),
-),
-              const SizedBox(height: 7),
-              Text(
-               _tr(
-  'Kết nối, học hỏi, vui chơi và khám phá những trải nghiệm mới.',
-  'Connect, learn, play and discover new experiences.',
-),
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.4,
-                  color: Colors.grey.shade700,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(18, 20, 18, 19),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFFFFEDF4),
+                      Color(0xFFF8F0FF),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: const Color(0xFFF4DCE9),
+                    width: 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.85),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.favorite_rounded,
+                        color: Color(0xFFE45B91),
+                        size: 25,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _tr(
+                        'Kết nối theo cách của bạn',
+                        'Connect in your own way',
+                      ),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF7A2E6E),
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      _tr(
+                        'Mỗi người có một cách riêng để kết nối. Hãy tìm người đồng điệu, cùng nhau luyện tiếng Anh và chia sẻ những câu chuyện trong cộng đồng VietLove.',
+                        'Everyone connects in their own way. Meet someone special, practise English together, and share your stories with the VietLove community.',
+                      ),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: const Color(0xFF654F62),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 20),
-
-Row(
-  children: [
-    Expanded(
-  child: _buildConnectionButton(
-    icon: Icons.translate_rounded,
-    title: _tr('Học Tiếng Anh', 'Study English'),
-    onTap: _openLanguageExchangePage,
-    colors: const [
-      Color(0xFF5D74D3),
-      Color(0xFF7E57C2),
-    ],
-  ),
-),
-    const SizedBox(width: 12),
-   Expanded(
-  child: _buildConnectionButton(
-    icon: Icons.people_alt_rounded,
-    title: _tr('Bạn cùng sở thích', 'Shared Interests'),
-    onTap: _openBlindDateQuizPage,
-    colors: const [
-      Color(0xFFFF8A65),
-      Color(0xFFFF5A7A),
-    ],
-  ),
-),
-  ],
-),
-
-const SizedBox(height: 12),
-
-Row(
-  children: [
-    Expanded(
-  child: _buildConnectionButton(
-    icon: Icons.favorite_rounded,
-    title: _tr('Mối quan hệ', 'Relationship'),
-    onTap: () {
-      widget.onConnectTap?.call();
-    },
-    colors: const [
-      Color(0xFFE91E63),
-      Color(0xFFFF6B9A),
-    ],
-  ),
-),
-    const SizedBox(width: 12),
-   Expanded(
-  child: _buildConnectionButton(
-    icon: Icons.celebration_rounded,
-   title: _tr('Giải trí', 'Entertainment'),
-onTap: _openEntertainmentPage,
-    colors: const [
-      Color(0xFFFF729A),
-      Color(0xFFE83D78),
-    ],
-  ),
-),
-  ],
-),
-            const SizedBox(height: 12),
-
-Row(
-  children: [
-    const Spacer(),
-
-    Expanded(
-  flex: 2,
-  child: _buildConnectionButton(
-    icon: Icons.visibility_rounded,
-    title: _tr(
-      'Kết nối bí ẩn',
-      'Mystery Connection',
-    ),
-    onTap: _openGuessPage,
-    colors: const [
-  Color(0xFF26A69A),
-  Color(0xFF42A5F5),
-],
-  ),
-),
-
-    const Spacer(),
-  ],
-),
-
+              const SizedBox(height: 18),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final tileSize = (constraints.maxWidth * 0.374)
+                      .clamp(101.0, 143.0);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: SizedBox.square(
+                          dimension: tileSize,
+                          child: _buildConnectionButton(
+                            icon: Icons.favorite_rounded,
+                            title: 'Viet Love',
+                            onTap: () {
+                              widget.onConnectTap?.call();
+                            },
+                            colors: const [
+                              Color(0xFFE85D91),
+                              Color(0xFFD83E7A),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.center,
+                        child: SizedBox.square(
+                          dimension: tileSize,
+                          child: _buildConnectionButton(
+                            icon: Icons.translate_rounded,
+                            title: 'Viet Eng',
+                            onTap: _openLanguageExchangePage,
+                            colors: const [
+                              Color(0xFF7188DF),
+                              Color(0xFF6658BD),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: SizedBox.square(
+                          dimension: tileSize,
+                          child: _buildConnectionButton(
+                            icon: Icons.forum_rounded,
+                            title: 'Viet Feed',
+                            onTap: _openVietLoveFeedPage,
+                            colors: const [
+                              Color(0xFFF17A9B),
+                              Color(0xFFE45A82),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -888,62 +913,130 @@ Widget _buildConnectionButton({
   required VoidCallback onTap,
   required List<Color> colors,
 }) {
-  return InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(22),
-    child: Container(
-      height: 130,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-      gradient: LinearGradient(
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-  colors: colors,
-),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+  return Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Ink(
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: colors,
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-       AnimatedBuilder(
-  animation: _connectionAnimationController,
-  builder: (context, child) {
-    final value = _connectionAnimationController.value;
-
- final scale = 1.0 + sin(value * pi) * 0.22;
-
-    return Transform.scale(
-      scale: scale,
-      child: child,
-    );
-  },
-  child: Icon(
-    icon,
-    size: 36,
-    color: Colors.white,
-  ),
-),
-          const SizedBox(height: 12),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-           style: const TextStyle(
-  fontSize: 15,
-  fontWeight: FontWeight.w800,
-  color: Colors.white,
-  height: 1.2,
-),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.55),
+            width: 1.2,
           ),
-        ],
+          boxShadow: [
+            BoxShadow(
+              color: colors.last.withOpacity(0.27),
+              blurRadius: 18,
+              spreadRadius: 1,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: -23,
+              right: -20,
+              child: Container(
+                width: 78,
+                height: 78,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.10),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: -29,
+              left: -24,
+              child: Container(
+                width: 85,
+                height: 85,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.08),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 14),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  AnimatedBuilder(
+                    animation: _connectionAnimationController,
+                    builder: (context, child) {
+                      final value = _connectionAnimationController.value;
+                      final scale = 1.0 + sin(value * pi) * 0.055;
+                      return Transform.scale(
+                        scale: scale,
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.23),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.65),
+                          width: 1.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 26,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        title,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.15,
+                        shadows: [
+                          Shadow(
+                            color: Color(0x33000000),
+                            blurRadius: 5,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     ),
   );

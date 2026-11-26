@@ -1,10 +1,16 @@
 import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'prompt_data.dart';
+import 'view_other_profile_page.dart';
 import 'edit_profile_page.dart';
 import 'support_help_page.dart';
 import 'account_page.dart';
@@ -41,6 +47,11 @@ class _MyProfilePageState extends State<MyProfilePage> {
   Future<Map<String, dynamic>?>? _profileFuture;
 
   final AudioPlayer _voicePromptPlayer = AudioPlayer();
+  final TextEditingController _profilePostController = TextEditingController();
+  bool _isPublishingProfilePost = false;
+  final ImagePicker _profilePostImagePicker = ImagePicker();
+  Uint8List? _selectedProfilePostImageBytes;
+  String? _selectedProfilePostImageName;
 
   bool _isVoicePromptPlaying = false;
   String? _playingVoicePromptUrl;
@@ -85,6 +96,7 @@ void initState() {
 void dispose() {
   _authSub?.cancel();
   _voicePromptPlayer.dispose();
+  _profilePostController.dispose();
   super.dispose();
 }
 
@@ -1943,6 +1955,1197 @@ Widget _buildProfileHealthCard({
   );
 }
 
+
+  CollectionReference<Map<String, dynamic>> get _profilePosts {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw StateError('A signed-in user is required to access profile posts.');
+    }
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('posts');
+  }
+
+  String _profilePostText(bool isVi, String vi, String en) =>
+      _tr(isVi, vi, en);
+
+  Future<void> _pickProfilePostImage(bool isVi) async {
+    if (_isPublishingProfilePost) return;
+
+    try {
+      final XFile? picked = await _profilePostImagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 72,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+
+      if (picked == null) return;
+
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+
+      setState(() {
+        _selectedProfilePostImageBytes = bytes;
+        _selectedProfilePostImageName = picked.name;
+      });
+    } catch (e) {
+      debugPrint('PICK PROFILE POST IMAGE ERROR: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Không thể chọn ảnh. Vui lòng thử lại.',
+            'Could not select the photo. Please try again.',
+          )),
+        ),
+      );
+    }
+  }
+
+  Future<void> _publishProfilePost(
+    Map<String, dynamic> profile,
+    bool isVi,
+  ) async {
+    final user = FirebaseAuth.instance.currentUser;
+    final content = _profilePostController.text.trim();
+    final imageBytes = _selectedProfilePostImageBytes;
+
+    if (user == null ||
+        (content.isEmpty && imageBytes == null) ||
+        _isPublishingProfilePost) {
+      return;
+    }
+
+    if (content.length > 3000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Bài viết tối đa 3.000 ký tự.',
+            'Posts can contain up to 3,000 characters.',
+          )),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isPublishingProfilePost = true);
+
+    try {
+      final authorName = (profile['firstName'] ??
+              profile['displayName'] ??
+              user.displayName ??
+              _profilePostText(isVi, 'Thành viên VietLove', 'VietLove member'))
+          .toString();
+      final authorPhoto = (profile['mainPhotoUrl'] ??
+              profile['photoUrl'] ??
+              user.photoURL ??
+              '')
+          .toString();
+
+      // Allocate the post document first so its ID can also identify the
+      // image in Storage: user_photos/{uid}/posts/{postId}.jpg.
+      final postRef = _profilePosts.doc();
+      String imageUrl = '';
+      String imagePath = '';
+
+      if (imageBytes != null) {
+        imagePath = 'user_photos/${user.uid}/posts/${postRef.id}.jpg';
+        final storageRef = FirebaseStorage.instance.ref().child(imagePath);
+
+        final uploadTask = await storageRef.putData(
+          imageBytes,
+          SettableMetadata(
+            contentType: 'image/jpeg',
+            cacheControl: 'public,max-age=2592000',
+          ),
+        );
+        imageUrl = await uploadTask.ref.getDownloadURL();
+      }
+
+      await postRef.set({
+        'postId': postRef.id,
+        'userId': user.uid,
+        'ownerId': user.uid,
+        'authorName': authorName,
+        'authorPhotoUrl': authorPhoto,
+        'isAnonymous': false,
+        'content': content,
+        'imageUrl': imageUrl,
+        'imagePath': imagePath,
+        'feeling': '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      _profilePostController.clear();
+
+      if (!mounted) return;
+      setState(() {
+        _selectedProfilePostImageBytes = null;
+        _selectedProfilePostImageName = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Đã đăng bài viết của bạn. ❤️',
+            'Your post has been shared. ❤️',
+          )),
+        ),
+      );
+    } catch (e) {
+      debugPrint('PUBLISH PROFILE POST ERROR: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Không thể đăng bài. Vui lòng thử lại.',
+            'Could not publish your post. Please try again.',
+          )),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isPublishingProfilePost = false);
+    }
+  }
+
+  Future<void> _openProfilePostImage(String imageUrl) async {
+    if (imageUrl.trim().isEmpty) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          backgroundColor: Colors.black,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: Center(
+                      child: CachedNetworkImage(
+                        imageUrl: imageUrl,
+                        fit: BoxFit.contain,
+                        memCacheWidth: 1600,
+                        maxWidthDiskCache: 1600,
+                        placeholder: (_, __) => const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => const Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white70,
+                          size: 64,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editProfilePost({
+    required String postId,
+    required String oldContent,
+    required bool isVi,
+  }) async {
+    final controller = TextEditingController(text: oldContent);
+
+    // Load the current post so the edit dialog can show and preserve its image.
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      controller.dispose();
+      return;
+    }
+
+    Map<String, dynamic>? originalData;
+    try {
+      final postSnapshot = await _profilePosts.doc(postId).get();
+      if (!postSnapshot.exists) {
+        controller.dispose();
+        return;
+      }
+      originalData = postSnapshot.data();
+    } catch (e) {
+      controller.dispose();
+      debugPrint('LOAD PROFILE POST FOR EDIT ERROR: $e');
+      return;
+    }
+
+    final originalImageUrl = (originalData?['imageUrl'] ?? '').toString();
+    final originalImagePath = (originalData?['imagePath'] ?? '').toString();
+    Uint8List? replacementImageBytes;
+    String? replacementImageName;
+    bool removeExistingImage = false;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, refreshDialog) {
+          final hasImage = replacementImageBytes != null ||
+              (!removeExistingImage && originalImageUrl.trim().isNotEmpty);
+
+          return AlertDialog(
+            title: Text(_profilePostText(isVi, 'Chỉnh sửa bài viết', 'Edit post')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: controller,
+                    minLines: 3,
+                    maxLines: 8,
+                    maxLength: 3000,
+                    decoration: InputDecoration(
+                      hintText: _profilePostText(
+                        isVi,
+                        'Bạn đang nghĩ gì?',
+                        "What's on your mind?",
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (replacementImageBytes != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        replacementImageBytes!,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else if (!removeExistingImage && originalImageUrl.trim().isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: originalImageUrl,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => const SizedBox(
+                          height: 180,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFFB83280),
+                            ),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => const SizedBox(
+                          height: 100,
+                          child: Center(child: Icon(Icons.broken_image_outlined)),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: () async {
+                          try {
+                            final picked = await _profilePostImagePicker.pickImage(
+                              source: ImageSource.gallery,
+                              imageQuality: 72,
+                              maxWidth: 1600,
+                              maxHeight: 1600,
+                            );
+                            if (picked == null) return;
+                            final bytes = await picked.readAsBytes();
+                            refreshDialog(() {
+                              replacementImageBytes = bytes;
+                              replacementImageName = picked.name;
+                              removeExistingImage = false;
+                            });
+                          } catch (e) {
+                            debugPrint('PICK EDIT PROFILE POST IMAGE ERROR: $e');
+                          }
+                        },
+                        icon: const Icon(Icons.photo_library_outlined, size: 18),
+                        label: Text(_profilePostText(
+                          isVi,
+                          hasImage ? 'Đổi ảnh' : 'Thêm ảnh',
+                          hasImage ? 'Change photo' : 'Add photo',
+                        )),
+                      ),
+                      if (hasImage)
+                        TextButton.icon(
+                          onPressed: () => refreshDialog(() {
+                            replacementImageBytes = null;
+                            replacementImageName = null;
+                            removeExistingImage = true;
+                          }),
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          label: Text(_profilePostText(isVi, 'Xóa ảnh', 'Remove photo')),
+                          style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        ),
+                    ],
+                  ),
+                  if (replacementImageName != null)
+                    Text(
+                      replacementImageName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(null),
+                child: Text(_profilePostText(isVi, 'Hủy', 'Cancel')),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final text = controller.text.trim();
+                  if (text.isEmpty && !hasImage) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      SnackBar(
+                        content: Text(_profilePostText(
+                          isVi,
+                          'Bài viết cần có nội dung hoặc hình ảnh.',
+                          'A post must contain text or a photo.',
+                        )),
+                      ),
+                    );
+                    return;
+                  }
+                  Navigator.of(dialogContext).pop({
+                    'content': text,
+                    'imageBytes': replacementImageBytes,
+                    'removeImage': removeExistingImage,
+                  });
+                },
+                child: Text(_profilePostText(isVi, 'Lưu', 'Save')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    // Let the dialog route finish disposing its TextField before disposing
+    // the controller, avoiding a dependent-widget assertion during dismissal.
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    controller.dispose();
+
+    if (result == null) return; // Cancel must leave the post and image untouched.
+
+    try {
+      final latestUser = FirebaseAuth.instance.currentUser;
+      if (latestUser == null || latestUser.uid != user.uid) return;
+
+      final ref = _profilePosts.doc(postId);
+      final latest = await ref.get();
+      final ownerId = (latest.data()?['userId'] ?? '').toString();
+      if (!latest.exists || ownerId != latestUser.uid) {
+        throw StateError('Post owner mismatch');
+      }
+
+      String imageUrl = (latest.data()?['imageUrl'] ?? '').toString();
+      String imagePath = (latest.data()?['imagePath'] ?? '').toString();
+      final oldImagePath = imagePath;
+      final imageBytes = result['imageBytes'] as Uint8List?;
+      final shouldRemoveImage = result['removeImage'] == true;
+
+      if (imageBytes != null) {
+        if (imagePath.trim().isEmpty) {
+          imagePath = 'user_photos/${latestUser.uid}/posts/$postId.jpg';
+        }
+        final storageRef = FirebaseStorage.instance.ref().child(imagePath);
+        final uploadTask = await storageRef.putData(
+          imageBytes,
+          SettableMetadata(
+            contentType: 'image/jpeg',
+            cacheControl: 'public,max-age=2592000',
+          ),
+        );
+        imageUrl = await uploadTask.ref.getDownloadURL();
+      } else if (shouldRemoveImage) {
+        imageUrl = '';
+        imagePath = '';
+      }
+
+      await ref.update({
+        'content': (result['content'] ?? '').toString(),
+        'imageUrl': imageUrl,
+        'imagePath': imagePath,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if ((imageBytes != null || shouldRemoveImage) &&
+          oldImagePath.trim().isNotEmpty &&
+          oldImagePath != imagePath) {
+        try {
+          await FirebaseStorage.instance.ref().child(oldImagePath).delete();
+        } catch (storageError) {
+          debugPrint('REPLACE PROFILE POST IMAGE CLEANUP ERROR: $storageError');
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Đã cập nhật bài viết.',
+            'Post updated.',
+          )),
+        ),
+      );
+    } catch (e) {
+      debugPrint('EDIT PROFILE POST ERROR: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Không thể cập nhật bài viết. Vui lòng thử lại.',
+            'Could not update the post. Please try again.',
+          )),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteProfilePost({
+    required String postId,
+    required bool isVi,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_profilePostText(isVi, 'Xóa bài viết?', 'Delete post?')),
+        content: Text(_profilePostText(
+          isVi,
+          'Bạn có chắc muốn xóa bài viết này không?',
+          'Are you sure you want to delete this post?',
+        )),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(_profilePostText(isVi, 'Hủy', 'Cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(_profilePostText(isVi, 'Xóa', 'Delete')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final ref = _profilePosts.doc(postId);
+      final latest = await ref.get();
+      final ownerId = (latest.data()?['userId'] ?? '').toString();
+
+      if (!latest.exists || ownerId != user.uid) {
+        throw StateError('Post owner mismatch');
+      }
+
+      await ref.delete();
+
+      // Remove the uploaded image as well, if this post contains one.
+      final imagePath = (latest.data()?['imagePath'] ?? '').toString().trim();
+      if (imagePath.isNotEmpty) {
+        try {
+          await FirebaseStorage.instance.ref().child(imagePath).delete();
+        } catch (storageError) {
+          debugPrint('DELETE PROFILE POST IMAGE ERROR: $storageError');
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Đã xóa bài viết.',
+            'Post deleted.',
+          )),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_profilePostText(
+            isVi,
+            'Không thể xóa bài viết. Vui lòng thử lại.',
+            'Could not delete the post. Please try again.',
+          )),
+        ),
+      );
+    }
+  }
+
+
+  String _profilePostLikeDocumentId({
+    required String ownerId,
+    required String contentKey,
+    required String likerId,
+  }) => '${ownerId}_post_${contentKey}_$likerId';
+
+  Future<void> _openProfilePostLikes({
+    required String postId,
+    required bool isVi,
+  }) async {
+    final user = currentUser;
+    if (user == null || postId.trim().isEmpty) return;
+
+    final likesQuery = FirebaseFirestore.instance
+        .collection('content_likes')
+        .where('ownerId', isEqualTo: user.uid)
+        .where('contentType', isEqualTo: 'post')
+        .where('contentKey', isEqualTo: postId);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        height: MediaQuery.of(sheetContext).size.height * 0.62,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.thumb_up_alt_rounded,
+                        color: Color(0xFFCC3D7A), size: 21),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        _profilePostText(isVi, 'Người đã thích', 'People who liked'),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF493B45),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: likesQuery.snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text(_profilePostText(
+                          isVi,
+                          'Không thể tải danh sách.',
+                          'Could not load the list.',
+                        )),
+                      );
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(
+                        child: CircularProgressIndicator(
+                          color: Color(0xFFB83280),
+                        ),
+                      );
+                    }
+                    final likes = snapshot.data!.docs;
+                    if (likes.isEmpty) {
+                      return Center(
+                        child: Text(_profilePostText(
+                          isVi,
+                          'Chưa có ai thích bài viết này.',
+                          'No one has liked this post yet.',
+                        )),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: likes.length,
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1, indent: 76),
+                      itemBuilder: (context, index) {
+                        final like = likes[index].data();
+                        final likerId = (like['likerId'] ?? '').toString().trim();
+                        if (likerId.isEmpty) return const SizedBox.shrink();
+
+                        return FutureBuilder<
+                            DocumentSnapshot<Map<String, dynamic>>>(
+                          future: FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(likerId)
+                              .get(),
+                          builder: (context, profileSnapshot) {
+                            final person = profileSnapshot.data?.data() ?? {};
+                            final name = (person['firstName'] ??
+                                    person['name'] ??
+                                    like['likerName'] ??
+                                    '')
+                                .toString()
+                                .trim();
+                            final photoUrl = (person['mainPhotoUrl'] ??
+                                    like['likerPhotoUrl'] ??
+                                    '')
+                                .toString()
+                                .trim();
+
+                            return ListTile(
+                              contentPadding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              leading: CircleAvatar(
+                                radius: 23,
+                                backgroundColor: const Color(0xFFFFE4EF),
+                                backgroundImage: photoUrl.isNotEmpty
+                                    ? CachedNetworkImageProvider(photoUrl)
+                                    : null,
+                                child: photoUrl.isEmpty
+                                    ? const Icon(Icons.person,
+                                        color: Color(0xFFB83280))
+                                    : null,
+                              ),
+                              title: Text(
+                                name.isEmpty
+                                    ? _profilePostText(isVi, 'Người dùng', 'User')
+                                    : name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF493B45),
+                                ),
+                              ),
+                              onTap: () async {
+                                if (likerId == user.uid) return;
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ViewOtherProfilePage(
+                                      userId: likerId,
+                                      languageCode: widget.languageCode,
+                                      fallbackName: name,
+                                      fallbackPhotoUrl: photoUrl,
+                                      hideLikeButton: true,
+                                      hidePassButton: true,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfilePostThumbsUp({
+    required String postId,
+    required bool isVi,
+  }) {
+    final user = currentUser;
+    if (user == null || postId.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final likesQuery = FirebaseFirestore.instance
+        .collection('content_likes')
+        .where('ownerId', isEqualTo: user.uid)
+        .where('contentType', isEqualTo: 'post')
+        .where('contentKey', isEqualTo: postId);
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: likesQuery.snapshots(),
+      builder: (context, snapshot) {
+        final count = snapshot.data?.docs.length ?? 0;
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => _openProfilePostLikes(
+              postId: postId,
+              isVi: isVi,
+            ),
+            icon: const Icon(
+              Icons.thumb_up_alt_rounded,
+              size: 18,
+              color: Color(0xFFCC3D7A),
+            ),
+            label: Text(
+              '$count ${_profilePostText(isVi, 'lượt thích', 'likes')}',
+              style: const TextStyle(
+                color: Color(0xFFCC3D7A),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMyProfilePosts(bool isVi) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return const SizedBox.shrink();
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      // Filter by owner, then sort locally to avoid requiring a new
+      // composite Firestore index for userId + createdAt.
+      stream: _profilePosts.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 18),
+            child: Text(
+              _profilePostText(
+                isVi,
+                'Không thể tải bài viết của bạn.',
+                'Could not load your posts.',
+              ),
+              style: const TextStyle(color: Colors.redAccent),
+            ),
+          );
+        }
+
+        if (!snapshot.hasData) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFFB83280),
+              ),
+            ),
+          );
+        }
+
+        final docs = snapshot.data!.docs.toList()
+          ..sort((a, b) {
+            final aTime = a.data()['createdAt'];
+            final bTime = b.data()['createdAt'];
+            final aDate = aTime is Timestamp ? aTime.toDate() : DateTime(2000);
+            final bDate = bTime is Timestamp ? bTime.toDate() : DateTime(2000);
+            return bDate.compareTo(aDate);
+          });
+
+        if (docs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(0, 12, 0, 4),
+            child: Text(
+              _profilePostText(
+                isVi,
+                'Bạn chưa có bài viết nào. Hãy chia sẻ điều đầu tiên nhé! ❤️',
+                "You haven't posted yet. Share your first update! ❤️",
+              ),
+              style: const TextStyle(
+                color: Color(0xFF8D6B7D),
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+          );
+        }
+
+        return Column(
+          children: docs.take(30).map((doc) {
+            final data = doc.data();
+            final content = (data['content'] ?? '').toString();
+            final feeling = (data['feeling'] ?? '').toString().trim();
+            final createdAt = data['createdAt'];
+            final date = createdAt is Timestamp ? createdAt.toDate() : null;
+            final timeLabel = date == null
+                ? _profilePostText(isVi, 'Vừa đăng', 'Just now')
+                : '${date.day}/${date.month}/${date.year}';
+
+            return Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                // A soft blue outline makes each post stand apart from
+                // the surrounding pink profile cards, like a social feed.
+                border: Border.all(
+                  color: const Color(0xFF9CCFF0),
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF477A9E).withOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.article_outlined,
+                        color: Color(0xFFB83280),
+                        size: 20,
+                      ),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(
+                          '$timeLabel${feeling.isNotEmpty ? ' · $feeling' : ''}',
+                          style: const TextStyle(
+                            color: Color(0xFF8D6B7D),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: _profilePostText(isVi, 'Tùy chọn', 'Post options'),
+                        onSelected: (value) {
+                          if (value == 'edit') {
+                            _editProfilePost(
+                              postId: doc.id,
+                              oldContent: content,
+                              isVi: isVi,
+                            );
+                          } else if (value == 'delete') {
+                            _deleteProfilePost(
+                              postId: doc.id,
+                              isVi: isVi,
+                            );
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.edit_outlined, size: 18),
+                                const SizedBox(width: 8),
+                                Text(_profilePostText(isVi, 'Chỉnh sửa', 'Edit')),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _profilePostText(isVi, 'Xóa bài viết', 'Delete post'),
+                                  style: const TextStyle(color: Colors.red),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 5),
+                  if (content.isNotEmpty)
+                    Text(
+                      content,
+                      style: const TextStyle(
+                        color: Color(0xFF493B45),
+                        fontSize: 14.5,
+                        height: 1.5,
+                      ),
+                    ),
+                  if ((data['imageUrl'] ?? '').toString().trim().isNotEmpty) ...[
+                    if (content.isNotEmpty) const SizedBox(height: 8),
+                    ClipRRect(
+                      // Match the fixed photo frame used by regular profile
+                      // photos so portrait uploads do not make a post overly tall.
+                      borderRadius: BorderRadius.circular(18),
+                      child: GestureDetector(
+                        onTap: () => _openProfilePostImage(
+                          (data['imageUrl'] ?? '').toString(),
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 310,
+                          child: CachedNetworkImage(
+                            imageUrl: (data['imageUrl'] ?? '').toString(),
+                            width: double.infinity,
+                            height: 310,
+                            fit: BoxFit.cover,
+                            memCacheWidth: 1000,
+                            maxWidthDiskCache: 1000,
+                            placeholder: (_, __) => Container(
+                              color: const Color(0xFFFFF1F6),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  color: Color(0xFFB83280),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (_, __, ___) => Container(
+                              color: const Color(0xFFFFF1F6),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: Color(0xFFB83280),
+                                  size: 42,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 3),
+                  const Divider(height: 1, color: Color(0xFFE7F2FA)),
+                  _buildProfilePostThumbsUp(
+                    postId: doc.id,
+                    isVi: isVi,
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildProfilePostSection(
+    Map<String, dynamic> profile,
+    bool isVi,
+  ) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 18, bottom: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.96),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFFFD5E6)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFCC3D7A).withOpacity(0.07),
+            blurRadius: 14,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.dynamic_feed_rounded,
+                color: Color(0xFFB83280),
+                size: 22,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _profilePostText(isVi, 'Bài viết của tôi', 'My Posts'),
+                style: const TextStyle(
+                  color: Color(0xFF7A2E6E),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _profilePostController,
+            minLines: 2,
+            maxLines: 5,
+            maxLength: 3000,
+            decoration: InputDecoration(
+              hintText: _profilePostText(
+                isVi,
+                'Bạn đang nghĩ gì? Chia sẻ trên trang cá nhân của bạn...',
+                "What's on your mind? Share an update on your profile...",
+              ),
+              filled: true,
+              fillColor: const Color(0xFFFFF7FA),
+              counterText: '',
+              contentPadding: const EdgeInsets.all(13),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: const BorderSide(color: Color(0xFFFFD6E7)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: const BorderSide(color: Color(0xFFFFD6E7)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: const BorderSide(
+                  color: Color(0xFFB83280),
+                  width: 1.4,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _isPublishingProfilePost
+                    ? null
+                    : () => _pickProfilePostImage(isVi),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFB83280),
+                  side: const BorderSide(color: Color(0xFFFFBBD4)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 19),
+                label: Text(_profilePostText(isVi, 'Thêm ảnh', 'Add photo')),
+              ),
+              const Spacer(),
+              if (_selectedProfilePostImageBytes != null)
+                Text(
+                  _profilePostText(isVi, 'Đã chọn ảnh', 'Photo selected'),
+                  style: const TextStyle(
+                    color: Color(0xFF8D6B7D),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+            ],
+          ),
+          if (_selectedProfilePostImageBytes != null) ...[
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Stack(
+                children: [
+                  Image.memory(
+                    _selectedProfilePostImageBytes!,
+                    width: double.infinity,
+                    height: 210,
+                    fit: BoxFit.cover,
+                    cacheWidth: 1000,
+                  ),
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Material(
+                      color: Colors.black54,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: _isPublishingProfilePost
+                            ? null
+                            : () {
+                                setState(() {
+                                  _selectedProfilePostImageBytes = null;
+                                  _selectedProfilePostImageName = null;
+                                });
+                              },
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 9),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _isPublishingProfilePost
+                  ? null
+                  : () => _publishProfilePost(profile, isVi),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFB83280),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                ),
+              ),
+              icon: _isPublishingProfilePost
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded, size: 17),
+              label: Text(_profilePostText(isVi, 'Đăng bài', 'Post')),
+            ),
+          ),
+          const Divider(height: 24, color: Color(0xFFFFE2ED)),
+          _buildMyProfilePosts(isVi),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMyProfile(Map<String, dynamic> profile, bool isVi) {
     final photos = _extractPhotos(profile);
     final facebookUrl =
@@ -2039,6 +3242,8 @@ debugPrint('PROFILE HEALTH: ${profileHealth.score}');
   isVi: isVi,
   photos: photos,
 ),
+
+_buildProfilePostSection(profile, isVi),
 if ((FirebaseAuth.instance.currentUser?.email ?? '')
         .trim()
         .toLowerCase() == 'katetranlife@gmail.com')
