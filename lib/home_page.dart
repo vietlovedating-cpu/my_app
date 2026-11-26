@@ -38,7 +38,9 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   User? get currentUser => FirebaseAuth.instance.currentUser;
-
+bool get _isReviewerDemoAccount =>
+    (currentUser?.email ?? '').trim().toLowerCase() ==
+    'katetranlife@gmail.com';
   StreamSubscription<User?>? _authSub;
   Timer? _onlineTimer;
    DateTime? _lastBackPressedAt;
@@ -1546,7 +1548,38 @@ passedProfiles.addAll(
 
 return passedProfiles;
 }
+Future<Map<String, dynamic>?> _loadReviewerPinnedProfile() async {
+  if (!_isReviewerDemoAccount) return null;
 
+  final snapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .where('email', isEqualTo: 'trang27poster@gmail.com')
+      .limit(1)
+      .get();
+
+  if (snapshot.docs.isEmpty) {
+    debugPrint('REVIEWER DEMO: Cannot find Trang profile');
+    return null;
+  }
+
+  final doc = snapshot.docs.first;
+  final data = doc.data();
+  final uid = (data['uid'] ?? doc.id).toString().trim();
+
+  if (uid.isEmpty || uid == currentUser?.uid) return null;
+  if ((data['mainPhotoUrl'] ?? '').toString().trim().isEmpty) return null;
+  if (data['profileCompleted'] != true) return null;
+  if (data['showMyProfile'] == false) return null;
+  if (data['showOnDiscover'] == false) return null;
+  if (data['accountPaused'] == true) return null;
+  if (data['isPaused'] == true) return null;
+  if (data['isDeleted'] == true) return null;
+
+  return {
+    'docId': doc.id,
+    ...data,
+  };
+}
 
 // Dùng chung cho mọi lần khởi tạo / tải lại Discover.
 Future<List<Map<String, dynamic>>> _startDiscoverProfilesLoad() {
@@ -1571,8 +1604,12 @@ Future<List<Map<String, dynamic>>> _loadProfilesWithDailyLimit() async {
 
   _dailyDiscoverLimitReached = remaining <= 0;
 
+  // Chỉ tài khoản Apple Reviewer mới lấy profile được ưu tiên.
+  final pinnedProfile = await _loadReviewerPinnedProfile();
+
+  // Nếu đã hết lượt Discover, reviewer vẫn nhìn thấy Trang.
   if (_dailyDiscoverLimitReached) {
-    return [];
+    return pinnedProfile == null ? [] : [pinnedProfile];
   }
 
   // Reset về batch đầu tiên khi khởi tạo hoặc tải lại Discover.
@@ -1580,14 +1617,28 @@ Future<List<Map<String, dynamic>>> _loadProfilesWithDailyLimit() async {
   _hasMoreDiscoverProfiles = true;
 
   // Chỉ tải một batch có hồ sơ phù hợp để hiển thị trước.
-  // Nếu batch không có hồ sơ phù hợp, tiếp tục sang batch kế tiếp.
   while (_hasMoreDiscoverProfiles) {
     final batch = await _loadProfiles(
       startAfterDocument: _lastDiscoverDocument,
     );
 
     if (batch.isNotEmpty) {
-      return batch.take(remaining).toList();
+      final result = batch.take(remaining).toList();
+
+      if (pinnedProfile != null) {
+        final pinnedUid =
+            (pinnedProfile['uid'] ?? pinnedProfile['docId']).toString();
+
+        result.removeWhere((profile) {
+          final uid =
+              (profile['uid'] ?? profile['docId']).toString();
+          return uid == pinnedUid;
+        });
+
+        return [pinnedProfile, ...result];
+      }
+
+      return result;
     }
   }
 
@@ -1596,9 +1647,23 @@ Future<List<Map<String, dynamic>>> _loadProfilesWithDailyLimit() async {
     limit: remaining,
   );
 
-  return passedProfiles.take(remaining).toList();
-}
+  final result = passedProfiles.take(remaining).toList();
 
+  if (pinnedProfile != null) {
+    final pinnedUid =
+        (pinnedProfile['uid'] ?? pinnedProfile['docId']).toString();
+
+    result.removeWhere((profile) {
+      final uid =
+          (profile['uid'] ?? profile['docId']).toString();
+      return uid == pinnedUid;
+    });
+
+    return [pinnedProfile, ...result];
+  }
+
+  return result;
+}
 
 
 bool _isNewHere(Map<String, dynamic> profile) {
